@@ -5,12 +5,10 @@
  */
 
 import { App, PluginSettingTab, Setting, setIcon, Notice, Modal, TextAreaComponent, ButtonComponent, DropdownComponent, SliderComponent, ToggleComponent } from 'obsidian';
-import { CalloutStyle, SpecialCalloutsSettings } from '../types';
-import { DEFAULT_STANDARD_STYLES, QUICK_START_PRESETS, FONT_FAMILIES, FONT_SIZES } from '../constants';
+import { SpecialCalloutsSettings, CalloutStyle } from '../types';
+import { DEFAULT_STANDARD_STYLES, DEFAULT_SETTINGS, FONT_FAMILIES, FONT_SIZES, DEFAULT_STANDARD_COLORS, QUICK_START_PRESETS } from '../constants';
 import { isValidHex, normalizeHex } from '../utils';
 import { parseMetadata } from '../parser';
-import { showHowToUse } from '../modals/HowToModal';
-import { showMetadataReference } from '../modals/MetadataModal';
 import { IconPickerModal } from '../modals/IconPickerModal';
 
 // Reference to plugin type (will be set as generic to avoid circular deps)
@@ -72,7 +70,6 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         containerEl.addClass('special-callouts-ui');
 
         this.createHeader(containerEl);
-        this.createQuickActions(containerEl);
         this.createGeneralSettings(containerEl);
         this.createLayoutBuilderSection(containerEl);
         this.createCalloutsSection(containerEl);
@@ -88,29 +85,6 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
         const subtitle = header.createEl('p', { text: 'Customize your callout styles with precision' });
         (subtitle).addClass('sc-style-efd0ece4');
-    }
-
-    private createQuickActions(container: HTMLElement): void {
-        const quickRefDiv = container.createDiv();
-        quickRefDiv.addClass('sc-style-958e85a8');
-
-        const howToBtn = quickRefDiv.createEl('button');
-        // AI_CONTEXT: Sekonder eylem butonlari icin var(--interactive-normal) kullaniliyor
-        // Accent rengi acik/beyaz oldugunda 'color: white' okunaksiz hale geliyordu
-        howToBtn.addClass('sc-style-05ed7705');
-        howToBtn.onmouseover = () => { howToBtn.removeClass('sc-style-42c960e0'); howToBtn.addClass('sc-style-dfd2f110'); };
-        howToBtn.onmouseout = () => { howToBtn.removeClass('sc-style-dfd2f110'); howToBtn.addClass('sc-style-42c960e0'); };
-        setIcon(howToBtn.createSpan(), 'help-circle');
-        howToBtn.createSpan({ text: 'How to Use' });
-        howToBtn.onclick = () => showHowToUse(this.app);
-
-        const metadataBtn = quickRefDiv.createEl('button');
-        metadataBtn.addClass('sc-style-05ed7705');
-        metadataBtn.onmouseover = () => { metadataBtn.removeClass('sc-style-42c960e0'); metadataBtn.addClass('sc-style-dfd2f110'); };
-        metadataBtn.onmouseout = () => { metadataBtn.removeClass('sc-style-dfd2f110'); metadataBtn.addClass('sc-style-42c960e0'); };
-        setIcon(metadataBtn.createSpan(), 'list');
-        metadataBtn.createSpan({ text: 'Metadata Reference' });
-        metadataBtn.onclick = () => showMetadataReference(this.app);
     }
 
     private createGeneralSettings(container: HTMLElement): void {
@@ -1535,6 +1509,12 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             this.tempBoldBorder = s.boldBorder || false;
             this.tempFont = s.font || '';
             this.tempFontSize = s.fontSize || 3;
+            this.tempBorderWidth = s.borderWidth || '';
+            this.tempBorderStyle = s.borderStyle || 'solid';
+            this.tempBorderRadius = s.borderRadius || '';
+            this.tempNeon = s.neon || '';
+            this.tempNoIcon = s.noIcon || false;
+            this.tempCompact = s.compact || false;
             this.tempCenter = s.center || false;
             this.tempTitleCenter = s.titleCenter || false;
             this.display();
@@ -1767,7 +1747,9 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             borderRadius: this.tempBorderRadius,
             neon: this.tempNeon,
             noIcon: this.tempNoIcon,
-            compact: this.tempCompact
+            compact: this.tempCompact,
+            center: this.tempCenter,
+            titleCenter: this.tempTitleCenter
         };
     }
 

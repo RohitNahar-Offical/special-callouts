@@ -20,8 +20,6 @@ export { CalloutProcessor } from './processor';
 
 // Modals
 export { CustomCalloutSuggester } from './modals/SuggesterModal';
-export { showMetadataReference } from './modals/MetadataModal';
-export { showHowToUse } from './modals/HowToModal';
 
 // Settings
 export { SpecialCalloutsSettingTab } from './settings/SettingsTab';

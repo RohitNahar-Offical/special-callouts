@@ -71,6 +71,10 @@ export function parseMetadata(
             config.center = true;
             return;
         }
+        if (loweredPair === 'compact' || loweredPair === 'dense') {
+            config.compact = true;
+            return;
+        }
 
         if (pair.includes(':')) {
             const parts = pair.split(':');

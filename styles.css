@@ -18,7 +18,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    align-items: stretch;
+    align-items: flex-start;
     justify-content: flex-start;
     background: transparent;
     padding: 0;
@@ -28,6 +28,13 @@
 
 .callout[data-callout="multi-callout"]>.callout-content>* {
     box-sizing: border-box;
+    margin-top: 0;
+    margin-bottom: 0;
+}
+
+.callout[data-callout="multi-callout"]>.callout-content>p:empty,
+.callout[data-callout="multi-callout"]>.callout-content>br {
+    display: none !important;
 }
 
 .callout[data-link-color] a {
@@ -103,7 +110,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    align-items: stretch;
+    align-items: flex-start;
     background: transparent;
     padding: 0;
 }

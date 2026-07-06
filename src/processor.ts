@@ -217,9 +217,7 @@ export class CalloutProcessor {
                 }
             }
             if (iconEl) {
-                (iconEl as HTMLElement).empty();
-                setIcon(iconEl as HTMLElement, config.icon);
-                (iconEl as HTMLElement).removeClass('sc-hidden');
+                this.forceApplyIcon(iconEl as HTMLElement, config.icon);
             }
         }
 
@@ -479,9 +477,7 @@ export class CalloutProcessor {
                 }
             }
             if (iconEl) {
-                (iconEl as HTMLElement).empty();
-                setIcon(iconEl as HTMLElement, style.icon);
-                (iconEl as HTMLElement).removeClass('sc-hidden');
+                this.forceApplyIcon(iconEl as HTMLElement, style.icon);
             }
         }
 
@@ -638,6 +634,36 @@ export class CalloutProcessor {
 
         observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
         this.observers.set(calloutEl, observer);
+    }
+
+    /**
+     * Safely applies an icon bypassing Obsidian's native override
+     */
+    private forceApplyIcon(iconEl: HTMLElement, iconName: string): void {
+        const apply = () => {
+            iconEl.empty();
+            setIcon(iconEl, iconName);
+            iconEl.removeClass('sc-hidden');
+        };
+
+        // Apply immediately
+        apply();
+
+        // Obsidian often overwrites the custom type's icon with the default 'pencil'
+        // shortly after the element is rendered. We wait for the next tick to override it back.
+        window.setTimeout(() => {
+            apply();
+        }, 0);
+
+        // Fallback: If Obsidian takes longer, observe the element temporarily
+        const observer = new MutationObserver(() => {
+            observer.disconnect();
+            apply();
+        });
+        observer.observe(iconEl, { childList: true });
+        
+        // Clean up observer after a short window to prevent memory leaks
+        window.setTimeout(() => observer.disconnect(), 150);
     }
 
     /**

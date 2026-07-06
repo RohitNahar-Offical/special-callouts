@@ -13,7 +13,6 @@ import { SpecialCalloutsSettings } from './src/types';
 import { DEFAULT_SETTINGS } from './src/constants';
 import { CalloutProcessor } from './src/processor';
 import { CustomCalloutSuggester } from './src/modals/SuggesterModal';
-import { showMetadataReference } from './src/modals/MetadataModal';
 import { SpecialCalloutsSettingTab } from './src/settings/SettingsTab';
 import { AdvancedBuilderModal } from './src/modals/AdvancedBuilderModal';
 import { IconPickerModal } from './src/modals/IconPickerModal';
@@ -162,15 +161,6 @@ export default class SpecialCallouts extends Plugin {
             name: 'Advanced Callout Builder...',
             editorCallback: (editor) => {
                 new AdvancedBuilderModal(this.app, this, editor).open();
-            }
-        });
-
-        // Show Metadata Reference
-        this.addCommand({
-            id: 'show-metadata-reference',
-            name: 'Show Metadata Reference',
-            callback: () => {
-                showMetadataReference(this.app);
             }
         });
 
