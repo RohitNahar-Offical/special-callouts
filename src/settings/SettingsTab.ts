@@ -1,10 +1,10 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-misused-promises */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian API returns any from loadData */
+/* eslint-disable @typescript-eslint/no-misused-promises -- UI event listeners can safely be async */
+/* eslint-disable @typescript-eslint/no-unsafe-call -- Obsidian API dynamic calls */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access -- Obsidian API dynamic objects */
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- Obsidian API arguments */
+/* eslint-disable @typescript-eslint/no-unused-vars -- Parameters required by signature but unused */
+
 
 /**
  * Special Callouts - Settings Tab
@@ -1105,7 +1105,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         setIcon(importBtn, 'download');
         importBtn.createSpan({ text: 'Import' });
         importBtn.onclick = () => {
-            new ImportStyleModal(this.app, this.plugin.settings, (imported: any) => {
+            new ImportStyleModal(this.app, this.plugin.settings, (imported: CalloutStyle) => {
                 this.loadStyleToForm(imported);
                 this.updatePreview(previewBox);
                 new Notice('Imported!');
@@ -2239,3 +2239,11 @@ class ImportStyleModal extends Modal {
         this.contentEl.empty();
     }
 }
+
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment */
+/* eslint-enable @typescript-eslint/no-misused-promises */
+/* eslint-enable @typescript-eslint/no-unsafe-call */
+/* eslint-enable @typescript-eslint/no-unsafe-member-access */
+/* eslint-enable @typescript-eslint/no-unsafe-argument */
+/* eslint-enable @typescript-eslint/no-unused-vars */
