@@ -32,107 +32,47 @@ Transform your Obsidian notes with premium, dynamic, and fully customizable call
 
 ---
 
-## Quick Start
+## Screenshots & Layout Capabilities
 
-### Inline Parameters
-
-Add parameters inside parentheses right after the callout type:
-
-```markdown
-> [!note] (bg:#2ecc71, text:white) Hello World
-> This is a green callout with white text.
-```
-
-### Custom Presets
-
-Create a style in **Settings → Special Callouts**, name it (e.g., `terminal`), and use it anywhere:
-
-```markdown
-> [!terminal]
-> System ready.
-> Waiting for command...
-```
-
-Or apply it to any standard callout:
-
-```markdown
-> [!info] (style:terminal)
-> This info box now looks like a terminal.
-```
-
----
-
-## Screenshots
+Explore the endless customization possibilities. 
 
 ### Colors, Gradients and Effects
 
 ![Colors & Backgrounds](assets/colors_backgrounds.png)
+> [Learn how to create custom backgrounds and text colors in the Usage Guide](USAGE_GUIDE.md#colors--backgrounds)
 
 ![Gradients](assets/gradients.png)
+> [Learn how to create gradient backgrounds in the Usage Guide](USAGE_GUIDE.md#gradient-background--gradient)
 
 ![Neon Glow Effects](assets/neon_glow_effects.png)
+> [Learn how to create neon glowing effects in the Usage Guide](USAGE_GUIDE.md#visual-effects)
 
 ### Visual Layout Builder
 
 Design complex dashboard grids by dragging and merging cells — no code required. Access from **Settings → Special Callouts → Visual Layout Builder**.
 
 ![Visual Builder Settings](assets/visual_builder_settings.png)
+> [Learn how to use the Visual Layout Builder in the Usage Guide](USAGE_GUIDE.md#1-visual-layout-builder)
 
 ### Dashboard Grids
 
 Use the visual builder or inline grid syntax to create multi-panel layouts. Callouts are automatically placed into the merged areas you designed.
 
 ![Ultimate Dashboard Grid](assets/ultimate_dashboard.png)
+> [Learn how to create Multi-Callout Dashboard Grids in the Usage Guide](USAGE_GUIDE.md#grid-layout-multi-callout)
 
 ### Typography and Borders
 
 ![Typography & Fonts](assets/typography_fonts.png)
+> [Learn how to change fonts and sizes in the Usage Guide](USAGE_GUIDE.md#typography)
 
 ![Border Styles](assets/border_styles.png)
+> [Learn how to customize borders and radius in the Usage Guide](USAGE_GUIDE.md#borders--shapes)
 
 ### Multi-Column Lists
 
 ![Standard Columns](assets/standard_columns.png)
-
----
-
-## Examples
-
-### Gradients
-
-```markdown
-> [!tip] (gradient:#667eea-#764ba2, text:white) Purple Gradient
-> Separate two colors with a hyphen.
-```
-
-### Multi-Column
-
-```markdown
-> [!note] (col:3, bg:#2c3e50, text:#ecf0f1) Skills
-> - HTML     - TypeScript
-> - CSS      - React
-> - JS       - Node.js
-```
-
-### Grid Layout
-
-```markdown
-> [!multi-callout]
-> > [!info] (1:2, bg:#3498db, text:white) Left Panel
-> > Content here.
->
-> > [!tip] (2:2, bg:#2ecc71, text:white) Right Panel
-> > Content here.
-```
-
-### Neon Glow
-
-```markdown
-> [!danger] (neon:#ff0000, bg:#1a0000, text:#ff6b6b) Alert
-> Glowing border and box-shadow. Best on dark backgrounds.
-```
-
-See the [Usage Guide](USAGE_GUIDE.md) for all examples and parameters.
+> [Learn how to split lists into multiple columns in the Usage Guide](USAGE_GUIDE.md#multi-column-lists)
 
 ---
 
@@ -172,6 +112,7 @@ See the [Usage Guide](USAGE_GUIDE.md) for all examples and parameters.
 | `col` | `(col:3)` | Multi-column lists |
 | `center` | `(center)` | Center content |
 | `compact` | `(compact)` | Reduce padding |
+| `dense` | `(dense)` | Reduce line-height |
 | Grid | `(1:2)` | Position in grid |
 
 Full reference in the [Usage Guide](USAGE_GUIDE.md).

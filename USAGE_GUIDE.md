@@ -293,7 +293,7 @@ Centers only the title, content stays left-aligned:
 > Useful for formal or document-style layouts.
 ```
 
-### Compact — `compact`
+### Compact — `(compact)`
 
 Reduces padding for a dense, widget-like appearance:
 
@@ -306,6 +306,17 @@ Reduces padding for a dense, widget-like appearance:
 ```
 
 > **Dashboard tip:** Combine `compact` with `multi-callout` grids for information-dense dashboards.
+
+### Dense — `(dense)`
+
+Reduces the line-height of the text for highly condensed lists or text:
+
+```markdown
+> [!info] (dense, compact, bg:#2c3e50, text:white) Super Condensed
+> - List item 1
+> - List item 2
+> - List item 3
+```
 
 ---
 
@@ -491,10 +502,8 @@ On screens smaller than 600px, grid columns automatically stack vertically.
 
 The plugin settings panel has four main sections:
 
-### 1. Quick Actions
-Two buttons at the top:
-- **How to Use** — Opens usage instructions modal
-- **Metadata Reference** — Opens full parameter reference modal
+### 1. Visual Layout Builder
+Design complex dashboard grids visually by dragging and merging cells — no code required. Access from **Settings → Special Callouts → Visual Layout Builder**. It generates the exact `> [!multi-callout]` markdown code for you to paste into your notes.
 
 ### 2. Custom Callouts
 - **Quick Start Presets:** One-click templates (Ocean Deep, Neon Glow, Forest, Sunset)
@@ -528,7 +537,7 @@ Press `Ctrl/Cmd + P` and search for:
 |---------|-------------|
 | `Insert Custom Callout` | Browse all saved custom styles and insert one |
 | `Insert "[style-name]" callout` | Directly insert a specific custom style |
-| `Show Metadata Reference` | Open the parameter reference modal |
+| `Advanced Callout Builder...` | Open the interactive layout/grid builder |
 
 > You can assign **hotkeys** to any of these commands in Settings → Hotkeys → Special Callouts.
 

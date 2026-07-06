@@ -13,7 +13,6 @@ import { SpecialCalloutsSettings } from './src/types';
 import { DEFAULT_SETTINGS } from './src/constants';
 import { CalloutProcessor } from './src/processor';
 import { CustomCalloutSuggester } from './src/modals/SuggesterModal';
-import { showMetadataReference } from './src/modals/MetadataModal';
 import { SpecialCalloutsSettingTab } from './src/settings/SettingsTab';
 import { AdvancedBuilderModal } from './src/modals/AdvancedBuilderModal';
 import { IconPickerModal } from './src/modals/IconPickerModal';
@@ -165,15 +164,6 @@ export default class SpecialCallouts extends Plugin {
             }
         });
 
-        // Show Metadata Reference
-        this.addCommand({
-            id: 'show-metadata-reference',
-            name: 'Show Metadata Reference',
-            callback: () => {
-                showMetadataReference(this.app);
-            }
-        });
-
         // Register individual commands for each custom style
         this.settings.customStyles.forEach((style) => {
             this.addCommand({
@@ -201,7 +191,7 @@ export default class SpecialCallouts extends Plugin {
     }
 
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<SpecialCalloutsSettings>);
     }
 
     async saveSettings(): Promise<void> {

@@ -1,16 +1,21 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian API returns any from loadData */
+/* eslint-disable @typescript-eslint/no-misused-promises -- UI event listeners can safely be async */
+/* eslint-disable @typescript-eslint/no-unsafe-call -- Obsidian API dynamic calls */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access -- Obsidian API dynamic objects */
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- Obsidian API arguments */
+/* eslint-disable @typescript-eslint/no-unused-vars -- Parameters required by signature but unused */
+
 
 /**
  * Special Callouts - Settings Tab
  * Plugin settings UI
  */
 
-import { App, PluginSettingTab, Setting, setIcon, Notice, Modal, TextAreaComponent, ButtonComponent, DropdownComponent, SliderComponent, ToggleComponent } from 'obsidian';
-import { CalloutStyle, SpecialCalloutsSettings } from '../types';
-import { DEFAULT_STANDARD_STYLES, QUICK_START_PRESETS, FONT_FAMILIES, FONT_SIZES } from '../constants';
+import { App, PluginSettingTab, Plugin, Setting, setIcon, Notice, Modal, TextAreaComponent, ButtonComponent, DropdownComponent, SliderComponent, ToggleComponent } from 'obsidian';
+import { SpecialCalloutsSettings, CalloutStyle } from '../types';
+import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS } from '../constants';
 import { isValidHex, normalizeHex } from '../utils';
 import { parseMetadata } from '../parser';
-import { showHowToUse } from '../modals/HowToModal';
-import { showMetadataReference } from '../modals/MetadataModal';
 import { IconPickerModal } from '../modals/IconPickerModal';
 
 // Reference to plugin type (will be set as generic to avoid circular deps)
@@ -67,12 +72,15 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     }
 
     display(): void {
+        this.renderSettings();
+    }
+
+    renderSettings(): void {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('special-callouts-ui');
 
         this.createHeader(containerEl);
-        this.createQuickActions(containerEl);
         this.createGeneralSettings(containerEl);
         this.createLayoutBuilderSection(containerEl);
         this.createCalloutsSection(containerEl);
@@ -88,29 +96,6 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
         const subtitle = header.createEl('p', { text: 'Customize your callout styles with precision' });
         (subtitle).addClass('sc-style-efd0ece4');
-    }
-
-    private createQuickActions(container: HTMLElement): void {
-        const quickRefDiv = container.createDiv();
-        quickRefDiv.addClass('sc-style-958e85a8');
-
-        const howToBtn = quickRefDiv.createEl('button');
-        // AI_CONTEXT: Sekonder eylem butonlari icin var(--interactive-normal) kullaniliyor
-        // Accent rengi acik/beyaz oldugunda 'color: white' okunaksiz hale geliyordu
-        howToBtn.addClass('sc-style-05ed7705');
-        howToBtn.onmouseover = () => { howToBtn.removeClass('sc-style-42c960e0'); howToBtn.addClass('sc-style-dfd2f110'); };
-        howToBtn.onmouseout = () => { howToBtn.removeClass('sc-style-dfd2f110'); howToBtn.addClass('sc-style-42c960e0'); };
-        setIcon(howToBtn.createSpan(), 'help-circle');
-        howToBtn.createSpan({ text: 'How to Use' });
-        howToBtn.onclick = () => showHowToUse(this.app);
-
-        const metadataBtn = quickRefDiv.createEl('button');
-        metadataBtn.addClass('sc-style-05ed7705');
-        metadataBtn.onmouseover = () => { metadataBtn.removeClass('sc-style-42c960e0'); metadataBtn.addClass('sc-style-dfd2f110'); };
-        metadataBtn.onmouseout = () => { metadataBtn.removeClass('sc-style-dfd2f110'); metadataBtn.addClass('sc-style-42c960e0'); };
-        setIcon(metadataBtn.createSpan(), 'list');
-        metadataBtn.createSpan({ text: 'Metadata Reference' });
-        metadataBtn.onclick = () => showMetadataReference(this.app);
     }
 
     private createGeneralSettings(container: HTMLElement): void {
@@ -407,7 +392,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                         new Notice('Layouts imported!');
                         modal.close();
-                        this.display();
+                        this.renderSettings();
                     }
                 } catch(e) {
                     new Notice('Invalid JSON');
@@ -456,7 +441,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             }
             
             await this.plugin.saveSettings();
-            this.display(); // refresh
+            this.renderSettings(); // refresh
         })(); };
 
         // Saved Layouts List
@@ -514,7 +499,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 delBtn.onclick = () => { void (async () => {
                     this.plugin.settings.customLayouts.splice(idx, 1);
                     await this.plugin.saveSettings();
-                    this.display();
+                    this.renderSettings();
                 })(); };
             });
         }
@@ -543,7 +528,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             '--sc-dyn-background': this.standardStylesViewMode === 'grid' ? 'var(--interactive-accent)' : 'var(--background-secondary)',
             '--sc-dyn-color': this.standardStylesViewMode === 'grid' ? 'var(--text-on-accent)' : 'var(--text-muted)'
         });
-        gridBtn.onclick = () => { this.standardStylesViewMode = 'grid'; this.display(); };
+        gridBtn.onclick = () => { this.standardStylesViewMode = 'grid'; this.renderSettings(); };
 
         const listBtn = toggleDiv.createEl('button', { text: 'List' });
         listBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-cursor', 'sc-var-font-size', 'sc-var-background', 'sc-var-color']);
@@ -555,7 +540,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             '--sc-dyn-background': this.standardStylesViewMode === 'list' ? 'var(--interactive-accent)' : 'var(--background-secondary)',
             '--sc-dyn-color': this.standardStylesViewMode === 'list' ? 'var(--text-on-accent)' : 'var(--text-muted)'
         });
-        listBtn.onclick = () => { this.standardStylesViewMode = 'list'; this.display(); };
+        listBtn.onclick = () => { this.standardStylesViewMode = 'list'; this.renderSettings(); };
 
         const standardStyleNames = Object.keys(this.plugin.settings.standardStyles);
 
@@ -619,7 +604,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                     e.stopPropagation();
                     this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
                     await this.plugin.saveSettings();
-                    this.display();
+                    this.renderSettings();
                 })(); };
             }
         });
@@ -738,7 +723,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.plugin.settings.standardStyles[styleName] = style;
                 await this.plugin.saveSettings();
                 editorModal.close();
-                this.display();
+                this.renderSettings();
             })();
         };
 
@@ -754,7 +739,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
                 await this.plugin.saveSettings();
                 editorModal.close();
-                this.display();
+                this.renderSettings();
             })();
         };
 
@@ -785,7 +770,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             cancelBtn.onclick = () => {
                 this.editingIndex = null;
                 this.resetForm();
-                this.display();
+                this.renderSettings();
             };
         }
 
@@ -831,7 +816,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.tempTitleColor = preset.title;
                 this.tempText = preset.text;
                 this.tempIcon = preset.icon;
-                this.display();
+                this.renderSettings();
             };
         });
 
@@ -843,7 +828,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         randomBtn.onmouseout = () => { randomBtn.addClass('sc-style-403789f1'); randomBtn.addClass('sc-style-f31841c1'); };
         randomBtn.onclick = () => {
             this.applyRandomStyle();
-            this.display();
+            this.renderSettings();
         };
     }
 
@@ -1120,7 +1105,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         setIcon(importBtn, 'download');
         importBtn.createSpan({ text: 'Import' });
         importBtn.onclick = () => {
-            new ImportStyleModal(this.app, this.plugin.settings, (imported: any) => {
+            new ImportStyleModal(this.app, this.plugin.settings, (imported: CalloutStyle) => {
                 this.loadStyleToForm(imported);
                 this.updatePreview(previewBox);
                 new Notice('Imported!');
@@ -1132,7 +1117,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             this.resetForm();
             this.editingIndex = null;
             this.updatePreview(previewBox);
-            this.display();
+            this.renderSettings();
         };
 
         const saveBtn = row.createEl('button', { text: this.editingIndex !== null ? 'Update Style' : 'Create Style' });
@@ -1140,7 +1125,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         saveBtn.onclick = () => { void (async () => {
             await this.saveCurrentStyle();
             this.resetForm();
-            this.display();
+            this.renderSettings();
         })(); };
     }
 
@@ -1388,7 +1373,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.tempBoldBorder = importedStyle.boldBorder || false;
 
                 // Refresh UI
-                this.display();
+                this.renderSettings();
                 new Notice('Style imported successfully!');
             });
             modal.open();
@@ -1405,7 +1390,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         cancelBtn.onclick = () => {
             this.editingIndex = null;
             this.resetForm();
-            this.display();
+            this.renderSettings();
         };
 
         // Save button
@@ -1456,7 +1441,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
                 await this.plugin.saveSettings();
                 this.resetForm();
-                this.display();
+                this.renderSettings();
             }
         })(); };
     }
@@ -1482,7 +1467,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             '--sc-dyn-cursor': 'pointer',
             '--sc-dyn-font-size': '0.8rem'
         });
-        gridBtn.onclick = () => { this.stylesViewMode = 'grid'; this.display(); };
+        gridBtn.onclick = () => { this.stylesViewMode = 'grid'; this.renderSettings(); };
 
         const listBtn = viewToggle.createEl('button', { text: 'List' });
         listBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-background', 'sc-var-color', 'sc-var-border-radius', 'sc-var-cursor', 'sc-var-font-size']);
@@ -1495,7 +1480,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             '--sc-dyn-cursor': 'pointer',
             '--sc-dyn-font-size': '0.8rem'
         });
-        listBtn.onclick = () => { this.stylesViewMode = 'list'; this.display(); };
+        listBtn.onclick = () => { this.stylesViewMode = 'list'; this.renderSettings(); };
 
         const stylesContainer = section.createDiv();
         stylesContainer.style.cssText = this.stylesViewMode === 'grid'
@@ -1535,9 +1520,15 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             this.tempBoldBorder = s.boldBorder || false;
             this.tempFont = s.font || '';
             this.tempFontSize = s.fontSize || 3;
+            this.tempBorderWidth = s.borderWidth || '';
+            this.tempBorderStyle = s.borderStyle || 'solid';
+            this.tempBorderRadius = s.borderRadius || '';
+            this.tempNeon = s.neon || '';
+            this.tempNoIcon = s.noIcon || false;
+            this.tempCompact = s.compact || false;
             this.tempCenter = s.center || false;
             this.tempTitleCenter = s.titleCenter || false;
-            this.display();
+            this.renderSettings();
             container.scrollIntoView({ behavior: 'smooth' });
         };
 
@@ -1547,7 +1538,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         deleteBtn.onclick = () => { void (async () => {
             this.plugin.settings.customStyles.splice(i, 1);
             await this.plugin.saveSettings();
-            this.display();
+            this.renderSettings();
         })(); };
 
         if (this.stylesViewMode === 'grid') {
@@ -1633,7 +1624,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                     this.plugin.settings.standardColors[colorName] = v;
                     if (colorName === 'grey') this.plugin.settings.standardColors['gray'] = v;
                     await this.plugin.saveSettings();
-                    this.display();
+                    this.renderSettings();
                 });
             });
         });
@@ -1690,7 +1681,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.newCustomColorName = '';
                 this.newCustomColorHex = '#FFFFFF';
                 colorPicker.value = '#FFFFFF';
-                this.display();
+                this.renderSettings();
             }
         })(); };
 
@@ -1717,7 +1708,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             deleteBtn.onclick = () => { void (async () => {
                 this.plugin.settings.customColors.splice(i, 1);
                 await this.plugin.saveSettings();
-                this.display();
+                this.renderSettings();
             })(); };
         });
     }
@@ -1767,7 +1758,9 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             borderRadius: this.tempBorderRadius,
             neon: this.tempNeon,
             noIcon: this.tempNoIcon,
-            compact: this.tempCompact
+            compact: this.tempCompact,
+            center: this.tempCenter,
+            titleCenter: this.tempTitleCenter
         };
     }
 
@@ -2246,3 +2239,11 @@ class ImportStyleModal extends Modal {
         this.contentEl.empty();
     }
 }
+
+
+/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-misused-promises -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-call -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-member-access -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-argument -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unused-vars -- Re-enable after UI hooks */

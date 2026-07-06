@@ -293,7 +293,7 @@ Sadece basligi ortalar, icerik sola hizali kalir:
 > Resmi veya dokuman tarzi duzenler icin kullanisli.
 ```
 
-### Kompakt — `compact`
+### Kompakt — `(compact)`
 
 Yogun, widget benzeri bir gorunum icin dolguyu azaltir:
 
@@ -306,6 +306,17 @@ Yogun, widget benzeri bir gorunum icin dolguyu azaltir:
 ```
 
 > **Dashboard ipucu:** Bilgi yogun panolar icin `compact` ile `multi-callout` grid->lerini birlestirin.
+
+### Yoğun — `(dense)`
+
+Çok yoğun listeler veya metinler için satır yüksekliğini (line-height) azaltır:
+
+```markdown
+> [!info] (dense, compact, bg:#2c3e50, text:white) Süper Yoğun
+> - Liste öğesi 1
+> - Liste öğesi 2
+> - Liste öğesi 3
+```
 
 ---
 
@@ -491,10 +502,8 @@ Birden fazla kaynaktan liste cekin:
 
 Eklenti ayarlar panelinin dort ana bolumu vardir:
 
-### 1. Hizli Islemler
-Ustte iki buton:
-- **Nasil Kullanilir** — Kullanim talimatlari modalini acar
-- **Metadata Referansi** — Tam parametre referans modalini acar
+### 1. Görsel Düzenleyici (Visual Layout Builder)
+Hücreleri sürükleyip birleştirerek karmaşık dashboard ızgaralarını koda gerek kalmadan tasarlayın. **Ayarlar → Special Callouts → Visual Layout Builder** üzerinden erişin. Tasarımınız bittiğinde notlarınıza yapıştırmanız için size hazır `> [!multi-callout]` markdown kodunu verir.
 
 ### 2. Ozel Callout->lar
 - **Hizli Baslangic Sablonlari:** Tek tikla sablonlar (Ocean Deep, Neon Glow, Forest, Sunset)
@@ -528,7 +537,7 @@ Obsidian->in yerlesik callout tiplerinin (note, info, warning vb.) varsayilan go
 |-------|----------|
 | `Insert Custom Callout` | Tum kayitli ozel stilleri gozatip birini ekleyin |
 | `Insert "[stil-adi]" callout` | Belirli bir ozel stili dogrudan ekleyin |
-| `Show Metadata Reference` | Parametre referans modalini acin |
+| `Advanced Callout Builder...` | İnteraktif ızgara/layout düzenleyiciyi açar |
 
 > Bu komutlardan herhangi birine **Ayarlar → Kisayol Tuslari → Special Callouts** bolumunden kisayol atayabilirsiniz.
 
