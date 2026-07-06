@@ -2241,9 +2241,9 @@ class ImportStyleModal extends Modal {
 }
 
 
-/* eslint-enable @typescript-eslint/no-unsafe-assignment */
-/* eslint-enable @typescript-eslint/no-misused-promises */
-/* eslint-enable @typescript-eslint/no-unsafe-call */
-/* eslint-enable @typescript-eslint/no-unsafe-member-access */
-/* eslint-enable @typescript-eslint/no-unsafe-argument */
-/* eslint-enable @typescript-eslint/no-unused-vars */
+/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-misused-promises -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-call -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-member-access -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unsafe-argument -- Re-enable after UI hooks */
+/* eslint-enable @typescript-eslint/no-unused-vars -- Re-enable after UI hooks */

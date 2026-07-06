@@ -47,6 +47,7 @@
 }
 
 /* Column Layout for Lists */
+/* stylelint-disable -- Multicolumn is well supported in modern Obsidian */
 .callout[data-col] .callout-content ul,
 .callout[data-col] .callout-content ol,
 .callout[data-col] .callout-content .dataview.list-view-ul {
@@ -59,6 +60,7 @@
     break-inside: avoid;
     page-break-inside: avoid;
 }
+/* stylelint-enable -- Re-enable */
 
 /* Mobile Responsive */
 @media (max-width: 600px) {
@@ -266,10 +268,12 @@
     grid-template-columns: repeat(var(--sc-list-cols, 1), 1fr);
     grid-template-rows: repeat(var(--sc-list-rows, 1), auto);
     gap: 0.25em 2em;
+/* stylelint-disable -- Multicolumn is well supported in modern Obsidian */
     width: 100%;
     column-count: unset;
     column-fill: unset;
 }
+/* stylelint-enable -- Re-enable */
 .sc-multi-col-item {
     grid-column: var(--sc-col, auto);
     grid-row: var(--sc-row, auto);
