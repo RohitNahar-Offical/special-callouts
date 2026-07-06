@@ -39,40 +39,40 @@ Sınırsız özelleştirme imkanlarını keşfedin.
 ### Renkler, Degradeler ve Efektler
 
 ![Renkler ve Arka Planlar](assets/colors_backgrounds.png)
-> [Özel arka plan ve metin renklerini nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#renkler-ve-arka-plan)
+> [Özel arka plan ve metin renklerini nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#renkler-ve-arka-planlar)
 
 ![Degradeler](assets/gradients.png)
-> [Degrade arka planları nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#degradeler)
+> [Degrade arka planları nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#degrade-arka-plan--gradient)
 
 ![Neon Parlama Efektleri](assets/neon_glow_effects.png)
-> [Neon parlama efektlerini nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#gelismis-efektler-neon-ve-ikon-gizleme)
+> [Neon parlama efektlerini nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#gorsel-efektler)
 
 ### Görsel Düzen Kurucu (Visual Layout Builder)
 
 Karmaşık dashboard ızgaralarını hücreleri sürükleyip birleştirerek tasarlayın — koda gerek yok. **Ayarlar → Special Callouts → Visual Layout Builder** üzerinden erişin.
 
 ![Görsel Düzenleyici Ayarları](assets/visual_builder_settings.png)
-> [Visual Layout Builder'ı nasıl kullanacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#gorsel-duzen-kurucu-visual-layout-builder)
+> [Visual Layout Builder'ı nasıl kullanacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#1-görsel-düzenleyici-visual-layout-builder)
 
 ### Dashboard Izgaraları (Grid Layouts)
 
 Görsel düzenleyiciyi veya satır içi ızgara sözdizimini kullanarak çok panelli düzenler oluşturun. Callout'lar, tasarladığınız birleştirilmiş alanlara otomatik olarak yerleştirilir.
 
 ![Gelişmiş Dashboard Izgarası](assets/ultimate_dashboard.png)
-> [Çoklu Callout Dashboard Izgaralarını nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#izgara-duzeni-multi-callout-dashboard)
+> [Çoklu Callout Dashboard Izgaralarını nasıl oluşturacağınızı Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#grid-duzeni-multi-callout)
 
 ### Tipografi ve Kenarlıklar
 
 ![Tipografi ve Fontlar](assets/typography_fonts.png)
-> [Fontları ve boyutlarını nasıl değiştireceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#tipografi-ve-metin)
+> [Fontları ve boyutlarını nasıl değiştireceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#tipografi)
 
 ![Kenarlık Stilleri](assets/border_styles.png)
-> [Kenarlıkları ve köşe yuvarlamayı nasıl özelleştireceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#kenarliklar-ve-koseler-borders--radius)
+> [Kenarlıkları ve köşe yuvarlamayı nasıl özelleştireceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#kenarliklar-ve-sekiller)
 
 ### Çok Sütunlu Listeler
 
 ![Standart Sütunlar](assets/standard_columns.png)
-> [Listeleri nasıl çoklu sütunlara böleceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#cok-sutunlu-listeler-multi-column)
+> [Listeleri nasıl çoklu sütunlara böleceğinizi Kullanım Kılavuzundan öğrenin](USAGE_GUIDE_TR.md#cok-sutunlu-listeler)
 
 ---
 

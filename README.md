@@ -39,35 +39,35 @@ Explore the endless customization possibilities.
 ### Colors, Gradients and Effects
 
 ![Colors & Backgrounds](assets/colors_backgrounds.png)
-> [Learn how to create custom backgrounds and text colors in the Usage Guide](USAGE_GUIDE.md#colors-and-background)
+> [Learn how to create custom backgrounds and text colors in the Usage Guide](USAGE_GUIDE.md#colors--backgrounds)
 
 ![Gradients](assets/gradients.png)
-> [Learn how to create gradient backgrounds in the Usage Guide](USAGE_GUIDE.md#gradients)
+> [Learn how to create gradient backgrounds in the Usage Guide](USAGE_GUIDE.md#gradient-background--gradient)
 
 ![Neon Glow Effects](assets/neon_glow_effects.png)
-> [Learn how to create neon glowing effects in the Usage Guide](USAGE_GUIDE.md#advanced-effects-neon--no-icon)
+> [Learn how to create neon glowing effects in the Usage Guide](USAGE_GUIDE.md#visual-effects)
 
 ### Visual Layout Builder
 
 Design complex dashboard grids by dragging and merging cells — no code required. Access from **Settings → Special Callouts → Visual Layout Builder**.
 
 ![Visual Builder Settings](assets/visual_builder_settings.png)
-> [Learn how to use the Visual Layout Builder in the Usage Guide](USAGE_GUIDE.md#visual-layout-builder)
+> [Learn how to use the Visual Layout Builder in the Usage Guide](USAGE_GUIDE.md#1-visual-layout-builder)
 
 ### Dashboard Grids
 
 Use the visual builder or inline grid syntax to create multi-panel layouts. Callouts are automatically placed into the merged areas you designed.
 
 ![Ultimate Dashboard Grid](assets/ultimate_dashboard.png)
-> [Learn how to create Multi-Callout Dashboard Grids in the Usage Guide](USAGE_GUIDE.md#grid-layout-multi-callout-dashboard)
+> [Learn how to create Multi-Callout Dashboard Grids in the Usage Guide](USAGE_GUIDE.md#grid-layout-multi-callout)
 
 ### Typography and Borders
 
 ![Typography & Fonts](assets/typography_fonts.png)
-> [Learn how to change fonts and sizes in the Usage Guide](USAGE_GUIDE.md#typography-and-text)
+> [Learn how to change fonts and sizes in the Usage Guide](USAGE_GUIDE.md#typography)
 
 ![Border Styles](assets/border_styles.png)
-> [Learn how to customize borders and radius in the Usage Guide](USAGE_GUIDE.md#borders-and-radius)
+> [Learn how to customize borders and radius in the Usage Guide](USAGE_GUIDE.md#borders--shapes)
 
 ### Multi-Column Lists
 

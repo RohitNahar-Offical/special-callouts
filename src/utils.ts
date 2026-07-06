@@ -143,6 +143,6 @@ export function applyCssText(el: HTMLElement, cssText: string): void {
         const camelProp = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
         styleRecord[camelProp] = val;
     });
-    el.setCssStyles(styleRecord as Partial<CSSStyleDeclaration>);
+    el.setCssStyles(styleRecord);
 }
 

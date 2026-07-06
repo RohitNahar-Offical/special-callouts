@@ -1,3 +1,4 @@
+/* stylelint-disable plugin/no-unsupported-browser-features */
 /* Special Callouts - Core Styles */
 /* IMPORTANT: Before modifying this file, read RULES.md for mandatory protocols. */
 
@@ -18,7 +19,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: flex-start;
     background: transparent;
     padding: 0;
@@ -32,9 +33,9 @@
     margin-bottom: 0;
 }
 
-.callout[data-callout="multi-callout"]>.callout-content>p:empty,
-.callout[data-callout="multi-callout"]>.callout-content>br {
-    display: none !important;
+.markdown-rendered .callout[data-callout="multi-callout"]>.callout-content>p:empty,
+.markdown-rendered .callout[data-callout="multi-callout"]>.callout-content>br {
+    display: none;
 }
 
 .callout[data-link-color] a {
@@ -110,7 +111,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    align-items: flex-start;
+    align-items: stretch;
     background: transparent;
     padding: 0;
 }

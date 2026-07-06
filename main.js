@@ -963,6 +963,9 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     this.plugin = plugin;
   }
   display() {
+    this.renderSettings();
+  }
+  renderSettings() {
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("special-callouts-ui");
@@ -1243,7 +1246,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
               await this.plugin.saveSettings();
               new import_obsidian4.Notice("Layouts imported!");
               modal.close();
-              this.display();
+              this.renderSettings();
             }
           } catch (e2) {
             new import_obsidian4.Notice("Invalid JSON");
@@ -1287,7 +1290,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           new import_obsidian4.Notice("Layout saved!");
         }
         await this.plugin.saveSettings();
-        this.display();
+        this.renderSettings();
       })();
     };
     if (this.plugin.settings.customLayouts && this.plugin.settings.customLayouts.length > 0) {
@@ -1333,7 +1336,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           void (async () => {
             this.plugin.settings.customLayouts.splice(idx, 1);
             await this.plugin.saveSettings();
-            this.display();
+            this.renderSettings();
           })();
         };
       });
@@ -1359,7 +1362,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     });
     gridBtn.onclick = () => {
       this.standardStylesViewMode = "grid";
-      this.display();
+      this.renderSettings();
     };
     const listBtn = toggleDiv.createEl("button", { text: "List" });
     listBtn.addClasses(["sc-var-padding", "sc-var-border", "sc-var-cursor", "sc-var-font-size", "sc-var-background", "sc-var-color"]);
@@ -1373,7 +1376,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     });
     listBtn.onclick = () => {
       this.standardStylesViewMode = "list";
-      this.display();
+      this.renderSettings();
     };
     const standardStyleNames = Object.keys(this.plugin.settings.standardStyles);
     if (this.standardStylesViewMode === "list") {
@@ -1426,7 +1429,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
             e.stopPropagation();
             this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
             await this.plugin.saveSettings();
-            this.display();
+            this.renderSettings();
           })();
         };
       }
@@ -1541,7 +1544,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         this.plugin.settings.standardStyles[styleName] = style;
         await this.plugin.saveSettings();
         editorModal.close();
-        this.display();
+        this.renderSettings();
       })();
     };
     const resetBtn = buttons.createEl("button", { text: "Reset" });
@@ -1556,7 +1559,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
         await this.plugin.saveSettings();
         editorModal.close();
-        this.display();
+        this.renderSettings();
       })();
     };
     const cancelBtn = buttons.createEl("button", { text: "Cancel" });
@@ -1581,7 +1584,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       cancelBtn.onclick = () => {
         this.editingIndex = null;
         this.resetForm();
-        this.display();
+        this.renderSettings();
       };
     }
     const creatorCard = section.createDiv();
@@ -1621,7 +1624,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         this.tempTitleColor = preset.title;
         this.tempText = preset.text;
         this.tempIcon = preset.icon;
-        this.display();
+        this.renderSettings();
       };
     });
     const randomBtn = presetsGrid.createEl("button");
@@ -1638,7 +1641,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     };
     randomBtn.onclick = () => {
       this.applyRandomStyle();
-      this.display();
+      this.renderSettings();
     };
   }
   createFormSection(creatorCard) {
@@ -1883,7 +1886,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       this.resetForm();
       this.editingIndex = null;
       this.updatePreview(previewBox);
-      this.display();
+      this.renderSettings();
     };
     const saveBtn = row.createEl("button", { text: this.editingIndex !== null ? "Update Style" : "Create Style" });
     saveBtn.addClass("sc-style-b01285b3");
@@ -1891,7 +1894,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       void (async () => {
         await this.saveCurrentStyle();
         this.resetForm();
-        this.display();
+        this.renderSettings();
       })();
     };
   }
@@ -2114,7 +2117,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         this.tempTitleColor = importedStyle.titleColor || this.tempBg;
         this.tempIcon = importedStyle.icon || this.tempIcon;
         this.tempBoldBorder = importedStyle.boldBorder || false;
-        this.display();
+        this.renderSettings();
         new import_obsidian4.Notice("Style imported successfully!");
       });
       modal.open();
@@ -2128,7 +2131,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     cancelBtn.onclick = () => {
       this.editingIndex = null;
       this.resetForm();
-      this.display();
+      this.renderSettings();
     };
     const saveBtn = buttonsRow.createEl("button", { text: this.editingIndex !== null ? "Update Style" : "Save Style" });
     saveBtn.addClass("sc-style-3459676a");
@@ -2171,7 +2174,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           }
           await this.plugin.saveSettings();
           this.resetForm();
-          this.display();
+          this.renderSettings();
         }
       })();
     };
@@ -2196,7 +2199,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     });
     gridBtn.onclick = () => {
       this.stylesViewMode = "grid";
-      this.display();
+      this.renderSettings();
     };
     const listBtn = viewToggle.createEl("button", { text: "List" });
     listBtn.addClasses(["sc-var-padding", "sc-var-border", "sc-var-background", "sc-var-color", "sc-var-border-radius", "sc-var-cursor", "sc-var-font-size"]);
@@ -2211,7 +2214,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     });
     listBtn.onclick = () => {
       this.stylesViewMode = "list";
-      this.display();
+      this.renderSettings();
     };
     const stylesContainer = section.createDiv();
     stylesContainer.style.cssText = this.stylesViewMode === "grid" ? "display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;" : "display: flex; flex-direction: column; gap: 10px;";
@@ -2251,7 +2254,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       this.tempCompact = s.compact || false;
       this.tempCenter = s.center || false;
       this.tempTitleCenter = s.titleCenter || false;
-      this.display();
+      this.renderSettings();
       container.scrollIntoView({ behavior: "smooth" });
     };
     const deleteBtn = actions.createEl("button");
@@ -2261,7 +2264,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       void (async () => {
         this.plugin.settings.customStyles.splice(i, 1);
         await this.plugin.saveSettings();
-        this.display();
+        this.renderSettings();
       })();
     };
     if (this.stylesViewMode === "grid") {
@@ -2331,7 +2334,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           this.plugin.settings.standardColors[colorName] = v;
           if (colorName === "grey") this.plugin.settings.standardColors["gray"] = v;
           await this.plugin.saveSettings();
-          this.display();
+          this.renderSettings();
         });
       });
     });
@@ -2380,7 +2383,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           this.newCustomColorName = "";
           this.newCustomColorHex = "#FFFFFF";
           colorPicker.value = "#FFFFFF";
-          this.display();
+          this.renderSettings();
         }
       })();
     };
@@ -2404,7 +2407,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         void (async () => {
           this.plugin.settings.customColors.splice(i, 1);
           await this.plugin.saveSettings();
-          this.display();
+          this.renderSettings();
         })();
       };
     });
