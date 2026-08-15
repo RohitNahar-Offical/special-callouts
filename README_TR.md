@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?style=flat&color=f39c12" alt="Version"/>
   <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?include_prereleases&label=BRAT%20beta&style=flat&color=ff69b4" alt="BRAT Beta Version"/>
   <img src="https://img.shields.io/github/downloads/ahseyg/special-callouts/total?style=flat&color=blueviolet" alt="Downloads"/>
+  <a href="skills/special-callouts/"><img src="https://img.shields.io/badge/AI%20Agent%20Skill-haz%C4%B1r-8b5cf6?style=flat" alt="AI Agent Skill"/></a>
 </p>
 
 <p align="center">
@@ -16,6 +17,16 @@
 Obsidian notlarınızı premium, dinamik ve tamamen özelleştirilebilir callout'larla dönüştürün. Standart bilgi kutularını dergi kalitesinde düzenlere, kod terminallerine veya neon parlayan uyarılara çevirin. Her şeyi doğrudan markdown'dan özelleştirin — veya görsel ayarlar panelinde yeniden kullanılabilir şablonlar oluşturun.
 
 **Açık kaynak** · MIT Lisansı · Katkılara açık
+
+> [!TIP]
+> **Yeni — AI Agent Skill.** Special Callouts artık bir [Agent Skill](skills/special-callouts/) ile
+> birlikte geliyor; Claude sözdizimini tahmin etmek yerine callout'ları doğrudan sizin için yazıyor.
+> Agent'ınıza ham
+> [SKILL.md](https://raw.githubusercontent.com/ahseyg/special-callouts/main/skills/special-callouts/SKILL.md)
+> dosyasını verin ya da yerel olarak kurun:
+> ```bash
+> cp -r skills/special-callouts ~/.claude/skills/
+> ```
 
 ---
 

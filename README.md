@@ -6,6 +6,7 @@
   <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?style=flat&color=f39c12" alt="Version"/>
   <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?include_prereleases&label=BRAT%20beta&style=flat&color=ff69b4" alt="BRAT Beta Version"/>
   <img src="https://img.shields.io/github/downloads/ahseyg/special-callouts/total?style=flat&color=blueviolet" alt="Downloads"/>
+  <a href="skills/special-callouts/"><img src="https://img.shields.io/badge/AI%20Agent%20Skill-ready-8b5cf6?style=flat" alt="AI Agent Skill"/></a>
 </p>
 
 <p align="center">
@@ -16,6 +17,15 @@
 Transform your Obsidian notes with premium, dynamic, and fully customizable callouts. Turn generic boxes into magazine-quality layouts, code terminals, or neon-glowing alerts. Customize everything directly from your markdown — or create reusable presets in the visual settings panel.
 
 **Open source** · MIT License · Contributions welcome
+
+> [!TIP]
+> **New — AI Agent Skill.** Special Callouts now ships with an [Agent Skill](skills/special-callouts/),
+> so Claude can write these callouts for you instead of guessing at the syntax. Hand your agent the raw
+> [SKILL.md](https://raw.githubusercontent.com/ahseyg/special-callouts/main/skills/special-callouts/SKILL.md),
+> or install it locally:
+> ```bash
+> cp -r skills/special-callouts ~/.claude/skills/
+> ```
 
 ---
 
