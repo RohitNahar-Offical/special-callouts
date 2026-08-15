@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Report Bug</a></p>
+  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Report Bug</a></p>
 
 # Special Callouts for Obsidian
 
@@ -116,6 +116,36 @@ Use the visual builder or inline grid syntax to create multi-panel layouts. Call
 | Grid | `(1:2)` | Position in grid |
 
 Full reference in the [Usage Guide](USAGE_GUIDE.md).
+
+---
+
+## AI Agent Skill
+
+Let Claude write these callouts for you. **[skills/special-callouts/](skills/special-callouts/)** is an
+[Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) covering the
+plugin's complete syntax and real rendering behaviour — derived from the v1.0.7 source rather than
+from the docs.
+
+Install it by copying the folder into your skills directory:
+
+```bash
+cp -r skills/special-callouts ~/.claude/skills/
+```
+
+Then just describe what you want — "build a dashboard at the top of my daily note with my open
+tasks", "split this list into three columns", "why is my callout background so faint?" — and it
+produces correct markdown instead of plausible-looking guesses.
+
+| File | Contents |
+| :--- | :--- |
+| [`SKILL.md`](skills/special-callouts/SKILL.md) | Syntax rules, the traps that make valid syntax look broken, debugging checklist |
+| [`references/parameters.md`](skills/special-callouts/references/parameters.md) | Every parameter: accepted values, aliases, colour resolution, edge cases |
+| [`references/layouts.md`](skills/special-callouts/references/layouts.md) | Multi-column lists, grids, custom visual layouts, Dataview |
+| [`references/recipes.md`](skills/special-callouts/references/recipes.md) | Ready-made patterns and tested colour pairs |
+| [`references/internals.md`](skills/special-callouts/references/internals.md) | Render pipeline, DOM/CSS contract, settings schema, known bugs |
+
+Works with Claude Code, Claude Desktop and Claude.ai. `SKILL.md` is plain markdown, so any agent
+framework that accepts a system prompt can use it too.
 
 ---
 

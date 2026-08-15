@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="USAGE_GUIDE_TR.md">Kullanım Kılavuzu</a> · <a href="README.md">English</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Hata Bildir</a></p>
+  <a href="USAGE_GUIDE_TR.md">Kullanım Kılavuzu</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README.md">English</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Hata Bildir</a></p>
 
 # Obsidian için Special Callouts
 
@@ -116,6 +116,36 @@ Görsel düzenleyiciyi veya satır içi ızgara sözdizimini kullanarak çok pan
 | Izgara | `(1:2)` | Izgaradaki konumu |
 
 Tam referans için [Kullanım Kılavuzu'na](USAGE_GUIDE_TR.md) göz atın.
+
+---
+
+## AI Agent Skill
+
+Callout'ları Claude'a yazdırın. **[skills/special-callouts/](skills/special-callouts/)**, eklentinin
+tüm sözdizimini ve gerçek render davranışını anlatan bir
+[Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) — dokümantasyondan
+değil, doğrudan v1.0.7 kaynak kodundan çıkarıldı.
+
+Klasörü skill dizininize kopyalamanız yeterli:
+
+```bash
+cp -r skills/special-callouts ~/.claude/skills/
+```
+
+Sonrası basit: ne istediğinizi anlatın — "günlük notumun başına açık görevlerimi gösteren bir
+dashboard kur", "bu listeyi üç sütuna böl", "callout arka planım neden bu kadar soluk?" — tahmine
+dayalı değil, çalışan markdown üretsin.
+
+| Dosya | İçerik |
+| :--- | :--- |
+| [`SKILL.md`](skills/special-callouts/SKILL.md) | Sözdizimi kuralları, geçerli sözdizimini bozuk gösteren tuzaklar, hata ayıklama listesi |
+| [`references/parameters.md`](skills/special-callouts/references/parameters.md) | Her parametre: kabul edilen değerler, alias'lar, renk çözümleme, uç durumlar |
+| [`references/layouts.md`](skills/special-callouts/references/layouts.md) | Çok sütunlu listeler, ızgaralar, görsel düzenler, Dataview |
+| [`references/recipes.md`](skills/special-callouts/references/recipes.md) | Hazır kalıplar ve test edilmiş renk çiftleri |
+| [`references/internals.md`](skills/special-callouts/references/internals.md) | Render hattı, DOM/CSS sözleşmesi, ayar şeması, bilinen hatalar |
+
+Claude Code, Claude Desktop ve Claude.ai ile çalışır. `SKILL.md` düz markdown olduğu için sistem
+promptu kabul eden her agent altyapısında da kullanılabilir.
 
 ---
 
