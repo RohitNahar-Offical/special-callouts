@@ -74,10 +74,12 @@ export const DEFAULT_CALLOUT_CONFIG: CalloutConfig = {
     col: null,
     customLayout: null,
     compact: false,
+    dense: false,
     noIcon: false,
     center: false,
     titleCenter: false,
-    icon: null
+    icon: null,
+    iconColor: ''
 };
 
 /**

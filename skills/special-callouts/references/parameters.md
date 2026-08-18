@@ -1,7 +1,7 @@
 # Parameter reference
 
 Complete, behaviour-accurate reference for every metadata parameter in Special Callouts
-v1.0.7. Where the plugin's own docs and its code disagree, the code wins and the
+v1.0.8. Where the plugin's own docs and its code disagree, the code wins and the
 disagreement is called out.
 
 ## Contents
@@ -103,7 +103,7 @@ Also accepts the two readability keywords instead of a color — see
 ### `title:`
 
 Sets the title color **and the icon color**, since the CSS rule targets both the title and
-the icon inside it.
+the icon inside it. Use [`icon-color:`](#icon-color-alias-iconcolor) when they should differ.
 
 `title:` is overloaded and accepts three different kinds of value:
 
@@ -156,11 +156,10 @@ gradient callouts, which can be unreadable against a saturated gradient.
 
 Adds a 2 px solid border in the given color plus an outer and inner glow.
 
-The glow is built by appending alpha suffixes to the color string (`<color>40` and
-`<color>20`), which only produces valid CSS for a **6-digit hex**. Palette names are fine
-because they resolve to 6-digit hex first. What breaks is a 3-digit hex (`#f00`) or a raw
-CSS keyword that is not in the palette (`neon:rebeccapurple`): the border still appears,
-the glow silently does not.
+Any color notation works — hex of either length, a palette name, or a bare CSS keyword —
+because the glow is built with `color-mix`. Up to v1.0.7 it was built by concatenating alpha
+suffixes onto the color string, so a 3-digit hex (`#f00`) or an unresolved keyword
+(`neon:rebeccapurple`) kept its border but silently lost its glow.
 
 Neon reads best on a dark `bg:`; on a light theme the glow is barely visible.
 
@@ -204,14 +203,14 @@ on all four sides.
 
 ### `border-width:`
 
-A **bare number**, interpreted as pixels — the plugin appends `px` itself.
+A number, interpreted as pixels. An explicit unit is accepted too.
 
 ```markdown
 > [!note] (border:#3498db, border-width:4) 4px border
 ```
 
-Writing `border-width:4px` produces `4pxpx` and the declaration is dropped. This
-units-appended-for-you rule applies to `radius:` as well.
+`border-width:4` and `border-width:4px` are equivalent; the same holds for `radius:`. In
+v1.0.7 and earlier the unit-carrying form produced `4pxpx` and was silently dropped.
 
 ### `border-style:`
 
@@ -225,7 +224,8 @@ Obsidian's left stripe dashed rather than drawing a full dashed box.
 
 ### `radius:`
 
-A bare number in pixels. `radius:0` gives sharp corners; large values approach a pill.
+A number in pixels, with or without the unit. `radius:0` gives sharp corners; large values
+approach a pill.
 
 ```markdown
 > [!note] (radius:20, gradient:#11998e-#38ef7d, text:white) Rounded
@@ -290,6 +290,18 @@ Callout at Cursor* command opens a searchable picker — but note it writes the 
 pipe form (see [internals](internals.md#known-bugs-and-inconsistencies)), so use it to
 *discover* the name and then type `icon:<name>` into the parentheses yourself.
 
+### `icon-color:` (alias `iconcolor:`)
+
+Colors the icon on its own, overriding the colour it would otherwise take from `title:`.
+
+```markdown
+> [!note] (title:#8892b0, icon-color:#64ffda) Muted title, bright icon
+```
+
+Without it the icon follows `title:`. Obsidian styles the icon's SVG directly, so the
+plugin sets both a colour and the `--icon-color` variable to reach it — up to v1.0.7 it only
+coloured the container, which the SVG never inherited, leaving the icon on the theme accent.
+
 ### `no-icon` (alias `noicon`)
 
 A standalone flag; hides the icon.
@@ -312,13 +324,23 @@ Standalone flag. Centers the title, the content, and the flex alignment of the c
 Centers only the title; content stays left-aligned. Ignored if `center` is also present —
 `center` is checked first and the title-only branch is skipped.
 
-### `compact` (alias `dense`)
+### `compact`
 
 Standalone flag. Reduces padding to `0.3em` on the callout and `0.3em 0.6em` on the title
 and content.
 
-`dense` maps to the same flag. The usage guide describes `dense` as a line-height reduction;
-no such rule exists in the stylesheet. Treat them as one feature with two spellings.
+### `dense`
+
+Standalone flag. Everything `compact` does, plus a tighter line-height (`1.3`) and reduced
+margins on list items and paragraphs. It is a **superset** of `compact`, so `(dense, compact)`
+is redundant.
+
+Use it when a panel has to hold a long list; `compact` alone when only the padding is in the
+way.
+
+> In v1.0.7 and earlier `dense` was parsed as an exact alias of `compact` and had no
+> line-height effect, even though the usage guide described one. Notes written against those
+> versions keep working — `dense` still implies `compact` — they just render tighter now.
 
 ### `padding:0`
 
@@ -377,15 +399,17 @@ the same style without needing `style:` at all. Both routes end in the same code
 | `gradient:` | — | `c1-c2` | full opacity; removes border |
 | `neon:` | — | color | needs 6-digit hex or palette name for the glow |
 | `border:` | — | color · `none` | all four sides |
-| `border-width:` | — | number | px appended automatically |
+| `border-width:` | — | number or length | unitless is treated as px |
 | `border-style:` | — | `solid` `dashed` `dotted` `double` | |
-| `radius:` | — | number | px appended automatically |
+| `radius:` | — | number or length | unitless is treated as px |
 | `font:` | — | `mono` `serif` `sans` `hand` `marker` | others ignored |
 | `font-size:` | — | `1`–`5` | 3 is default |
 | `icon:` | — | Lucide id | |
+| `icon-color:` | `iconcolor:` | color | overrides the colour taken from `title:` |
 | `no-icon` | `noicon` | flag | beats `icon:` |
 | `center` | — | flag | beats `title:center` |
-| `compact` | `dense`, `padding:0` | flag | |
+| `compact` | `padding:0` | flag | padding only |
+| `dense` | — | flag | compact + tighter line-height |
 | `col:` | `column:` | integer | lists only |
 | `N:M` / `N:M:R` | `,` `/` separators | bare token | only M matters |
 | `style:` | — | preset name | applied before inline params |
@@ -405,8 +429,10 @@ Nothing in the plugin reports an error. These all render as if you had written l
 - a `padding:` value other than `0`
 - an unknown key of any kind
 - a hex code with a missing `#` (it resolves to itself and CSS drops it)
-- `border-width:4px` / `radius:20px` — the `px` is appended for you, so these become
-  `4pxpx` and `20pxpx`
+
+Units are no longer among them: `border-width:4` and `border-width:4px` both work, as do
+`radius:20` and `radius:20px`. Up to v1.0.7 the second form of each produced `4pxpx` and was
+dropped.
 
 When output looks under-styled, the fastest diagnosis is to remove parameters one at a time
 until the missing effect appears.

@@ -72,7 +72,9 @@ export function parseMetadata(
             return;
         }
         if (loweredPair === 'compact' || loweredPair === 'dense') {
+            // dense is compact plus a tighter line-height, so it implies compact
             config.compact = true;
+            if (loweredPair === 'dense') config.dense = true;
             return;
         }
 
@@ -174,8 +176,11 @@ export function parseMetadata(
                 break;
             }
             case 'compact':
+                config.compact = true;
+                break;
             case 'dense':
                 config.compact = true;
+                config.dense = true;
                 break;
             case 'padding':
                 if (rawValue === '0') config.compact = true;
@@ -189,6 +194,10 @@ export function parseMetadata(
                 break;
             case 'icon':
                 config.icon = rawValue.toLowerCase();
+                break;
+            case 'icon-color':
+            case 'iconcolor':
+                config.iconColor = resolve(rawValue);
                 break;
         }
     });

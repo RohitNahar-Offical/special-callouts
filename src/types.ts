@@ -13,6 +13,7 @@ export interface CalloutStyle {
     text: string;
     link: string;
     icon: string;
+    iconColor?: string;
     titleColor?: string;
     boldBorder?: boolean;
     font?: string;
@@ -72,10 +73,12 @@ export interface CalloutConfig {
     col: number | null;
     customLayout: string | null;
     compact: boolean;
+    dense: boolean;
     noIcon: boolean;
     center: boolean;
     titleCenter: boolean;
     icon: string | null;
+    iconColor: string;
 }
 
 /**

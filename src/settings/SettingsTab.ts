@@ -38,6 +38,8 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     tempText = '#ffffff';
     tempLink = '#dfe4ea';
     tempTitleColor = '#3498db';
+    // Bos = ikon baslik rengini takip eder
+    tempIconColor = '';
     tempBoldBorder = false;
     tempFont = ''; // Default (empty)
     tempFontSize = 3; // Default size
@@ -378,7 +380,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             const modal = new Modal(this.app);
             modal.titleEl.setText('Import Layouts (JSON)');
             const area = new TextAreaComponent(modal.contentEl);
-            area.placeholder = 'Paste JSON here...';
+            area.setPlaceholder('Paste JSON here...');
             area.inputEl.addClass('sc-style-199b6f0e');
             area.inputEl.addClass('sc-style-09213361');
             
@@ -600,12 +602,15 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 resetBtn.addClass('sc-style-7236432e');
                 setIcon(resetBtn, 'rotate-ccw');
                 resetBtn.title = 'Reset';
-                resetBtn.onclick = () => { void (async () => {
+                resetBtn.onclick = (e) => {
+                    // Satirin kendi tiklama isleyicisi editoru acmasin
                     e.stopPropagation();
-                    this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
-                    await this.plugin.saveSettings();
-                    this.renderSettings();
-                })(); };
+                    void (async () => {
+                        this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
+                        await this.plugin.saveSettings();
+                        this.renderSettings();
+                    })();
+                };
             }
         });
     }
@@ -898,10 +903,25 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         const colorsGrid = colorsPanel.createDiv();
         colorsGrid.addClass('sc-style-578b24de');
 
-        const colorConfigs = [
+        const colorConfigs: Array<{
+            label: string;
+            val: () => string;
+            set: (v: string) => void;
+            clear?: () => void;
+            clearTitle?: string;
+        }> = [
             { label: 'Background', val: () => this.tempBg, set: (v: string) => this.tempBg = v },
             { label: 'Border', val: () => this.tempBorder, set: (v: string) => this.tempBorder = v },
             { label: 'Title', val: () => this.tempTitleColor, set: (v: string) => this.tempTitleColor = v },
+            // Bos tempIconColor "basligi takip et" demek, ama <input type="color"> bos
+            // degeri temsil edemiyor; o yuzden efektif rengi gosterip yanina sifirla koyuyoruz
+            {
+                label: 'Icon',
+                val: () => this.tempIconColor || this.tempTitleColor,
+                set: (v: string) => this.tempIconColor = v,
+                clear: () => this.tempIconColor = '',
+                clearTitle: 'Reset — let the icon follow the title colour'
+            },
             { label: 'Text', val: () => this.tempText, set: (v: string) => this.tempText = v },
             { label: 'Link', val: () => this.tempLink, set: (v: string) => this.tempLink = v }
         ];
@@ -947,6 +967,21 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             };
             wrapper.appendChild(display);
             wrapper.appendChild(picker);
+
+            if (c.clear) {
+                const clearBtn = row.createEl('button');
+                clearBtn.addClass('sc-color-clear');
+                clearBtn.title = c.clearTitle || 'Reset';
+                setIcon(clearBtn, 'rotate-ccw');
+                clearBtn.onclick = () => {
+                    c.clear?.();
+                    const v = c.val();
+                    picker.value = v;
+                    hexInput.value = v.toUpperCase();
+                    display.setCssProps({ '--sc-dyn-background': v });
+                    this.updatePreview(previewBox);
+                };
+            }
         });
 
         // PANEL: EFFECTS
@@ -1129,154 +1164,6 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         })(); };
     }
 
-    private OLD_createFormSection(creatorCard: HTMLElement): HTMLElement {
-        // Name & Icon row
-        const topRow = creatorCard.createDiv();
-        topRow.addClass('sc-style-06b211e9');
-
-        // Name input
-        const nameGroup = topRow.createDiv();
-        (nameGroup.createEl('label', { text: 'Name' })).addClass('sc-style-169e9fa4');
-        const nameInput = nameGroup.createEl('input', { type: 'text', placeholder: 'my-callout' });
-        nameInput.addClass('sc-style-e59b57c9');
-        nameInput.value = this.tempName;
-
-        // Icon input
-        const iconGroup = topRow.createDiv();
-        (iconGroup.createEl('label', { text: 'Icon' })).addClass('sc-style-169e9fa4');
-
-        const iconWrapper = iconGroup.createDiv();
-        iconWrapper.addClass('sc-style-4a5d9a10');
-
-        const iconInput = iconWrapper.createEl('input', { type: 'text', placeholder: 'star' });
-        iconInput.addClass('sc-style-0ac45602');
-        iconInput.value = this.tempIcon;
-
-        const iconBtn = iconWrapper.createEl('button');
-        iconBtn.addClass('sc-style-bf8cdf4e');
-        setIcon(iconBtn, 'search');
-        iconBtn.title = 'Browse Icons';
-
-        iconBtn.onmouseover = () => { iconBtn.addClass('sc-style-5332d565'); iconBtn.addClass('sc-style-f31841c1'); };
-        iconBtn.onmouseout = () => { iconBtn.addClass('sc-style-fdf11a02'); iconBtn.addClass('sc-style-7abb3a4e'); };
-
-        iconBtn.onclick = () => {
-            new IconPickerModal(this.app, (selectedIcon) => {
-                this.tempIcon = selectedIcon;
-                iconInput.value = selectedIcon;
-                this.updatePreview(previewBox);
-            }).open();
-        };
-
-        // Typography Row
-        const typoRow = creatorCard.createDiv();
-        typoRow.addClass('sc-style-06b211e9');
-
-        // Font Family
-        const fontGroup = typoRow.createDiv();
-        (fontGroup.createEl('label', { text: 'Font Family' })).addClass('sc-style-169e9fa4');
-
-        const fontSelect = new DropdownComponent(fontGroup);
-        fontSelect.selectEl.addClass('sc-style-199b6f0e');
-        fontSelect.selectEl.addClass('sc-style-403789f1');
-
-        fontSelect.addOption('', 'Default');
-        Object.keys(FONT_FAMILIES).forEach(f => fontSelect.addOption(f, f.charAt(0).toUpperCase() + f.slice(1)));
-
-        fontSelect.setValue(this.tempFont);
-        fontSelect.onChange((val) => {
-            this.tempFont = val;
-            this.updatePreview(previewBox);
-        });
-
-        // Font Size
-        const sizeGroup = typoRow.createDiv();
-        (sizeGroup.createEl('label', { text: 'Size' })).addClass('sc-style-169e9fa4');
-
-        const sizeSelect = new DropdownComponent(sizeGroup);
-        sizeSelect.selectEl.addClass('sc-style-199b6f0e');
-        sizeSelect.selectEl.addClass('sc-style-403789f1');
-
-        Object.keys(FONT_SIZES).forEach(s => sizeSelect.addOption(s, s === '3' ? '3 (Normal)' : s));
-
-        sizeSelect.setValue(this.tempFontSize.toString());
-        sizeSelect.onChange((val) => {
-            this.tempFontSize = parseInt(val);
-            this.updatePreview(previewBox);
-        });
-
-        // Colors label
-        const colorsLabel = creatorCard.createDiv();
-        colorsLabel.addClass('sc-style-d9cf68d2');
-        (colorsLabel.createEl('span', { text: 'Colors' })).addClass('sc-style-e9e540a9');
-        colorsLabel.createDiv().addClass('sc-style-bf9d1c7c');
-
-        // Colors grid
-        const colorsGrid = creatorCard.createDiv();
-        colorsGrid.addClass('sc-style-47bdaa88');
-
-        const colorConfigs = [
-            { label: 'BG', value: () => this.tempBg, setter: (v: string) => this.tempBg = v },
-            { label: 'Border', value: () => this.tempBorder, setter: (v: string) => this.tempBorder = v },
-            { label: 'Title', value: () => this.tempTitleColor, setter: (v: string) => this.tempTitleColor = v },
-            { label: 'Text', value: () => this.tempText, setter: (v: string) => this.tempText = v },
-            { label: 'Link', value: () => this.tempLink, setter: (v: string) => this.tempLink = v }
-        ];
-
-        // Preview
-        const previewLabel = creatorCard.createDiv();
-        previewLabel.addClass('sc-style-6751f8e3');
-        (previewLabel.createEl('span', { text: 'Preview' })).addClass('sc-style-e9e540a9');
-        previewLabel.createDiv().addClass('sc-style-bf9d1c7c');
-
-        const previewBox = creatorCard.createDiv({ cls: 'callout' });
-        previewBox.addClass('sc-style-d3277930');
-
-        colorConfigs.forEach(config => {
-            const colorItem = colorsGrid.createDiv();
-            colorItem.addClass('sc-style-cdbe310e');
-
-            const colorLabel = colorItem.createEl('label', { text: config.label });
-            colorLabel.addClass('sc-style-5989156b');
-
-            const colorPicker = colorItem.createEl('input', { type: 'color' });
-            colorPicker.addClass('sc-style-5ed30816');
-            colorPicker.value = config.value();
-
-            const hexInput = colorItem.createEl('input', { type: 'text' });
-            hexInput.addClass('sc-style-9cf4d32c');
-            hexInput.value = config.value().toUpperCase();
-            hexInput.placeholder = '#FFFFFF';
-
-            colorPicker.addEventListener('input', (e) => {
-                const newValue = (e.target as HTMLInputElement).value;
-                config.setter(newValue);
-                hexInput.value = newValue.toUpperCase();
-                this.updatePreview(previewBox);
-            });
-
-            hexInput.addEventListener('input', (e) => {
-                let val = (e.target as HTMLInputElement).value;
-                if (!val.startsWith('#')) val = '#' + val;
-                if (isValidHex(val)) {
-                    const normalized = normalizeHex(val);
-                    config.setter(normalized);
-                    colorPicker.value = normalized;
-                    this.updatePreview(previewBox);
-                }
-            });
-
-            hexInput.addEventListener('blur', () => {
-                hexInput.value = config.value().toUpperCase();
-            });
-        });
-
-        nameInput.oninput = () => { this.tempName = nameInput.value; this.updatePreview(previewBox); };
-        iconInput.oninput = () => { this.tempIcon = iconInput.value; this.updatePreview(previewBox); };
-
-        this.updatePreview(previewBox);
-        return previewBox;
-    }
 
     private createActionButtons(creatorCard: HTMLElement, section: HTMLElement, previewBox: HTMLElement): void {
         const bottomRow = creatorCard.createDiv();
@@ -1329,6 +1216,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 text: this.tempText,
                 link: this.tempLink,
                 titleColor: this.tempTitleColor,
+                iconColor: this.tempIconColor,
                 icon: this.tempIcon,
                 boldBorder: this.tempBoldBorder,
                 center: this.tempCenter,
@@ -1425,6 +1313,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                     link: this.tempLink,
                     icon: this.tempIcon,
                     titleColor: this.tempTitleColor,
+                    iconColor: this.tempIconColor,
                     boldBorder: this.tempBoldBorder,
                     font: this.tempFont,
                     fontSize: this.tempFontSize,
@@ -1451,7 +1340,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         savedHeader.addClass('sc-style-aceab0cc');
 
         const headerTitle = new Setting(savedHeader).setName('Saved Styles' ).setHeading();
-        headerTitle.addClass('sc-style-e2b74ba6');
+        (headerTitle.settingEl).addClass('sc-style-e2b74ba6');
 
         const viewToggle = savedHeader.createDiv();
         viewToggle.addClass('sc-style-9d612677');
@@ -1483,9 +1372,8 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         listBtn.onclick = () => { this.stylesViewMode = 'list'; this.renderSettings(); };
 
         const stylesContainer = section.createDiv();
-        stylesContainer.style.cssText = this.stylesViewMode === 'grid'
-            ? 'display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px;'
-            : 'display: flex; flex-direction: column; gap: 10px;';
+        // element.style'a yazmak eklenti incelemesinde reddediliyor; kurallar styles.css'te
+        stylesContainer.addClass(this.stylesViewMode === 'grid' ? 'sc-styles-grid' : 'sc-styles-list');
 
         this.plugin.settings.customStyles.forEach((s, i) => {
             this.renderStyleCard(stylesContainer, s, i, container);
@@ -1721,6 +1609,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         this.tempText = '#ffffff';
         this.tempLink = '#dfe4ea';
         this.tempTitleColor = '#3498db';
+        this.tempIconColor = '';
         this.tempBoldBorder = false;
         this.tempFont = '';
         this.tempFontSize = 3;
@@ -1750,6 +1639,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             link: this.tempLink,
             icon: this.tempIcon,
             titleColor: this.tempTitleColor,
+            iconColor: this.tempIconColor,
             boldBorder: this.tempBoldBorder,
             font: this.tempFont,
             fontSize: this.tempFontSize,
@@ -1772,6 +1662,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         this.tempLink = s.link || '#dfe4ea';
         this.tempIcon = s.icon || '';
         this.tempTitleColor = s.titleColor || s.bg;
+        this.tempIconColor = s.iconColor || '';
         this.tempBoldBorder = s.boldBorder || false;
         this.tempFont = s.font || '';
         this.tempFontSize = s.fontSize || 3;
@@ -1781,6 +1672,10 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         this.tempNeon = s.neon || '';
         this.tempNoIcon = s.noIcon || false;
         this.tempCompact = s.compact || false;
+        // Bunlar eksikti: form geri yuklenmeyince duzenlenen preset tekrar
+        // kaydedildiginde center/titleCenter sessizce dusuyordu.
+        this.tempCenter = s.center || false;
+        this.tempTitleCenter = s.titleCenter || false;
     }
 
     private async saveCurrentStyle() {
@@ -1899,7 +1794,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         // Icon
         if (!noIcon) {
             const i = t.createDiv({ cls: 'callout-icon' });
-            i.addClass('sc-var-color'); i.setCssProps({ '--sc-dyn-color': this.tempTitleColor  });
+            i.addClass('sc-var-color'); i.setCssProps({ '--sc-dyn-color': this.tempIconColor || this.tempTitleColor  });
             i.addClass('sc-style-e9ebe922');
             setIcon(i, this.tempIcon || 'pencil');
         }
@@ -2182,6 +2077,7 @@ class ImportStyleModal extends Modal {
                         if (config.border) baseStyle.border = this.ensureHex(config.border);
                         if (config.link) baseStyle.link = this.ensureHex(config.link);
                         if (config.titleColor) baseStyle.titleColor = this.ensureHex(config.titleColor);
+                        if (config.iconColor) baseStyle.iconColor = this.ensureHex(config.iconColor);
                         if (config.borderWidth) baseStyle.borderWidth = config.borderWidth;
                         if (config.borderStyle) baseStyle.borderStyle = config.borderStyle;
                         if (config.radius) baseStyle.borderRadius = config.radius;

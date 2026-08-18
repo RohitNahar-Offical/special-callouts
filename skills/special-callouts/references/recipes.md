@@ -64,6 +64,16 @@ gradient. This is the workaround for `bg:` being translucent.
 Neon needs a dark `bg:` to show. Use 6-digit hex — the glow is built by appending an alpha
 suffix and silently breaks on `#f00` or on CSS keywords outside the palette.
 
+### Two-tone header
+
+```markdown
+> [!abstract] (title:#8892b0, icon-color:#64ffda, border:none, compact) Weekly Review
+> The icon carries the accent so the title can stay quiet.
+```
+
+Useful when a run of callouts should be scannable by icon colour without a row of loud
+headings. Without `icon-color:` the icon takes the title's colour.
+
 ### Quiet note
 
 ```markdown

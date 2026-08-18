@@ -41,11 +41,50 @@ class ColumnSuggesterModal extends FuzzySuggestModal<string> {
 }
 
 /**
+ * Formats the "Default Callout Metadata" setting into the parenthesised form the renderer
+ * actually parses. Tolerates the user typing their own parentheses around it.
+ *
+ * Returns a leading-space-prefixed block ready to append after `]`, or '' when unset.
+ */
+function formatMetadata(raw: string | undefined): string {
+    const meta = (raw || '').trim();
+    if (!meta) return '';
+    const inner = meta.startsWith('(') && meta.endsWith(')') ? meta.slice(1, -1).trim() : meta;
+    return inner ? ` (${inner})` : '';
+}
+
+/**
+ * Locates the metadata block following `]` on a callout line.
+ *
+ * Counts parenthesis depth the same way parser.ts extractMetadata does, so grouped values
+ * like text:(white, dark-border) are matched in full instead of being cut at the first ')'.
+ */
+function findMetadataSpan(
+    line: string,
+    from: number
+): { start: number; end: number; content: string } | null {
+    let i = from;
+    while (i < line.length && line[i] === ' ') i++;
+    if (line[i] !== '(') return null;
+
+    let depth = 0;
+    for (let j = i; j < line.length; j++) {
+        if (line[j] === '(') depth++;
+        else if (line[j] === ')') {
+            depth--;
+            if (depth === 0) return { start: i, end: j, content: line.slice(i + 1, j) };
+        }
+    }
+    return null;
+}
+
+/**
  * Main plugin class
  */
 export default class SpecialCallouts extends Plugin {
     settings: SpecialCalloutsSettings;
     private processor: CalloutProcessor;
+    private registeredStyleCommands = new Set<string>();
 
     async onload(): Promise<void> {
         await this.loadSettings();
@@ -67,7 +106,6 @@ export default class SpecialCallouts extends Plugin {
             });
         });
 
-        console.log('Special Callouts plugin loaded');
     }
 
     /**
@@ -100,8 +138,7 @@ export default class SpecialCallouts extends Plugin {
 
                 const styles = this.settings.customStyles;
                 new CustomCalloutSuggester(this.app, styles, (style) => {
-                    const defaultMeta = this.settings.defaultMetadata ? `|${this.settings.defaultMetadata}` : '';
-                    const header = `> [!${style.name}${defaultMeta}]\n`;
+                    const header = `> [!${style.name}]${formatMetadata(this.settings.defaultMetadata)}\n`;
                     const wrapped = selection.split('\n').map(l => `> ${l}`).join('\n');
                     editor.replaceSelection(header + wrapped);
                 }).open();
@@ -134,22 +171,25 @@ export default class SpecialCallouts extends Plugin {
                 const cursor = editor.getCursor();
                 const line = editor.getLine(cursor.line);
                 
-                // Callout baslıgı olup olmadıgını kontrol et (örn: > [!note])
-                const match = line.match(/^>\s*\[!([^\]|]+)(?:\|([^\]]*))?\]/);
-                if (!match) return;
-
-                
-                const existingMeta = match[2] || '';
+                // Callout baslıgı mı? Nested callout'lar icin >> de kabul edilir.
+                const head = line.match(/^\s*>+\s*\[![^\]]+\]/);
+                if (!head) return;
 
                 new IconPickerModal(this.app, (icon: string) => {
-                    // Metadata icinde zaten icon varsa degistir, yoksa ekle
-                    let newMeta = existingMeta;
-                    if (newMeta.includes('icon:')) {
-                        newMeta = newMeta.replace(/icon:[^,|]*/, `icon:${icon}`);
+                    const span = findMetadataSpan(line, head[0].length);
+                    let newLine: string;
+
+                    if (span) {
+                        // Metadata varsa icon'u icine yaz: mevcutsa degistir, yoksa ekle
+                        const existing = span.content.trim();
+                        const meta = existing.includes('icon:')
+                            ? existing.replace(/icon:[^,)]*/, `icon:${icon}`)
+                            : existing ? `${existing}, icon:${icon}` : `icon:${icon}`;
+                        newLine = line.slice(0, span.start) + `(${meta})` + line.slice(span.end + 1);
                     } else {
-                        newMeta = newMeta ? `${newMeta}, icon:${icon}` : `icon:${icon}`;
+                        newLine = line.slice(0, head[0].length) + ` (icon:${icon})` + line.slice(head[0].length);
                     }
-                    const newLine = line.replace(/\[!([^\]|]+)(?:\|[^\]]*)?\]/, `[!$1|${newMeta}]`);
+
                     editor.setLine(cursor.line, newLine);
                 }).open();
             }
@@ -164,10 +204,28 @@ export default class SpecialCallouts extends Plugin {
             }
         });
 
-        // Register individual commands for each custom style
+        this.registerStyleCommands();
+    }
+
+    /**
+     * Registers one insert command per saved custom style.
+     *
+     * Also called from saveSettings, so a style created in settings gets its command straight
+     * away instead of only after Obsidian is reloaded. Already-registered ids are skipped, so
+     * repeated calls do not stack duplicate registrations.
+     *
+     * A command whose style was deleted stays until the next reload — Obsidian offers no
+     * reliable way to withdraw one, and a stale entry is a far smaller annoyance than a
+     * missing one.
+     */
+    private registerStyleCommands(): void {
         this.settings.customStyles.forEach((style) => {
+            const id = `insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
+            if (this.registeredStyleCommands.has(id)) return;
+            this.registeredStyleCommands.add(id);
+
             this.addCommand({
-                id: `insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+                id,
                 name: `Insert "${style.name}" Callout`,
                 editorCallback: (editor) => this.insertCalloutTemplate(editor, style.name)
             });
@@ -179,15 +237,13 @@ export default class SpecialCallouts extends Plugin {
      */
     private insertCalloutTemplate(editor: Editor, type: string): void {
         const cursor = editor.getCursor();
-        const defaultMeta = this.settings.defaultMetadata ? `|${this.settings.defaultMetadata}` : '';
-        const calloutText = `> [!${type}${defaultMeta}]\n> `;
+        const calloutText = `> [!${type}]${formatMetadata(this.settings.defaultMetadata)}\n> `;
         editor.replaceRange(calloutText, cursor);
         editor.setCursor({ line: cursor.line + 1, ch: 2 });
     }
 
     onunload(): void {
         this.processor.cleanup();
-        console.log('Special Callouts plugin unloaded');
     }
 
     async loadSettings(): Promise<void> {
@@ -200,5 +256,7 @@ export default class SpecialCallouts extends Plugin {
         if (this.processor) {
             this.processor.updateSettings(this.settings);
         }
+        // Yeni olusturulan preset'in komutu yeniden yukleme beklemeden gorunsun
+        this.registerStyleCommands();
     }
 }

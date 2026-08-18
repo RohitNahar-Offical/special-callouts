@@ -1,9 +1,9 @@
 ---
 name: special-callouts
-description: Write and debug Obsidian callouts styled with the Special Callouts plugin (v1.0.7) — inline metadata in parentheses controlling background, text, title and link colors, gradients, neon glow, borders, radius, fonts, font size, Lucide icons, centering, compact mode, multi-column lists, and multi-callout dashboard grids. Use this skill whenever the user is working in Obsidian and mentions callouts, admonitions, `> [!note]` / `> [!tip]` blocks, colored or styled note boxes, dashboards or grid layouts inside a note, splitting a list into columns, putting Dataview output inside a styled box, or asks why a callout is not rendering the way they expected — even if they never say "Special Callouts" by name. Also use it when asked to design a note template, a habit tracker, a home page, or a "pretty" Obsidian layout.
+description: Write and debug Obsidian callouts styled with the Special Callouts plugin (v1.0.8) — inline metadata in parentheses controlling background, text, title and link colors, gradients, neon glow, borders, radius, fonts, font size, Lucide icons, centering, compact mode, multi-column lists, and multi-callout dashboard grids. Use this skill whenever the user is working in Obsidian and mentions callouts, admonitions, `> [!note]` / `> [!tip]` blocks, colored or styled note boxes, dashboards or grid layouts inside a note, splitting a list into columns, putting Dataview output inside a styled box, or asks why a callout is not rendering the way they expected — even if they never say "Special Callouts" by name. Also use it when asked to design a note template, a habit tracker, a home page, or a "pretty" Obsidian layout.
 ---
 
-# Special Callouts (Obsidian plugin, v1.0.7)
+# Special Callouts (Obsidian plugin, v1.0.8)
 
 Special Callouts extends Obsidian's native callouts with a metadata block written
 directly in the callout title line. It is a **markdown-authoring** plugin: everything
@@ -46,7 +46,7 @@ preset name, or the special wrapper `multi-callout`.
 |---|---|
 | Colors | `bg:` `text:` `title:` `link:` `gradient:` `neon:` |
 | Borders | `border:` `border-width:` `border-style:` `radius:` |
-| Type | `font:` `font-size:` `icon:` `no-icon` |
+| Type | `font:` `font-size:` `icon:` `icon-color:` `no-icon` |
 | Layout | `col:` `center` `compact` / `dense` `title:center` `N:M` grid |
 | Presets | `style:preset-name` · a saved layout name as a bare word |
 
@@ -84,21 +84,24 @@ panels must be written in the order they should appear, and a "row 2" panel only
 row 2 because the flex row wrapped. Numbering them `1:3, 2:3, 3:3` is still worth doing —
 it keeps the source readable and matches every example the user has seen.
 
-**5. `dense` is an exact alias of `compact`.** The usage guide claims `dense` reduces
-line-height; the parser maps both words to the same compact flag. `(dense, compact)` is
-redundant, not additive. Don't promise the user two different effects.
+**5. `dense` is `compact` plus a tighter line-height** — a superset, not a sibling. Writing
+`(dense, compact)` is redundant rather than additive, and `dense` alone already reduces
+padding. Reach for it when a panel holds a long list; plain `compact` when the padding is
+the only problem. (In v1.0.7 and earlier the two were exact aliases and `dense` had no
+line-height effect at all, despite what that version's guide claimed.)
 
 **6. `text:` colors the content only; `title:` colors the title *and* its icon.** There is
-no single parameter that recolors everything — set both.
+no single parameter that recolors everything — set both. `icon-color:` peels the icon back
+off `title:` when the two should differ.
 
 **7. Flags win in a fixed order.** `no-icon` beats `icon:`, and `center` beats
 `title:center`; the loser is skipped entirely rather than merged.
 
-**8. The pipe form `[!note|bg:red]` is not supported by the renderer.** Only parentheses are
-parsed. This matters because the **Default Callout Metadata** setting and the *Change Icon
-of Callout at Cursor* command both emit the pipe form — so a user who fills in that setting
-gets callouts that quietly stop working. Advise leaving it empty and writing metadata in
-parentheses instead.
+**8. Only parentheses are parsed — the pipe form `[!note|bg:red]` never renders.** In v1.0.7
+the **Default Callout Metadata** setting and the *Change Icon of Callout at Cursor* command
+both emitted the pipe form, so a user on that version who filled in the setting got callouts
+that quietly stopped working. Both emit parentheses now. If you meet a note full of
+`[!type|meta]` callouts, this is the cause — rewriting them as `[!type] (meta)` fixes them.
 
 ## Composing a styled callout
 

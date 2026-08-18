@@ -229,6 +229,16 @@ Renkli parlayan kenarlik + kutu golgesi ekler:
 
 > **Ipucu:** Neon koyu arka planlarda en iyi goruntulenir. Maksimum efekt icin koyu bir `bg:` rengi kullanin.
 
+### Simge Rengi — `icon-color:`
+
+Simge varsayilan olarak `title:` renginden alir. Farkli olmalarini istiyorsaniz
+`icon-color:` kullanin:
+
+```markdown
+> [!note] (title:#8892b0, icon-color:#64ffda) Solgun Baslik, Parlak Simge
+> Simge one cikarken baslik geride kalir.
+```
+
 ### Simgeyi Gizle — `no-icon`
 
 ```markdown
@@ -447,6 +457,11 @@ Birden fazla kaynaktan liste cekin:
 | `(1:3)` | 3 sutunun 1. pozisyonu (sol ucte bir) |
 | `(2:3:2)` | Pozisyon 2, 3 sutun, satir 2 |
 
+> **Yerlesim gercekte nasil calisiyor:** bir panelin genisligini yalnizca sutun sayisi
+> belirler — `(1:3)`, `(2:3)` ve `(3:3)` ucu de ucte bir genisliktedir. Paneller yazdiginiz
+> sirada gorunur ve satir dolunca alt satira gecer; yani satir numarasi paneli tasiyan bir
+> ayar degil, aciklayici bir bilgidir. Yine de numaralandirin, kaynak okunakli kalir.
+
 ### Cok Satirli Dashboard
 
 ```markdown
@@ -535,7 +550,10 @@ Obsidian->in yerlesik callout tiplerinin (note, info, warning vb.) varsayilan go
 
 | Komut | Aciklama |
 |-------|----------|
-| `Insert Custom Callout` | Tum kayitli ozel stilleri gozatip birini ekleyin |
+| `Insert Custom Style...` | Tum kayitli ozel stilleri gozatip birini ekleyin |
+| `Wrap Selection in Callout...` | Secili metni secilen stille sarar |
+| `Insert Multi-Column Layout...` | 2-4 panelli bir `multi-callout` iskeleti olusturur |
+| `Change Icon of Callout at Cursor` | Imlecin bulundugu callout icin Lucide ikonu secer |
 | `Insert "[stil-adi]" callout` | Belirli bir ozel stili dogrudan ekleyin |
 | `Advanced Callout Builder...` | İnteraktif ızgara/layout düzenleyiciyi açar |
 

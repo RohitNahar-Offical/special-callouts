@@ -92,6 +92,7 @@ for writing snippets or debugging a theme conflict.
 | Background | `data-sc-bg` | `--sc-bg-color` (a `color-mix(… 15%, transparent)`) |
 | Text color | `data-sc-text` | `--sc-text-color` (applied to `> .callout-content`) |
 | Title color | `data-sc-title-color` | `--sc-title-color` (title **and** its icon) |
+| Icon color | `data-sc-icon-color` | `--sc-icon-color` (declared after the title rule, so it wins) |
 | Border | `data-sc-border` | `--sc-border` (shorthand) |
 | No border | `data-sc-no-border` | — |
 | Border width | `data-sc-bw` | `--sc-border-width` |
@@ -102,6 +103,7 @@ for writing snippets or debugging a theme conflict.
 | Font | `data-sc-font` | `--sc-font-family`, and `--font-interface` |
 | Font size | `data-sc-fontsize` | `--sc-font-size` |
 | Compact | `data-compact="true"` | — |
+| Dense | `data-dense="true"` (set alongside compact) | — |
 | Center | `data-center="true"` | — |
 | Title center | `data-title-center="true"` | — |
 | Link color | `data-link-color="<color>"` | `--link-color` |
@@ -158,6 +160,7 @@ Stored in `.obsidian/plugins/special-callouts/data.json`:
 | `name` | string | lowercase, hyphenated; doubles as the callout type |
 | `bg` `border` `text` `link` | string | hex; `bg` may also hold a full `linear-gradient(...)` |
 | `icon` | string | Lucide id |
+| `iconColor` | string? | overrides the colour inherited from `titleColor` |
 | `titleColor` | string? | |
 | `boldBorder` | bool? | legacy shorthand for a 4 px border |
 | `font` | string? | one of the five font keys |
@@ -224,7 +227,8 @@ The *Advanced Callout Builder* is the one command that emits correct parenthesis
    merge or split, which is what makes children map onto areas predictably.
 3. **Callouts → Custom Callouts** — the preset editor: quick-start presets (Ocean Deep,
    Neon Glow, Forest, Sunset), a randomiser, live preview, icon picker, colour pickers for
-   background/border/title/text/link, neon toggle, font family and size, border style,
+   background/border/title/icon/text/link (the icon picker follows the title colour until
+   set, with a reset that hands it back), neon toggle, font family and size, border style,
    width and radius sliders, compact and hide-icon toggles, plus import/export.
 4. **Callouts → Standard Callouts** — override the built-in types' colors, grid or list
    view, reset to default.
@@ -233,37 +237,56 @@ The *Advanced Callout Builder* is the one command that emits correct parenthesis
 
 ## Known bugs and inconsistencies
 
-Accurate as of v1.0.7. Useful both for explaining odd behaviour and as a to-do list.
+### Fixed in 1.0.8
 
-1. **The pipe form is emitted but never parsed.** `Default Callout Metadata` and *Change
-   Icon of Callout at Cursor* both produce `> [!type|meta]`, which the renderer ignores
-   entirely — the metadata never applies, and the callout type itself stops being a clean
-   type name. Only the settings *importer* understands the pipe form. This is the highest
-   impact issue in the plugin: a user who fills in that setting sees every subsequently
-   inserted callout stop working. Fix by emitting `> [!type] (meta)` in all three places.
-2. **`dense` is documented as a line-height reduction** but is parsed as an alias of
-   `compact`, and no line-height rule exists in `styles.css`.
-3. **`data-grid-pos` and `data-grid-row` are dead attributes.** The row component of
-   `(N:M:R)` has no effect; rows happen through flex wrapping.
-4. **Preset `borderWidth` without a border color** is written to `--callout-border-width`
-   verbatim, with no `px` appended — so a preset storing `'4'` produces an invalid
-   declaration. Inline `border-width:` appends `px`; preset `borderRadius` does not. The
-   three unit conventions disagree.
-5. **Editing a preset does not restore `center` / `titleCenter` into the form**, so those
-   two flags can be silently dropped when an existing preset is re-saved.
-6. **Neon glow needs 6-digit hex.** The glow is built by string-concatenating `40` and `20`
-   alpha suffixes; a 3-digit hex or an unresolved CSS keyword yields invalid CSS and the
-   glow disappears while the border stays.
-7. **Per-preset commands need an Obsidian reload** to appear.
-8. **`src/modals/HowToModal.ts` and `src/modals/MetadataModal.ts` are dead code** in the
-   1.0.7 tree — nothing imports them, they are absent from the built `main.js`, and both
-   reference an undefined `contentEl` in `onClose`.
-9. **The usage guide's command table is out of date** — it lists "Insert Custom Callout"
-   where the actual command is "Insert Custom Style…", and omits the wrap, multi-column and
-   icon commands.
-10. **The neon shadow differs between inline metadata and presets** (`0 0 8px 2px` with an
-    inset vs `0 0 10px`), so the same color looks slightly different depending on which
-    route applied it.
+Users still on 1.0.7 hit all of these, so they are worth recognising in the wild.
+
+- **The pipe form was emitted but never parsed.** `Default Callout Metadata`, *Wrap Selection
+  in Callout* and *Change Icon of Callout at Cursor* produced `> [!type|meta]`, which the
+  renderer ignores entirely — so filling in that setting made every inserted callout lose its
+  styling. All three now emit `> [!type] (meta)`, and the icon command merges into an existing
+  block using the same balanced-parenthesis scan as the parser, so grouped values like
+  `text:(white, dark-border)` survive. The settings *importer* still accepts the pipe form, for
+  notes written under older versions.
+- **Units were handled three different ways.** Inline `border-width:`/`radius:` appended `px`
+  blindly (so `4px` became `4pxpx`), preset `borderRadius` used its value verbatim, and preset
+  `borderWidth` was written to Obsidian's `--callout-border-width` with no unit at all. All four
+  paths now go through `toPx()` and the plugin's own `--sc-border-width`.
+- **Neon glow needed a 6-digit hex.** The glow concatenated `40`/`20` alpha suffixes onto the
+  color string, so `#f00` or a bare keyword kept its border and silently lost its glow. It uses
+  `color-mix` now, and inline metadata and presets share one helper, so a color can no longer
+  render two different ways depending on the route.
+- **Editing a preset dropped `center` and `titleCenter`** — `loadStyleToForm` never restored
+  them, so re-saving an existing preset silently cleared both.
+- **The reset button on a modified standard style threw.** Its handler called
+  `e.stopPropagation()` with no `e` in scope — a `ReferenceError` before it reset anything.
+- **The "Saved Styles" heading threw.** `addClass` was called on a `Setting` instance rather
+  than its `settingEl`, a `TypeError` partway through rendering the settings tab.
+- **The layout-import textarea had no placeholder** — it assigned `.placeholder` on a
+  `TextAreaComponent`, which has no such property.
+- **The icon ignored the title colour** (issue #8). Only `.callout-icon` was coloured, but
+  Obsidian's `.svg-icon` rule sets a colour on the SVG itself, so the SVG never inherited and
+  the icon stayed on the theme accent. The rule now also targets `.svg-icon` and sets
+  `--icon-color`. A separate `icon-color:` parameter was added for when the two should differ.
+- **The saved-styles list never rendered** (issue #8). `createSavedStylesList` called
+  `addClass` on a `Setting` instance five lines before the loop that draws the cards, so the
+  `TypeError` aborted the function every time. Styles were written to `data.json` correctly —
+  which is why exporting worked and re-importing changed nothing.
+- **`dense` did nothing beyond `compact`.** It is now compact plus a tighter line-height, as the
+  guide always claimed. It still implies `compact`, so older notes only render tighter.
+
+### Open
+
+1. **`data-grid-pos` and `data-grid-row` are dead attributes.** The row component of `(N:M:R)`
+   has no effect; rows happen through flex wrapping. Making it real means moving the
+   `multi-callout` container from flex to grid, which would change how every existing dashboard
+   lays out — deliberately deferred until it can be verified visually in a vault. The attributes
+   are left in place as hooks for user CSS snippets.
+2. **Per-preset commands need an Obsidian reload** to appear, since they are registered during
+   `onload`.
+3. **Presets have no `dense` toggle** in the settings UI, though the inline parameter exists.
+4. **`gradient:` splits on `-`**, so a custom color name containing a hyphen cannot be used as a
+   gradient stop.
 
 ## Build and development
 

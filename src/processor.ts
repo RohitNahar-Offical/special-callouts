@@ -7,7 +7,7 @@
 
 import { CalloutStyle, CalloutConfig, SpecialCalloutsSettings } from './types';
 import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES } from './constants';
-import { resolveColor, applyTextBorder, debounce } from './utils';
+import { resolveColor, applyTextBorder, debounce, toPx, neonStyles } from './utils';
 import { parseMetadata, parseGridLayout, extractMetadata } from './parser';
 import { setIcon } from 'obsidian';
 
@@ -198,6 +198,13 @@ export class CalloutProcessor {
             calloutEl.setAttribute('data-sc-title-color', '');
         }
 
+        // AI_CONTEXT: Ayri ikon rengi. title: ile birlikte verilirse bu kazanir, cunku
+        // styles.css'te [data-sc-icon-color] kurali [data-sc-title-color]'dan sonra gelir.
+        if (config.iconColor) {
+            calloutEl.setCssProps({ '--sc-icon-color': config.iconColor });
+            calloutEl.setAttribute('data-sc-icon-color', '');
+        }
+
         if (config.titleBorder) {
             const title = calloutEl.querySelector('.callout-title');
             if (title) applyTextBorder(title as HTMLElement, config.titleBorder);
@@ -232,7 +239,7 @@ export class CalloutProcessor {
         }
 
         if (config.borderWidth) {
-            calloutEl.setCssProps({ '--sc-border-width': config.borderWidth + 'px' });
+            calloutEl.setCssProps({ '--sc-border-width': toPx(config.borderWidth) });
             calloutEl.setAttribute('data-sc-bw', '');
         }
 
@@ -242,15 +249,12 @@ export class CalloutProcessor {
         }
 
         if (config.radius) {
-            calloutEl.setCssProps({ '--sc-radius': config.radius + 'px' });
+            calloutEl.setCssProps({ '--sc-radius': toPx(config.radius) });
             calloutEl.setAttribute('data-sc-radius', '');
         }
 
         if (config.neon) {
-            calloutEl.setCssProps({
-                '--sc-neon-border': `2px solid ${config.neon}`,
-                '--sc-neon-shadow': `0 0 8px 2px ${config.neon}40, inset 0 0 8px 2px ${config.neon}20`
-            });
+            calloutEl.setCssProps(neonStyles(config.neon));
             calloutEl.setAttribute('data-sc-neon', '');
         }
 
@@ -275,6 +279,12 @@ export class CalloutProcessor {
         if (config.compact) {
             // CSS class .callout[data-compact="true"] in styles.css handles all padding overrides
             calloutEl.setAttribute('data-compact', 'true');
+        }
+
+        // AI_CONTEXT: dense is compact plus a tighter line-height. It sets compact too (see
+        // parser.ts), so writing `dense` alone still reduces padding as it always has.
+        if (config.dense) {
+            calloutEl.setAttribute('data-dense', 'true');
         }
 
         // AI_CONTEXT: Center mode aligns everything to the center
@@ -426,9 +436,7 @@ export class CalloutProcessor {
         this.applyLinkColor(calloutEl, style.link);
 
         if (style.border) {
-            const width = style.borderWidth ?
-                (style.borderWidth.endsWith('px') ? style.borderWidth : style.borderWidth + 'px') :
-                (style.boldBorder ? '4px' : '1px');
+            const width = style.borderWidth ? toPx(style.borderWidth) : (style.boldBorder ? '4px' : '1px');
 
             const bStyle = style.borderStyle || 'solid';
             // CSS var + data attr; .callout[data-sc-border] in styles.css applies with !important
@@ -439,6 +447,11 @@ export class CalloutProcessor {
         if (style.titleColor) {
             calloutEl.setCssProps({ '--sc-title-color': style.titleColor });
             calloutEl.setAttribute('data-sc-title-color', '');
+        }
+
+        if (style.iconColor) {
+            calloutEl.setCssProps({ '--sc-icon-color': style.iconColor });
+            calloutEl.setAttribute('data-sc-icon-color', '');
         }
 
         if (style.font && FONT_FAMILIES[style.font]) {
@@ -452,13 +465,19 @@ export class CalloutProcessor {
         }
 
         // Advanced Borders
-        if (style.borderWidth) calloutEl.setCssProps({ '--callout-border-width': style.borderWidth });
+        // AI_CONTEXT: Uses the plugin's own --sc-border-width, not Obsidian's
+        // --callout-border-width, so it goes through the same styles.css rule as inline
+        // metadata. The old variable was also written unitless, which was invalid CSS.
+        if (style.borderWidth) {
+            calloutEl.setCssProps({ '--sc-border-width': toPx(style.borderWidth) });
+            calloutEl.setAttribute('data-sc-bw', '');
+        }
         if (style.borderStyle) {
             calloutEl.setCssProps({ '--sc-border-style': style.borderStyle });
             calloutEl.setAttribute('data-sc-bs', '');
         }
         if (style.borderRadius) {
-            calloutEl.setCssProps({ '--sc-radius': style.borderRadius });
+            calloutEl.setCssProps({ '--sc-radius': toPx(style.borderRadius) });
             calloutEl.setAttribute('data-sc-radius', '');
         }
 
@@ -493,10 +512,7 @@ export class CalloutProcessor {
         }
 
         if (style.neon) {
-            calloutEl.setCssProps({
-                '--sc-neon-border': `2px solid ${style.neon}`,
-                '--sc-neon-shadow': `0 0 10px ${style.neon}, inset 0 0 5px ${style.neon}20`
-            });
+            calloutEl.setCssProps(neonStyles(style.neon));
             calloutEl.setAttribute('data-sc-neon', '');
         }
     }

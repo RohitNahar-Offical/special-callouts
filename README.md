@@ -100,6 +100,7 @@ Use the visual builder or inline grid syntax to create multi-panel layouts. Call
 | `gradient` | `gradient:blue-purple` | Two-color gradient |
 | `neon` | `neon:#00f2ff` | Neon border + glow |
 | `icon` | `icon:sun` | Lucide icon name |
+| `icon-color` | `icon-color:cyan` | Icon color (defaults to the title color) |
 | `no-icon` | `(no-icon)` | Hide icon |
 
 ### Borders
@@ -122,7 +123,7 @@ Use the visual builder or inline grid syntax to create multi-panel layouts. Call
 | `col` | `(col:3)` | Multi-column lists |
 | `center` | `(center)` | Center content |
 | `compact` | `(compact)` | Reduce padding |
-| `dense` | `(dense)` | Reduce line-height |
+| `dense` | `(dense)` | Compact plus tighter line-height |
 | Grid | `(1:2)` | Position in grid |
 
 Full reference in the [Usage Guide](USAGE_GUIDE.md).
@@ -133,7 +134,7 @@ Full reference in the [Usage Guide](USAGE_GUIDE.md).
 
 Let Claude write these callouts for you. **[skills/special-callouts/](skills/special-callouts/)** is an
 [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) covering the
-plugin's complete syntax and real rendering behaviour — derived from the v1.0.7 source rather than
+plugin's complete syntax and real rendering behaviour — derived from the v1.0.8 source rather than
 from the docs.
 
 Install it by copying the folder into your skills directory:

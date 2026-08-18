@@ -101,6 +101,7 @@ Görsel düzenleyiciyi veya satır içi ızgara sözdizimini kullanarak çok pan
 | `gradient` | `gradient:blue-purple` | İki renkli degrade |
 | `neon` | `neon:#00f2ff` | Neon kenarlık + parlama |
 | `icon` | `icon:sun` | Lucide ikon adı |
+| `icon-color` | `icon-color:cyan` | İkon rengi (varsayılan: başlık rengi) |
 | `no-icon` | `(no-icon)` | İkonu gizle |
 
 ### Kenarlıklar
@@ -123,7 +124,7 @@ Görsel düzenleyiciyi veya satır içi ızgara sözdizimini kullanarak çok pan
 | `col` | `(col:3)` | Çok sütunlu listeler |
 | `center` | `(center)` | İçeriği ortala |
 | `compact` | `(compact)` | Dolguyu (padding) azalt |
-| `dense` | `(dense)` | Satır aralığını azalt |
+| `dense` | `(dense)` | Compact'a ek olarak satır aralığını da kısar |
 | Izgara | `(1:2)` | Izgaradaki konumu |
 
 Tam referans için [Kullanım Kılavuzu'na](USAGE_GUIDE_TR.md) göz atın.
@@ -135,7 +136,7 @@ Tam referans için [Kullanım Kılavuzu'na](USAGE_GUIDE_TR.md) göz atın.
 Callout'ları Claude'a yazdırın. **[skills/special-callouts/](skills/special-callouts/)**, eklentinin
 tüm sözdizimini ve gerçek render davranışını anlatan bir
 [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) — dokümantasyondan
-değil, doğrudan v1.0.7 kaynak kodundan çıkarıldı.
+değil, doğrudan v1.0.8 kaynak kodundan çıkarıldı.
 
 Klasörü skill dizininize kopyalamanız yeterli:
 

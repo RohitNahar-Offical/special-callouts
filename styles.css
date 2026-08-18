@@ -47,20 +47,15 @@
 }
 
 /* Column Layout for Lists */
-/* stylelint-disable -- Multicolumn is well supported in modern Obsidian */
+/* Distribution is done by .sc-multi-col-list (CSS Grid), applied from the processor.
+   This only needs to claim the full width. The multicolumn properties that used to sit
+   here — column-gap, column-fill, break-inside — never applied to a grid container, and
+   Obsidian's CSS lint flags multicolumn as only partially supported. */
 .callout[data-col] .callout-content ul,
 .callout[data-col] .callout-content ol,
 .callout[data-col] .callout-content .dataview.list-view-ul {
-    column-gap: 2em;
-    column-fill: balance;
     width: 100%;
 }
-
-.callout[data-col] .callout-content li {
-    break-inside: avoid;
-    page-break-inside: avoid;
-}
-/* stylelint-enable -- Re-enable */
 
 /* Mobile Responsive */
 @media (max-width: 600px) {
@@ -146,10 +141,24 @@
     color: var(--sc-text-color);
 }
 
-/* Title + icon color */
-.callout[data-sc-title-color] > .callout-title,
-.callout[data-sc-title-color] > .callout-title .callout-icon {
+/* Title + icon color.
+   The icon needs more than the container's colour: Obsidian's .svg-icon rule sets a colour
+   on the SVG itself, so the SVG never inherits from .callout-icon. Setting --icon-color and
+   targeting .svg-icon directly is what actually recolours it. */
+.callout[data-sc-title-color] > .callout-title {
     color: var(--sc-title-color);
+}
+.callout[data-sc-title-color] > .callout-title .callout-icon,
+.callout[data-sc-title-color] > .callout-title .callout-icon .svg-icon {
+    color: var(--sc-title-color);
+    --icon-color: var(--sc-title-color);
+}
+
+/* Separate icon colour. Declared after the title rule so icon-color: wins when both are set. */
+.callout[data-sc-icon-color] > .callout-title .callout-icon,
+.callout[data-sc-icon-color] > .callout-title .callout-icon .svg-icon {
+    color: var(--sc-icon-color);
+    --icon-color: var(--sc-icon-color);
 }
 
 /* Border: none */
@@ -215,6 +224,18 @@
     padding: 0.3em 0.6em;
 }
 
+/* Dense mode — compact padding plus a tighter line-height.
+   Set alongside data-compact, never instead of it, so `dense` remains a superset. */
+.callout[data-dense="true"] > .callout-content {
+    line-height: 1.3;
+}
+.callout[data-dense="true"] > .callout-content li {
+    margin-block: 0.1em;
+}
+.callout[data-dense="true"] > .callout-content p {
+    margin-block: 0.3em;
+}
+
 /* Center mode */
 .callout[data-center="true"] {
     text-align: center;
@@ -268,12 +289,8 @@
     grid-template-columns: repeat(var(--sc-list-cols, 1), 1fr);
     grid-template-rows: repeat(var(--sc-list-rows, 1), auto);
     gap: 0.25em 2em;
-/* stylelint-disable -- Multicolumn is well supported in modern Obsidian */
     width: 100%;
-    column-count: unset;
-    column-fill: unset;
 }
-/* stylelint-enable -- Re-enable */
 .sc-multi-col-item {
     grid-column: var(--sc-col, auto);
     grid-row: var(--sc-row, auto);
@@ -308,6 +325,32 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+}
+
+/* "Follow title" reset next to the icon colour picker */
+.special-callouts-ui .sc-color-clear {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    display: flex;
+    align-items: center;
+}
+.special-callouts-ui .sc-color-clear:hover {
+    color: var(--text-normal);
+}
+
+/* Saved styles list, grid and list view */
+.special-callouts-ui .sc-styles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+}
+.special-callouts-ui .sc-styles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 /* Hidden utility */

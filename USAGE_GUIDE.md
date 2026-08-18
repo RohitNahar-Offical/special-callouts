@@ -229,6 +229,15 @@ Adds a colored glowing border + box-shadow:
 
 > **Pro tip:** Neon works best on dark backgrounds. Use a dark `bg:` color for maximum effect.
 
+### Icon Color — `icon-color:`
+
+By default the icon takes its colour from `title:`. Use `icon-color:` when they should differ:
+
+```markdown
+> [!note] (title:#8892b0, icon-color:#64ffda) Muted Title, Bright Icon
+> The icon stands out while the title stays quiet.
+```
+
 ### Hide Icon — `no-icon`
 
 ```markdown
@@ -447,6 +456,11 @@ Create side-by-side callout layouts using the `[!multi-callout]` wrapper.
 | `(1:3)` | Position 1 of 3 columns (left third) |
 | `(2:3:2)` | Position 2, 3 columns, row 2 |
 
+> **How placement actually works:** only the column count sizes a panel — `(1:3)`, `(2:3)`
+> and `(3:3)` are all one third wide. Panels appear in the order you write them and wrap to
+> a new row when the current one is full, so the row number is descriptive rather than
+> something that moves a panel. Number them anyway; it keeps the source readable.
+
 ### Multi-Row Dashboard
 
 ```markdown
@@ -510,7 +524,7 @@ Design complex dashboard grids visually by dragging and merging cells — no cod
 - **Random:** Generate a random unique style instantly
 - **Live Preview:** See your callout in real-time as you edit
 - **Identity:** Style name + icon picker (with fuzzy search)
-- **Palette:** Background, border, title, text, and link colors with hex inputs and color pickers
+- **Palette:** Background, border, title, icon, text, and link colors with hex inputs and color pickers. The icon swatch follows the title color until you set it; the reset button next to it hands the icon back to the title.
 - **Effects:** Neon glow toggle with color picker
 - **Typography:** Font family dropdown + font size selector
 - **Structure:** Border style, thickness slider, corner radius slider
@@ -535,9 +549,15 @@ Press `Ctrl/Cmd + P` and search for:
 
 | Command | Description |
 |---------|-------------|
-| `Insert Custom Callout` | Browse all saved custom styles and insert one |
-| `Insert "[style-name]" callout` | Directly insert a specific custom style |
+| `Insert Custom Style...` | Browse all saved custom styles and insert one |
+| `Insert "[style-name]" Callout` | Directly insert a specific custom style |
+| `Wrap Selection in Callout...` | Wrap the selected text in a chosen style |
+| `Insert Multi-Column Layout...` | Scaffold a `multi-callout` grid with 2-4 panels |
+| `Change Icon of Callout at Cursor` | Pick a Lucide icon for the callout on the current line |
 | `Advanced Callout Builder...` | Open the interactive layout/grid builder |
+
+> Commands for individual styles are registered when the plugin loads, so a newly created
+> style gets its own command after the next Obsidian reload.
 
 > You can assign **hotkeys** to any of these commands in Settings → Hotkeys → Special Callouts.
 

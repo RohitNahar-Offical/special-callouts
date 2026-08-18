@@ -11,9 +11,10 @@ export function debounce<T extends (...args: unknown[]) => void>(
     func: T,
     wait: number
 ): T {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
+    // window.setTimeout yields a number; @types/node would otherwise infer NodeJS.Timeout
+    let timeout: number | null = null;
     return ((...args: Parameters<T>) => {
-        if (timeout) window.clearTimeout(timeout);
+        if (timeout !== null) window.clearTimeout(timeout);
         timeout = window.setTimeout(() => func(...args), wait);
     }) as T;
 }
@@ -88,6 +89,44 @@ export function resolveColor(
  */
 export function createTransparentBg(color: string, opacity: number = 10): string {
     return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+
+/**
+ * Normalizes a length to a CSS px value.
+ *
+ * Inline metadata is written unitless (`radius:20`) while saved presets may hold either
+ * form. Every caller used to append 'px' on its own, which turned a preset storing '4px'
+ * into '4pxpx' and dropped the declaration. Routing both paths through here keeps the
+ * two notations interchangeable.
+ *
+ * @param value - Unitless number or a value that already carries a unit
+ * @returns Value with 'px' appended when it is purely numeric, otherwise unchanged
+ */
+export function toPx(value: string | number): string {
+    const raw = String(value).trim();
+    if (!raw) return '';
+    return /^-?\d*\.?\d+$/.test(raw) ? `${raw}px` : raw;
+}
+
+/**
+ * Builds the CSS custom properties for the neon border and glow.
+ *
+ * The glow used to be built by concatenating '40' and '20' onto the color string, which
+ * only yields valid CSS for a 6-digit hex — a 3-digit hex or a bare CSS keyword silently
+ * lost its glow while keeping its border. color-mix handles any color notation.
+ *
+ * Inline metadata and saved presets both call this, so a given color can no longer render
+ * two different ways depending on which route applied it.
+ *
+ * @param color - Any CSS color
+ */
+export function neonStyles(color: string): Record<string, string> {
+    const glow = (percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+    return {
+        '--sc-neon-border': `2px solid ${color}`,
+        // 25% / 12% match the alpha the old hex suffixes produced (0x40, 0x20)
+        '--sc-neon-shadow': `0 0 8px 2px ${glow(25)}, inset 0 0 8px 2px ${glow(12)}`
+    };
 }
 
 /**
