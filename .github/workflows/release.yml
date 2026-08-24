@@ -63,35 +63,44 @@ jobs:
         with:
           subject-path: styles.css
 
-      # ── Extract release notes from CHANGELOG.md ─────────────────────────────
-      # Reads the block between this version's heading and the next one. Keep the changelog
-      # headings in the `## [x.y.z] - date` form or this quietly produces empty notes.
-      - name: Extract release notes for this version
-        id: extract_notes
+      # ── Publish the release ─────────────────────────────────────────────────
+      # Notes come from the block in CHANGELOG.md between this version's heading and the
+      # next, so keep those headings in the `## [x.y.z] - date` form.
+      #
+      # Done with the `gh` CLI, which is preinstalled on the runner, rather than an action.
+      # The tag usually already carries a release, because the easiest way to create a tag
+      # in the web UI is "Draft a new release". 1.0.9 shipped with an empty title and empty
+      # body for exactly that reason: the action used before this uploaded the assets and
+      # left the existing release's metadata untouched, and the run went green. Creating
+      # and editing are separate commands here, so which one is needed is decided out loud
+      # instead of depending on an action's behaviour with a release it did not create.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
         run: |
-          VERSION="${GITHUB_REF_NAME}"
-          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          awk "/^## \[${TAG}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md > notes.md
 
-          if [ -z "$(echo "$NOTES" | tr -d '[:space:]')" ]; then
-            echo "::error::CHANGELOG.md has no '## [${VERSION}]' section, so the release would ship with empty notes."
+          if [ -z "$(tr -d '[:space:]' < notes.md)" ]; then
+            echo "::error::CHANGELOG.md has no '## [${TAG}]' section, so the release would ship with empty notes."
             exit 1
           fi
 
-          # Store multiline output safely
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          TITLE="Special Callouts ${TAG}"
 
-      # ── Create GitHub Release ───────────────────────────────────────────────
-      # Updates the release in place when one already exists for the tag, which is what
-      # happens when the tag is created through "Draft a new release" in the web UI.
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          name: "Special Callouts ${{ github.ref_name }}"
-          body: ${{ steps.extract_notes.outputs.notes }}
-          files: |
-            main.js
-            styles.css
-            manifest.json
-          fail_on_unmatched_files: true
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release already exists for ${TAG}; updating its title and notes."
+            gh release edit "$TAG" --title "$TITLE" --notes-file notes.md
+          else
+            echo "Creating release for ${TAG}."
+            gh release create "$TAG" --title "$TITLE" --notes-file notes.md
+          fi
+
+          gh release upload "$TAG" main.js styles.css manifest.json --clobber
+
+          # Assert rather than assume: a green run that published nothing readable is the
+          # failure this step exists to prevent.
+          if [ -z "$(gh release view "$TAG" --json body --jq '.body' | tr -d '[:space:]')" ]; then
+            echo "::error::The release body is still empty after publishing."
+            exit 1
+          fi
