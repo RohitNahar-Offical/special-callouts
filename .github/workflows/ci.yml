@@ -36,8 +36,8 @@ jobs:
       # If a rebuild changes it, someone edited the source without rebuilding.
       - name: Verify the committed build matches source
         run: |
-          if ! git diff --quiet -- main.js; then
+          if ! git diff --quiet --ignore-cr-at-eol -- main.js; then
             echo "::error::main.js is out of date — run 'npm run build' and commit the result."
-            git diff --stat -- main.js
+            git diff --stat --ignore-cr-at-eol -- main.js
             exit 1
           fi
