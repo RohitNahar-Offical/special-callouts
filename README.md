@@ -12,20 +12,40 @@
 <p align="center">
   <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Report Bug</a></p>
 
-# Special Callouts for Obsidian
+# Special Callouts (Enhanced Fork)
+
+> [!NOTE]
+> **Fork Information**:
+> This repository is an enhanced fork of the original [ahseyg/special-callouts](https://github.com/ahseyg/special-callouts) plugin by [ahseyg](https://github.com/ahseyg).
+> It extends the core plugin with an interactive visual multi-column dashboard builder, true spanned CSS grid layouts, right-click context menu integration, full border styles, and memory/performance optimizations.
+> 
+> If you encounter any bugs or errors related to the upstream plugin, please open an issue with the original repository owner at **[ahseyg/special-callouts Issues](https://github.com/ahseyg/special-callouts/issues)**.
 
 Transform your Obsidian notes with premium, dynamic, and fully customizable callouts. Turn generic boxes into magazine-quality layouts, code terminals, or neon-glowing alerts. Customize everything directly from your markdown — or create reusable presets in the visual settings panel.
 
-**Open source** · MIT License · Contributions welcome
+**Open source** · MIT License · [Upstream Repo](https://github.com/ahseyg/special-callouts)
 
-> [!TIP]
-> **New — AI Agent Skill.** Special Callouts now ships with an [Agent Skill](skills/special-callouts/),
-> so Claude can write these callouts for you instead of guessing at the syntax. Hand your agent the raw
-> [SKILL.md](https://raw.githubusercontent.com/ahseyg/special-callouts/main/skills/special-callouts/SKILL.md),
-> or install it locally:
-> ```bash
-> cp -r skills/special-callouts ~/.claude/skills/
-> ```
+---
+
+## 🌟 What's New & Changed in this Fork
+
+* 🔲 **Interactive Multi-Column Matrix Dashboard Builder**:
+  * Visual 2×2 up to 6×6 matrix canvas with drag-to-merge cell spanning.
+  * 1-Click preset templates (*Hero + 2 Cards*, *Workspace*, *3 Columns*, *2×2 Quad*).
+  * Per-box deep customization (colors, glow, icons, fonts, border styles, list columns).
+  * Two-way roundtrip editing directly from existing `> [!multi-callout]` blocks in your notes.
+* 📐 **True Spanned CSS Grid Rendering**:
+  * Ranged token syntax `>> [!type] (colStart-colEnd:totalCols:rowStart-rowEnd) Title` (e.g. `(1-2:3:1-1)`).
+  * High-performance Obsidian CSS variable binding (`--sc-grid-col-start`, `--sc-grid-col-span`, etc.) for seamless Live Preview and Reading Mode rendering.
+* 🖱️ **Right-Click Context Menu & All-in-One Inserter Modal**:
+  * Right-click editor context menu item (`Insert Special Callout...`) to configure and insert callouts instantly at the cursor.
+  * Tabbed customizer modal with a sticky real-time live preview.
+* 🎨 **All 8 Standard CSS Border Styles**:
+  * Added `solid`, `dashed`, `dotted`, `double`, `groove`, `ridge`, `inset`, `outset`, and `none`.
+* ⚡ **Performance & Stability Optimizations**:
+  * Proactive `MutationObserver` and timeout cleanup on element unmount to eliminate memory leaks during note switching.
+  * Streamlined DOM style pipelines and hoisted selector constants.
+  * Comprehensive test suite with 70 passing automated tests.
 
 ---
 
@@ -34,8 +54,10 @@ Transform your Obsidian notes with premium, dynamic, and fully customizable call
 - **Inline customization** — background, text, border, gradient, neon, icon — directly in markdown
 - **Custom style presets** — design once, reuse by name
 - **Multi-column lists** — split any list into 2–4 columns
-- **Visual layout builder** — drag-and-merge grid designer
+- **Visual matrix builder** — interactive dashboard designer with drag-and-merge grid spanning
+- **Right-click inserter** — fast modal inserter with live real-time preview
 - **Typography control** — 5 font families, 5 size scales
+- **All 8 border styles** — solid, dashed, dotted, double, groove, ridge, inset, outset
 - **Neon and gradient effects** — glowing borders, smooth color transitions
 - **Dataview integration** — column layouts work with Dataview queries
 - **Import/Export** — share styles as JSON between vaults
@@ -108,7 +130,7 @@ Use the visual builder or inline grid syntax to create multi-panel layouts. Call
 | :--- | :--- | :--- |
 | `border` | `border:red` | Border color |
 | `border-width` | `border-width:4` | Thickness (px) |
-| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double` |
+| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double`, `groove`, `ridge`, `inset`, `outset` |
 | `radius` | `radius:20` | Corner roundness (px) |
 
 ### Typography
@@ -180,11 +202,11 @@ Or open directly: [community.obsidian.md/plugins/special-callouts](https://commu
 
 ---
 
-## Contributing
-
-- **Bug reports:** [Open an issue](https://github.com/ahseyg/special-callouts/issues) — include Obsidian version, callout markdown, and a screenshot
-- **Feature requests:** [Open an issue](https://github.com/ahseyg/special-callouts/issues)
-- **Pull requests:** Fork → Branch → Code → PR
+## Contributing & Issues
+ 
+ - **Bug reports & Errors:** Please report errors and issues directly to the original owner at [ahseyg/special-callouts Issues](https://github.com/ahseyg/special-callouts/issues) — include Obsidian version, callout markdown, and a screenshot.
+ - **Feature requests:** [Open an upstream issue](https://github.com/ahseyg/special-callouts/issues)
+ - **Pull requests:** Fork → Branch → Code → PR
 
 If you find this plugin useful, consider giving it a [star](https://github.com/ahseyg/special-callouts).
 
