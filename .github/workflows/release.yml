@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '[0-9]+.[0-9]+.[0-9]+'
+
+permissions:
+  contents: write
+  id-token: write  # Required for artifact attestation
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      # ── Artifact Attestation ────────────────────────────────────────────────
+      # Cryptographically proves main.js and styles.css were built from this
+      # repository's source code at this exact commit.
+      - name: Attest main.js
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: main.js
+
+      - name: Attest styles.css
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: styles.css
+
+      # ── Extract release notes from CHANGELOG.md ─────────────────────────────
+      - name: Extract release notes for this version
+        id: extract_notes
+        run: |
+          VERSION="${GITHUB_REF_NAME}"
+          # Extract the block between ## [VERSION] and the next ## header
+          NOTES=$(awk "/^## \[${VERSION}\]/{found=1; next} found && /^## \[/{exit} found{print}" CHANGELOG.md)
+          # Store multiline output safely
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      # ── Create GitHub Release ───────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Special Callouts ${{ github.ref_name }}"
+          body: ${{ steps.extract_notes.outputs.notes }}
+          files: |
+            main.js
+            styles.css
+            manifest.json
+          fail_on_unmatched_files: true
