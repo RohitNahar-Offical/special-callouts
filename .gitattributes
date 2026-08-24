@@ -1,0 +1,19 @@
+# Line endings.
+#
+# This repository is maintained on Windows and published by uploading the generated tree
+# through the GitHub web UI, which sends bytes verbatim. Declaring the endings here keeps
+# a clone consistent for contributors on any platform, and keeps diffs about content.
+#
+# It does not retroactively change blobs already committed with CRLF, which is why CI
+# compares the built bundle with --ignore-cr-at-eol rather than relying on this alone.
+* text=auto eol=lf
+
+# Generated bundle: still text, still diffable, but never worth reviewing by hand.
+main.js linguist-generated=true
+
+# Binary, never convert.
+*.png binary
+*.jpg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
