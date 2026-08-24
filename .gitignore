@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+
+# Local plugin settings — never commit a personal vault's data
+data.json
+
+# Build noise
+*.js.map
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs and secrets
+*.log
+.env
