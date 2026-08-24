@@ -36,13 +36,16 @@ export function throttle<T extends (...args: unknown[]) => void>(
     }) as T;
 }
 
+const HEX_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+const NUMERIC_REGEX = /^-?\d*\.?\d+$/;
+
 /**
  * Validates hex color code
  * @param hex - Color code to validate
  * @returns true if valid hex code
  */
 export function isValidHex(hex: string): boolean {
-    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(hex);
+    return HEX_REGEX.test(hex);
 }
 
 /**
@@ -105,7 +108,7 @@ export function createTransparentBg(color: string, opacity: number = 10): string
 export function toPx(value: string | number): string {
     const raw = String(value).trim();
     if (!raw) return '';
-    return /^-?\d*\.?\d+$/.test(raw) ? `${raw}px` : raw;
+    return NUMERIC_REGEX.test(raw) ? `${raw}px` : raw;
 }
 
 /**

@@ -27,17 +27,31 @@ export const DEFAULT_STANDARD_COLORS: Record<string, string> = {
 export const DEFAULT_STANDARD_STYLES: Record<string, CalloutStyle> = {
     note: { name: 'note', bg: '#448aff', border: '#448aff', text: '', link: '', icon: 'pencil', titleColor: '' },
     abstract: { name: 'abstract', bg: '#00b8d4', border: '#00b8d4', text: '', link: '', icon: 'clipboard-list', titleColor: '' },
+    summary: { name: 'summary', bg: '#00b8d4', border: '#00b8d4', text: '', link: '', icon: 'clipboard-list', titleColor: '' },
+    tldr: { name: 'tldr', bg: '#00b8d4', border: '#00b8d4', text: '', link: '', icon: 'clipboard-list', titleColor: '' },
     info: { name: 'info', bg: '#00b8d4', border: '#00b8d4', text: '', link: '', icon: 'info', titleColor: '' },
-    todo: { name: 'todo', bg: '#448aff', border: '#448aff', text: '', link: '', icon: 'check-circle-2', titleColor: '' },
+    todo: { name: 'todo', bg: '#0288d1', border: '#0288d1', text: '', link: '', icon: 'check-circle-2', titleColor: '' },
     tip: { name: 'tip', bg: '#00bfa5', border: '#00bfa5', text: '', link: '', icon: 'flame', titleColor: '' },
+    hint: { name: 'hint', bg: '#00bfa5', border: '#00bfa5', text: '', link: '', icon: 'flame', titleColor: '' },
+    important: { name: 'important', bg: '#00bfa5', border: '#00bfa5', text: '', link: '', icon: 'flame', titleColor: '' },
     success: { name: 'success', bg: '#00c853', border: '#00c853', text: '', link: '', icon: 'check', titleColor: '' },
-    question: { name: 'question', bg: '#64dd17', border: '#64dd17', text: '', link: '', icon: 'help-circle', titleColor: '' },
+    check: { name: 'check', bg: '#00c853', border: '#00c853', text: '', link: '', icon: 'check', titleColor: '' },
+    done: { name: 'done', bg: '#00c853', border: '#00c853', text: '', link: '', icon: 'check', titleColor: '' },
+    question: { name: 'question', bg: '#ffab00', border: '#ffab00', text: '', link: '', icon: 'help-circle', titleColor: '' },
+    help: { name: 'help', bg: '#ffab00', border: '#ffab00', text: '', link: '', icon: 'help-circle', titleColor: '' },
+    faq: { name: 'faq', bg: '#ffab00', border: '#ffab00', text: '', link: '', icon: 'help-circle', titleColor: '' },
     warning: { name: 'warning', bg: '#ff9100', border: '#ff9100', text: '', link: '', icon: 'alert-triangle', titleColor: '' },
+    caution: { name: 'caution', bg: '#ff9100', border: '#ff9100', text: '', link: '', icon: 'alert-triangle', titleColor: '' },
+    attention: { name: 'attention', bg: '#ff9100', border: '#ff9100', text: '', link: '', icon: 'alert-triangle', titleColor: '' },
     failure: { name: 'failure', bg: '#ff5252', border: '#ff5252', text: '', link: '', icon: 'x', titleColor: '' },
+    fail: { name: 'fail', bg: '#ff5252', border: '#ff5252', text: '', link: '', icon: 'x', titleColor: '' },
+    missing: { name: 'missing', bg: '#ff5252', border: '#ff5252', text: '', link: '', icon: 'x', titleColor: '' },
     danger: { name: 'danger', bg: '#ff1744', border: '#ff1744', text: '', link: '', icon: 'zap', titleColor: '' },
+    error: { name: 'error', bg: '#ff1744', border: '#ff1744', text: '', link: '', icon: 'zap', titleColor: '' },
     bug: { name: 'bug', bg: '#ff1744', border: '#ff1744', text: '', link: '', icon: 'bug', titleColor: '' },
     example: { name: 'example', bg: '#7c4dff', border: '#7c4dff', text: '', link: '', icon: 'list', titleColor: '' },
-    quote: { name: 'quote', bg: '#9e9e9e', border: '#9e9e9e', text: '', link: '', icon: 'quote', titleColor: '' }
+    quote: { name: 'quote', bg: '#9e9e9e', border: '#9e9e9e', text: '', link: '', icon: 'quote', titleColor: '' },
+    cite: { name: 'cite', bg: '#9e9e9e', border: '#9e9e9e', text: '', link: '', icon: 'quote', titleColor: '' }
 };
 
 /**

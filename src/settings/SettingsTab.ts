@@ -1,72 +1,43 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Obsidian API returns any from loadData */
-/* eslint-disable @typescript-eslint/no-misused-promises -- UI event listeners can safely be async */
-/* eslint-disable @typescript-eslint/no-unsafe-call -- Obsidian API dynamic calls */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access -- Obsidian API dynamic objects */
-/* eslint-disable @typescript-eslint/no-unsafe-argument -- Obsidian API arguments */
-/* eslint-disable @typescript-eslint/no-unused-vars -- Parameters required by signature but unused */
-
-
-/**
- * Special Callouts - Settings Tab
- * Plugin settings UI
- */
-
-import { App, PluginSettingTab, Plugin, Setting, setIcon, Notice, Modal, TextAreaComponent, ButtonComponent, DropdownComponent, SliderComponent, ToggleComponent } from 'obsidian';
-import { SpecialCalloutsSettings, CalloutStyle } from '../types';
-import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS } from '../constants';
-import { isValidHex, normalizeHex } from '../utils';
-import { parseMetadata } from '../parser';
+import {
+    App,
+    PluginSettingTab,
+    Plugin,
+    Setting,
+    setIcon,
+    Notice,
+    Modal,
+    ButtonComponent,
+    DropdownComponent,
+    SliderComponent,
+    ToggleComponent
+} from 'obsidian';
+import { SpecialCalloutsSettings, CalloutStyle, CustomLayout } from '../types';
+import { DEFAULT_STANDARD_STYLES, DEFAULT_STANDARD_COLORS, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS } from '../constants';
+import { isValidHex, normalizeHex, toPx, neonStyles } from '../utils';
 import { IconPickerModal } from '../modals/IconPickerModal';
+import { showHowToUse } from '../modals/HowToModal';
+import { showMetadataReference } from '../modals/MetadataModal';
 
-// Reference to plugin type (will be set as generic to avoid circular deps)
 interface PluginWithSettings {
     settings: SpecialCalloutsSettings;
     saveSettings(): Promise<void>;
 }
 
-/**
- * Settings tab for Special Callouts plugin
- */
+type SettingsTabId = 'styles' | 'standard' | 'colors' | 'layouts' | 'guide' | 'general';
+
 export class SpecialCalloutsSettingTab extends PluginSettingTab {
     plugin: PluginWithSettings;
+    activeTab: SettingsTabId = 'styles';
 
-    // Form state
-    tempName = '';
-    tempIcon = 'pencil';
-    tempBg = '#3498db';
-    tempBorder = '#3498db';
-    tempText = '#ffffff';
-    tempLink = '#dfe4ea';
-    tempTitleColor = '#3498db';
-    // Bos = ikon baslik rengini takip eder
-    tempIconColor = '';
-    tempBoldBorder = false;
-    tempFont = ''; // Default (empty)
-    tempFontSize = 3; // Default size
-    tempBorderWidth = '';
-    tempBorderStyle = 'solid';
-    tempBorderRadius = '';
-    tempNeon = '';
-    tempNoIcon = false;
-    tempCompact = false;
-    tempCenter = false;
-    tempTitleCenter = false;
-    newCustomColorName = '';
-    newCustomColorHex = '#ffffff';
-    editingIndex: number | null = null;
-    
-    // Layout Builder State (Persist across display calls)
+    // Search query for filtering styles
+    searchQuery: string = '';
+
+    // Layout Builder State
     builderCols = 3;
     builderRows = 2;
     builderLayoutName = '';
-    builderGridMatrix: number[][] = [[1,2,3], [4,5,6]];
-    builderSelectedCells: {r: number, c: number}[] = [];
-
-    // View modes
-    stylesViewMode: 'grid' | 'list' = 'grid';
-    standardStylesViewMode: 'grid' | 'list' = 'list';
-    standardColorsViewMode: 'grid' | 'list' = 'grid';
-    customColorsViewMode: 'grid' | 'list' = 'grid';
+    builderGridMatrix: number[][] = [[1, 2, 3], [4, 5, 6]];
+    builderSelectedCells: { r: number; c: number }[] = [];
 
     constructor(app: App, plugin: PluginWithSettings) {
         super(app, plugin as unknown as Plugin);
@@ -82,2064 +53,1521 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('special-callouts-ui');
 
-        this.createHeader(containerEl);
-        this.createGeneralSettings(containerEl);
-        this.createLayoutBuilderSection(containerEl);
-        this.createCalloutsSection(containerEl);
-        this.createColorsSection(containerEl);
+        this.renderHeader(containerEl);
+        this.renderNavTabs(containerEl);
+
+        const tabContentContainer = containerEl.createDiv({ cls: 'sc-tab-content' });
+
+        switch (this.activeTab) {
+            case 'styles':
+                this.renderCustomStylesTab(tabContentContainer);
+                break;
+            case 'standard':
+                this.renderStandardStylesTab(tabContentContainer);
+                break;
+            case 'colors':
+                this.renderColorsTab(tabContentContainer);
+                break;
+            case 'layouts':
+                this.renderLayoutBuilderTab(tabContentContainer);
+                break;
+            case 'guide':
+                this.renderGuideTab(tabContentContainer);
+                break;
+            case 'general':
+                this.renderGeneralTab(tabContentContainer);
+                break;
+        }
     }
 
-    private createHeader(container: HTMLElement): void {
-        const header = container.createDiv();
-        header.addClass('sc-style-2579959f');
+    private renderHeader(container: HTMLElement): void {
+        const banner = container.createDiv({ cls: 'sc-header-banner' });
+        const left = banner.createDiv();
+        left.createEl('h2', { text: 'Special Callouts', cls: 'sc-header-title' });
+        left.createEl('p', { text: 'Design custom styles, multi-column dashboards, and advanced callouts', cls: 'sc-header-subtitle' });
 
-        const title = new Setting(header).setName('Configuration' ).setHeading();
-        (title.settingEl).addClass('sc-style-246e97b8');
+        const right = banner.createDiv();
+        right.style.display = 'flex';
+        right.style.gap = '8px';
 
-        const subtitle = header.createEl('p', { text: 'Customize your callout styles with precision' });
-        (subtitle).addClass('sc-style-efd0ece4');
+        const guideBtn = new ButtonComponent(right)
+            .setButtonText('📖 Cheat Sheet')
+            .onClick(() => {
+                showMetadataReference(this.app);
+            });
+
+        const newBtn = new ButtonComponent(right)
+            .setButtonText('+ New Style')
+            .setCta()
+            .onClick(() => {
+                this.openStyleEditorModal();
+            });
+        newBtn.buttonEl.style.fontWeight = '600';
     }
 
-    private createGeneralSettings(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-656f9746');
+    private renderNavTabs(container: HTMLElement): void {
+        const nav = container.createDiv({ cls: 'sc-nav-tabs' });
 
-        const h1 = new Setting(section).setName('Core Layout' ).setHeading();
-        (h1.settingEl).addClass('sc-style-83fa57df');
+        const tabs: { id: SettingsTabId; label: string; icon: string }[] = [
+            { id: 'styles', label: 'Custom Styles', icon: 'palette' },
+            { id: 'standard', label: 'Standard Callouts', icon: 'bookmark' },
+            { id: 'colors', label: 'Color Palettes', icon: 'droplet' },
+            { id: 'layouts', label: 'Layout Builder', icon: 'layout-grid' },
+            { id: 'guide', label: 'Guide & Syntax', icon: 'book-open' },
+            { id: 'general', label: 'General & Defaults', icon: 'settings' }
+        ];
 
-        new Setting(section)
+        tabs.forEach(tab => {
+            const btn = nav.createEl('button', { cls: `sc-nav-tab ${this.activeTab === tab.id ? 'is-active' : ''}` });
+            const iconSpan = btn.createSpan();
+            setIcon(iconSpan, tab.icon);
+            btn.createSpan({ text: tab.label });
+
+            btn.onclick = () => {
+                this.activeTab = tab.id;
+                this.renderSettings();
+            };
+        });
+    }
+
+    // =========================================================================
+    // TAB 1: CUSTOM STYLES
+    // =========================================================================
+    private renderCustomStylesTab(container: HTMLElement): void {
+        const topBar = container.createDiv({ cls: 'sc-tab-top-bar' });
+        topBar.style.display = 'flex';
+        topBar.style.justifyContent = 'space-between';
+        topBar.style.alignItems = 'center';
+        topBar.style.marginBottom = '1rem';
+        topBar.style.gap = '12px';
+
+        // Search box
+        const searchInput = topBar.createEl('input', {
+            type: 'search',
+            placeholder: 'Search custom styles...',
+            value: this.searchQuery
+        });
+        searchInput.style.flex = '1';
+        searchInput.style.maxWidth = '300px';
+        searchInput.style.padding = '6px 12px';
+        searchInput.style.borderRadius = '6px';
+        searchInput.style.border = '1px solid var(--background-modifier-border)';
+        searchInput.style.background = 'var(--background-primary)';
+        searchInput.oninput = (e) => {
+            this.searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            this.renderCustomStylesCards(cardsGrid);
+        };
+
+        const rightBtns = topBar.createDiv();
+        rightBtns.style.display = 'flex';
+        rightBtns.style.gap = '8px';
+
+        new ButtonComponent(rightBtns)
+            .setButtonText('How to Use')
+            .onClick(() => showHowToUse(this.app));
+
+        new ButtonComponent(rightBtns)
+            .setButtonText('Add Starter Presets')
+            .onClick(async () => {
+                let addedCount = 0;
+                QUICK_START_PRESETS.forEach(preset => {
+                    if (!this.plugin.settings.customStyles.some(s => s.name.toLowerCase() === preset.name.toLowerCase())) {
+                        this.plugin.settings.customStyles.push({
+                            name: preset.name.toLowerCase().replace(/\s+/g, '-'),
+                            bg: preset.bg,
+                            border: preset.border,
+                            text: preset.text,
+                            link: preset.border,
+                            titleColor: preset.title,
+                            icon: preset.icon,
+                            iconColor: '',
+                            boldBorder: false,
+                            font: '',
+                            fontSize: 3,
+                            borderWidth: '1px',
+                            borderStyle: 'solid',
+                            borderRadius: '8px',
+                            neon: '',
+                            noIcon: false,
+                            compact: false,
+                            center: false,
+                            titleCenter: false
+                        });
+                        addedCount++;
+                    }
+                });
+                await this.plugin.saveSettings();
+                new Notice(`Added ${addedCount} starter presets!`);
+                this.renderSettings();
+            });
+
+        const cardsGrid = container.createDiv({ cls: 'sc-cards-grid' });
+        this.renderCustomStylesCards(cardsGrid);
+    }
+
+    private renderCustomStylesCards(cardsGrid: HTMLElement): void {
+        cardsGrid.empty();
+
+        const filtered = this.plugin.settings.customStyles.filter(style =>
+            style.name.toLowerCase().includes(this.searchQuery) ||
+            (style.icon && style.icon.toLowerCase().includes(this.searchQuery))
+        );
+
+        if (filtered.length === 0) {
+            const emptyNotice = cardsGrid.createDiv();
+            emptyNotice.style.gridColumn = '1 / -1';
+            emptyNotice.style.textAlign = 'center';
+            emptyNotice.style.padding = '2.5rem 1rem';
+            emptyNotice.style.color = 'var(--text-muted)';
+            emptyNotice.createEl('p', { text: this.searchQuery ? 'No styles match your search.' : 'No custom styles created yet. Click "+ New Style" or "Add Starter Presets" to get started!' });
+            return;
+        }
+
+        filtered.forEach((style, index) => {
+            const card = cardsGrid.createDiv({ cls: 'sc-card-item' });
+
+            const top = card.createDiv({ cls: 'sc-card-top' });
+
+            const iconContainer = top.createDiv({ cls: 'sc-card-icon' });
+            iconContainer.style.backgroundColor = style.bg ? `color-mix(in srgb, ${style.bg} 25%, transparent)` : 'var(--background-modifier-border)';
+            iconContainer.style.color = style.iconColor || style.titleColor || style.bg || 'var(--text-normal)';
+            setIcon(iconContainer, style.icon || 'pencil');
+
+            const title = top.createDiv({ cls: 'sc-card-title', text: style.name });
+            title.style.color = style.titleColor || 'var(--text-normal)';
+
+            // Callout Mini Preview
+            const preview = card.createDiv({ cls: 'sc-card-preview' });
+            preview.style.padding = '6px 10px';
+            preview.style.borderRadius = style.borderRadius ? toPx(style.borderRadius) : '6px';
+            preview.style.border = style.border ? `${style.borderWidth || '1px'} ${style.borderStyle || 'solid'} ${style.border}` : '1px solid var(--background-modifier-border)';
+            preview.style.backgroundColor = style.bg ? `color-mix(in srgb, ${style.bg} 15%, transparent)` : 'var(--background-secondary)';
+            preview.style.fontSize = '0.8rem';
+            preview.style.color = style.text || 'var(--text-muted)';
+            preview.createEl('div', { text: `> [!${style.name}] Example text preview` });
+
+            // Actions
+            const actions = card.createDiv({ cls: 'sc-card-actions' });
+
+            // Copy Markdown
+            const copyBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Copy Markdown (> [!name])' });
+            setIcon(copyBtn, 'copy');
+            copyBtn.onclick = () => {
+                const md = `> [!${style.name}]\n> `;
+                navigator.clipboard.writeText(md);
+                new Notice(`Copied: > [!${style.name}]`);
+            };
+
+            // Duplicate
+            const dupBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Duplicate Style' });
+            setIcon(dupBtn, 'copy-plus');
+            dupBtn.onclick = async () => {
+                const copy: CalloutStyle = { ...style, name: `${style.name}-copy` };
+                this.plugin.settings.customStyles.push(copy);
+                await this.plugin.saveSettings();
+                new Notice(`Duplicated as "${copy.name}"`);
+                this.renderSettings();
+            };
+
+            // Edit
+            const editBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Edit Style' });
+            setIcon(editBtn, 'pencil');
+            editBtn.onclick = () => {
+                this.openStyleEditorModal(style, index);
+            };
+
+            // Delete
+            const delBtn = actions.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete Style' });
+            setIcon(delBtn, 'trash');
+            delBtn.onclick = async () => {
+                this.plugin.settings.customStyles.splice(index, 1);
+                await this.plugin.saveSettings();
+                new Notice(`Deleted style "${style.name}"`);
+                this.renderSettings();
+            };
+        });
+    }
+
+    // =========================================================================
+    // TAB 2: STANDARD CALLOUTS
+    // =========================================================================
+    private renderStandardStylesTab(container: HTMLElement): void {
+        container.createEl('p', {
+            text: 'Customize default colors and icons for Obsidian native callouts (Note, Tip, Warning, Danger, Info, etc.)',
+            cls: 'sc-header-subtitle'
+        });
+
+        const cardsGrid = container.createDiv({ cls: 'sc-cards-grid' });
+        const standardKeys = Object.keys(this.plugin.settings.standardStyles);
+
+        standardKeys.forEach(key => {
+            const style = this.plugin.settings.standardStyles[key];
+            const defaultStyle = DEFAULT_STANDARD_STYLES[key];
+            const isModified = defaultStyle && (
+                style.bg !== defaultStyle.bg ||
+                style.text !== defaultStyle.text ||
+                style.titleColor !== defaultStyle.titleColor ||
+                style.link !== defaultStyle.link ||
+                style.icon !== defaultStyle.icon
+            );
+
+            const card = cardsGrid.createDiv({ cls: 'sc-card-item' });
+
+            const top = card.createDiv({ cls: 'sc-card-top' });
+            const iconContainer = top.createDiv({ cls: 'sc-card-icon' });
+            iconContainer.style.backgroundColor = `color-mix(in srgb, ${style.bg} 25%, transparent)`;
+            iconContainer.style.color = style.bg;
+            setIcon(iconContainer, style.icon || 'pencil');
+
+            const title = top.createDiv({ cls: 'sc-card-title', text: key.toUpperCase() });
+            title.style.color = style.titleColor || style.bg;
+
+            if (isModified) {
+                const badge = top.createSpan({ text: 'MODIFIED' });
+                badge.style.fontSize = '0.65rem';
+                badge.style.padding = '2px 6px';
+                badge.style.borderRadius = '4px';
+                badge.style.background = 'var(--interactive-accent)';
+                badge.style.color = 'var(--text-on-accent)';
+            }
+
+            // Preview
+            const preview = card.createDiv({ cls: 'sc-card-preview' });
+            preview.style.padding = '6px 10px';
+            preview.style.borderRadius = '6px';
+            preview.style.border = `1px solid ${style.border || style.bg}`;
+            preview.style.backgroundColor = `color-mix(in srgb, ${style.bg} 15%, transparent)`;
+            preview.style.fontSize = '0.8rem';
+            preview.style.color = style.text || 'var(--text-normal)';
+            preview.createEl('div', { text: `> [!${key}] Standard ${key} callout` });
+
+            // Actions
+            const actions = card.createDiv({ cls: 'sc-card-actions' });
+
+            const editBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Edit Callout' });
+            setIcon(editBtn, 'pencil');
+            editBtn.onclick = () => {
+                this.openStandardStyleEditorModal(key);
+            };
+
+            if (isModified && defaultStyle) {
+                const resetBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Reset to Default' });
+                setIcon(resetBtn, 'rotate-ccw');
+                resetBtn.onclick = async () => {
+                    this.plugin.settings.standardStyles[key] = { ...defaultStyle };
+                    await this.plugin.saveSettings();
+                    new Notice(`Reset "${key}" to default.`);
+                    this.renderSettings();
+                };
+            }
+        });
+    }
+
+    // =========================================================================
+    // TAB 3: COLOR PALETTES
+    // =========================================================================
+    private renderColorsTab(container: HTMLElement): void {
+        new Setting(container)
+            .setName('Standard Palette')
+            .setDesc('Built-in named colors for quick metadata shortcuts (e.g. bg:red, border:purple)')
+            .setHeading();
+
+        const stdGrid = container.createDiv({ cls: 'sc-cards-grid' });
+        stdGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(180px, 1fr))';
+
+        Object.entries(this.plugin.settings.standardColors).forEach(([name, hex]) => {
+            const item = stdGrid.createDiv({ cls: 'sc-card-item' });
+            item.style.padding = '10px 12px';
+
+            const row = item.createDiv();
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '10px';
+
+            const swatch = row.createDiv();
+            swatch.style.width = '24px';
+            swatch.style.height = '24px';
+            swatch.style.borderRadius = '50%';
+            swatch.style.backgroundColor = hex;
+            swatch.style.border = '1px solid var(--background-modifier-border)';
+
+            const label = row.createDiv();
+            label.createEl('div', { text: name, cls: 'sc-card-title' });
+            label.createEl('div', { text: hex, attr: { style: 'font-size: 0.75rem; color: var(--text-muted);' } });
+
+            const picker = row.createEl('input', { type: 'color', value: normalizeHex(hex) });
+            picker.style.marginLeft = 'auto';
+            picker.style.cursor = 'pointer';
+            picker.onchange = async (e) => {
+                const val = (e.target as HTMLInputElement).value;
+                this.plugin.settings.standardColors[name] = val;
+                await this.plugin.saveSettings();
+                this.renderSettings();
+            };
+        });
+
+        // Custom User Colors
+        new Setting(container)
+            .setName('Custom Named Colors')
+            .setDesc('Define your own named colors for use in callouts (e.g. bg:brand, border:accent)')
+            .setHeading();
+
+        const addRow = container.createDiv();
+        addRow.style.display = 'flex';
+        addRow.style.gap = '10px';
+        addRow.style.marginBottom = '1rem';
+        addRow.style.alignItems = 'center';
+
+        const nameInput = addRow.createEl('input', { type: 'text', placeholder: 'Color Name (e.g. brand)' });
+        nameInput.style.padding = '6px 12px';
+        nameInput.style.borderRadius = '6px';
+        nameInput.style.border = '1px solid var(--background-modifier-border)';
+        nameInput.style.background = 'var(--background-primary)';
+
+        const colorPicker = addRow.createEl('input', { type: 'color', value: '#3498db' });
+        colorPicker.style.cursor = 'pointer';
+
+        new ButtonComponent(addRow)
+            .setButtonText('+ Add Color')
+            .setCta()
+            .onClick(async () => {
+                const name = nameInput.value.trim().toLowerCase();
+                const hex = colorPicker.value;
+                if (!name) {
+                    new Notice('Please enter a color name.');
+                    return;
+                }
+                if (this.plugin.settings.customColors.some(c => c.name.toLowerCase() === name)) {
+                    new Notice('A color with this name already exists.');
+                    return;
+                }
+                this.plugin.settings.customColors.push({ name, hex });
+                await this.plugin.saveSettings();
+                new Notice(`Added custom color "${name}"`);
+                this.renderSettings();
+            });
+
+        const customGrid = container.createDiv({ cls: 'sc-cards-grid' });
+        customGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(180px, 1fr))';
+
+        this.plugin.settings.customColors.forEach((color, index) => {
+            const item = customGrid.createDiv({ cls: 'sc-card-item' });
+            item.style.padding = '10px 12px';
+
+            const row = item.createDiv();
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '10px';
+
+            const swatch = row.createDiv();
+            swatch.style.width = '24px';
+            swatch.style.height = '24px';
+            swatch.style.borderRadius = '50%';
+            swatch.style.backgroundColor = color.hex;
+            swatch.style.border = '1px solid var(--background-modifier-border)';
+
+            const label = row.createDiv();
+            label.createEl('div', { text: color.name, cls: 'sc-card-title' });
+            label.createEl('div', { text: color.hex, attr: { style: 'font-size: 0.75rem; color: var(--text-muted);' } });
+
+            const delBtn = row.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete' });
+            delBtn.style.marginLeft = 'auto';
+            setIcon(delBtn, 'trash');
+            delBtn.onclick = async () => {
+                this.plugin.settings.customColors.splice(index, 1);
+                await this.plugin.saveSettings();
+                this.renderSettings();
+            };
+        });
+    }
+
+    // =========================================================================
+    // TAB 4: LAYOUT BUILDER
+    // =========================================================================
+    private renderLayoutBuilderTab(container: HTMLElement): void {
+        new Setting(container)
+            .setName('Visual Layout Builder (Interactive)')
+            .setDesc('Design custom multi-callout grid dashboards with merged/split areas. Use with > [!multi-callout] (layout_name).')
+            .setHeading();
+
+        const builderCard = container.createDiv({ cls: 'sc-live-preview-container' });
+
+        const controlsRow = builderCard.createDiv();
+        controlsRow.style.display = 'flex';
+        controlsRow.style.gap = '12px';
+        controlsRow.style.flexWrap = 'wrap';
+        controlsRow.style.alignItems = 'flex-end';
+        controlsRow.style.marginBottom = '1rem';
+
+        // Layout Name
+        const nameGroup = controlsRow.createDiv();
+        nameGroup.createEl('label', { text: 'Layout Name', attr: { style: 'display:block; font-size:0.8rem; margin-bottom:4px;' } });
+        const nameInput = nameGroup.createEl('input', { type: 'text', placeholder: 'my-dashboard', value: this.builderLayoutName });
+        nameInput.style.padding = '6px 10px';
+        nameInput.style.borderRadius = '4px';
+        nameInput.style.border = '1px solid var(--background-modifier-border)';
+        nameInput.style.background = 'var(--background-primary)';
+        nameInput.oninput = (e) => this.builderLayoutName = (e.target as HTMLInputElement).value;
+
+        // Columns
+        const colsGroup = controlsRow.createDiv();
+        colsGroup.createEl('label', { text: 'Cols', attr: { style: 'display:block; font-size:0.8rem; margin-bottom:4px;' } });
+        const colsSelect = new DropdownComponent(colsGroup);
+        [1, 2, 3, 4, 5, 6].forEach(n => colsSelect.addOption(n.toString(), n.toString()));
+        colsSelect.setValue(this.builderCols.toString());
+        colsSelect.onChange(val => {
+            this.builderCols = parseInt(val);
+            this.initLayoutMatrix();
+            drawGrid();
+        });
+
+        // Rows
+        const rowsGroup = controlsRow.createDiv();
+        rowsGroup.createEl('label', { text: 'Rows', attr: { style: 'display:block; font-size:0.8rem; margin-bottom:4px;' } });
+        const rowsSelect = new DropdownComponent(rowsGroup);
+        [1, 2, 3, 4, 5, 6].forEach(n => rowsSelect.addOption(n.toString(), n.toString()));
+        rowsSelect.setValue(this.builderRows.toString());
+        rowsSelect.onChange(val => {
+            this.builderRows = parseInt(val);
+            this.initLayoutMatrix();
+            drawGrid();
+        });
+
+        // Action Buttons: Merge & Split
+        const actionGroup = controlsRow.createDiv();
+        actionGroup.style.display = 'flex';
+        actionGroup.style.gap = '8px';
+        actionGroup.style.alignItems = 'center';
+
+        const mergeBtn = actionGroup.createEl('button', { cls: 'mod-cta' });
+        mergeBtn.style.display = 'flex';
+        mergeBtn.style.alignItems = 'center';
+        mergeBtn.style.gap = '6px';
+        setIcon(mergeBtn.createSpan(), 'combine');
+        mergeBtn.createSpan({ text: 'Merge' });
+        mergeBtn.title = 'Merge selected cells into one unified block';
+        mergeBtn.onclick = () => {
+            if (this.builderSelectedCells.length < 2) {
+                new Notice('Please select 2 or more adjacent cells/areas to merge.');
+                return;
+            }
+            const minR = Math.min(...this.builderSelectedCells.map(s => s.r));
+            const maxR = Math.max(...this.builderSelectedCells.map(s => s.r));
+            const minC = Math.min(...this.builderSelectedCells.map(s => s.c));
+            const maxC = Math.max(...this.builderSelectedCells.map(s => s.c));
+
+            const targetId = this.builderGridMatrix[minR][minC];
+            for (let r = minR; r <= maxR; r++) {
+                for (let c = minC; c <= maxC; c++) {
+                    this.builderGridMatrix[r][c] = targetId;
+                }
+            }
+            this.normalizeMatrix();
+            this.builderSelectedCells = [];
+            drawGrid();
+        };
+
+        const splitBtn = actionGroup.createEl('button');
+        splitBtn.style.display = 'flex';
+        splitBtn.style.alignItems = 'center';
+        splitBtn.style.gap = '6px';
+        setIcon(splitBtn.createSpan(), 'scissors');
+        splitBtn.createSpan({ text: 'Split' });
+        splitBtn.title = 'Split selected area back into individual 1x1 cells';
+        splitBtn.onclick = () => {
+            if (this.builderSelectedCells.length === 0) {
+                new Notice('Please select an area to split.');
+                return;
+            }
+            let maxId = 0;
+            for (let r = 0; r < this.builderRows; r++) {
+                for (let c = 0; c < this.builderCols; c++) {
+                    if (this.builderGridMatrix[r][c] > maxId) maxId = this.builderGridMatrix[r][c];
+                }
+            }
+            this.builderSelectedCells.forEach(({ r, c }) => {
+                maxId++;
+                this.builderGridMatrix[r][c] = maxId;
+            });
+            this.normalizeMatrix();
+            this.builderSelectedCells = [];
+            drawGrid();
+        };
+
+        const resetGridBtn = actionGroup.createEl('button');
+        resetGridBtn.style.display = 'flex';
+        resetGridBtn.style.alignItems = 'center';
+        resetGridBtn.style.gap = '6px';
+        setIcon(resetGridBtn.createSpan(), 'rotate-ccw');
+        resetGridBtn.createSpan({ text: 'Reset Grid' });
+        resetGridBtn.onclick = () => {
+            this.initLayoutMatrix();
+            this.builderSelectedCells = [];
+            drawGrid();
+        };
+
+        // Grid Drawing Container
+        // Grid Drawing Container
+        const gridCanvas = builderCard.createDiv();
+        gridCanvas.style.display = 'grid';
+        gridCanvas.style.gap = '8px';
+        gridCanvas.style.padding = '12px';
+        gridCanvas.style.backgroundColor = 'var(--background-primary)';
+        gridCanvas.style.borderRadius = '8px';
+        gridCanvas.style.border = '1px dashed var(--background-modifier-border)';
+        gridCanvas.style.minHeight = '160px';
+        gridCanvas.style.marginBottom = '1rem';
+        gridCanvas.style.userSelect = 'none';
+
+        let isDragging = false;
+        let dragStart: { r: number; c: number } | null = null;
+        let dragMoved = false;
+
+        const stopDragging = () => {
+            isDragging = false;
+            dragStart = null;
+        };
+
+        gridCanvas.onmouseleave = stopDragging;
+
+        // Global mouseup stop listener bound once to plugin window
+        const windowMouseUpHandler = () => stopDragging();
+        window.addEventListener('mouseup', windowMouseUpHandler);
+
+        const getUniqueAreas = () => {
+            const areaMap = new Map<number, { id: number; minR: number; maxR: number; minC: number; maxC: number; cells: { r: number; c: number }[] }>();
+            for (let r = 0; r < this.builderRows; r++) {
+                for (let c = 0; c < this.builderCols; c++) {
+                    const id = this.builderGridMatrix[r][c];
+                    if (!areaMap.has(id)) {
+                        areaMap.set(id, {
+                            id,
+                            minR: r,
+                            maxR: r,
+                            minC: c,
+                            maxC: c,
+                            cells: [{ r, c }]
+                        });
+                    } else {
+                        const block = areaMap.get(id)!;
+                        block.minR = Math.min(block.minR, r);
+                        block.maxR = Math.max(block.maxR, r);
+                        block.minC = Math.min(block.minC, c);
+                        block.maxC = Math.max(block.maxC, c);
+                        block.cells.push({ r, c });
+                    }
+                }
+            }
+            return Array.from(areaMap.values()).sort((a, b) => a.id - b.id);
+        };
+
+        const updateSelectionStyles = () => {
+            const blocks = gridCanvas.querySelectorAll<HTMLElement>('.sc-builder-block');
+            const areas = getUniqueAreas();
+
+            blocks.forEach((block, index) => {
+                const area = areas[index];
+                if (!area) return;
+
+                const isSelected = area.cells.length > 0 && area.cells.every(cell =>
+                    this.builderSelectedCells.some(s => s.r === cell.r && s.c === cell.c)
+                );
+
+                block.style.border = isSelected ? '2px solid var(--interactive-accent)' : '1px solid var(--background-modifier-border)';
+                block.style.backgroundColor = isSelected ? 'var(--background-modifier-hover)' : 'var(--background-secondary)';
+                block.style.boxShadow = isSelected ? '0 0 10px rgba(var(--color-accent-rgb, 100, 100, 255), 0.25)' : 'none';
+
+                const title = block.querySelector<HTMLElement>('.sc-builder-title');
+                if (title) {
+                    title.style.color = isSelected ? 'var(--text-accent)' : 'var(--text-normal)';
+                }
+            });
+        };
+
+        const drawGrid = () => {
+            gridCanvas.empty();
+            gridCanvas.style.gridTemplateColumns = `repeat(${this.builderCols}, 1fr)`;
+            gridCanvas.style.gridTemplateRows = `repeat(${this.builderRows}, 70px)`;
+
+            const areas = getUniqueAreas();
+
+            areas.forEach(area => {
+                const isSelected = area.cells.length > 0 && area.cells.every(cell =>
+                    this.builderSelectedCells.some(s => s.r === cell.r && s.c === cell.c)
+                );
+
+                const spanCols = area.maxC - area.minC + 1;
+                const spanRows = area.maxR - area.minR + 1;
+
+                const block = gridCanvas.createDiv({ cls: 'sc-builder-block' });
+                block.style.gridRow = `${area.minR + 1} / ${area.maxR + 2}`;
+                block.style.gridColumn = `${area.minC + 1} / ${area.maxC + 2}`;
+                block.style.display = 'flex';
+                block.style.flexDirection = 'column';
+                block.style.alignItems = 'center';
+                block.style.justifyContent = 'center';
+                block.style.borderRadius = '6px';
+                block.style.cursor = 'pointer';
+                block.style.userSelect = 'none';
+                block.style.transition = 'all 0.15s ease';
+                block.style.border = isSelected ? '2px solid var(--interactive-accent)' : '1px solid var(--background-modifier-border)';
+                block.style.backgroundColor = isSelected ? 'var(--background-modifier-hover)' : 'var(--background-secondary)';
+                block.style.boxShadow = isSelected ? '0 0 10px rgba(var(--color-accent-rgb, 100, 100, 255), 0.25)' : 'none';
+
+                const title = block.createDiv({ cls: 'sc-builder-title' });
+                title.style.fontWeight = '700';
+                title.style.fontSize = '0.95rem';
+                title.style.color = isSelected ? 'var(--text-accent)' : 'var(--text-normal)';
+                title.innerText = `Area ${area.id}`;
+
+                const badge = block.createDiv();
+                badge.style.fontSize = '0.72rem';
+                badge.style.color = 'var(--text-muted)';
+                badge.style.marginTop = '2px';
+                badge.innerText = (spanCols > 1 || spanRows > 1) ? `${spanCols} × ${spanRows} Merged` : '1 × 1 Slot';
+
+                // Mouse Drag & Click Selection
+                block.onmousedown = (e: MouseEvent) => {
+                    if (e.button !== 0) return;
+                    e.preventDefault();
+                    isDragging = true;
+                    dragMoved = false;
+                    dragStart = { r: area.minR, c: area.minC };
+
+                    if (!e.shiftKey && !e.ctrlKey && !e.metaKey) {
+                        const alreadySelected = area.cells.every(cell =>
+                            this.builderSelectedCells.some(s => s.r === cell.r && s.c === cell.c)
+                        );
+                        if (alreadySelected && this.builderSelectedCells.length === area.cells.length) {
+                            this.builderSelectedCells = [];
+                        } else {
+                            this.builderSelectedCells = [...area.cells];
+                        }
+                    } else {
+                        area.cells.forEach(cell => {
+                            if (!this.builderSelectedCells.some(s => s.r === cell.r && s.c === cell.c)) {
+                                this.builderSelectedCells.push({ r: cell.r, c: cell.c });
+                            }
+                        });
+                    }
+                    updateSelectionStyles();
+                };
+
+                block.onmouseenter = () => {
+                    if (!isDragging || !dragStart) return;
+                    dragMoved = true;
+
+                    const minR = Math.min(dragStart.r, area.minR);
+                    const maxR = Math.max(dragStart.r, area.maxR);
+                    const minC = Math.min(dragStart.c, area.minC);
+                    const maxC = Math.max(dragStart.c, area.maxC);
+
+                    const newSelected: { r: number; c: number }[] = [];
+                    for (let r = minR; r <= maxR; r++) {
+                        for (let c = minC; c <= maxC; c++) {
+                            newSelected.push({ r, c });
+                        }
+                    }
+                    this.builderSelectedCells = newSelected;
+                    updateSelectionStyles();
+                };
+
+                block.onmouseup = () => {
+                    stopDragging();
+                };
+            });
+        };
+
+        drawGrid();
+
+        // Save Layout Button
+        const saveLayoutBtn = builderCard.createEl('button', { cls: 'mod-cta', text: 'Save Custom Layout' });
+        saveLayoutBtn.onclick = async () => {
+            const name = this.builderLayoutName.trim().toLowerCase().replace(/\s+/g, '-');
+            if (!name) {
+                new Notice('Please enter a layout name.');
+                return;
+            }
+
+            const areaRows: string[] = [];
+            for (let r = 0; r < this.builderRows; r++) {
+                const rowCells = this.builderGridMatrix[r].map(id => `area${id}`).join(' ');
+                areaRows.push(`"${rowCells}"`);
+            }
+            const gridAreas = areaRows.join(' ');
+
+            const newLayout: CustomLayout = {
+                name,
+                cols: this.builderCols,
+                rows: this.builderRows,
+                gridAreas
+            };
+
+            const existingIdx = this.plugin.settings.customLayouts.findIndex(l => l.name.toLowerCase() === name);
+            if (existingIdx >= 0) {
+                this.plugin.settings.customLayouts[existingIdx] = newLayout;
+            } else {
+                this.plugin.settings.customLayouts.push(newLayout);
+            }
+
+            await this.plugin.saveSettings();
+            new Notice(`Layout "${name}" saved! Use with: > [!multi-callout] (${name})`);
+            this.renderSettings();
+        };
+
+        // Saved Layouts List
+        if (this.plugin.settings.customLayouts.length > 0) {
+            new Setting(container)
+                .setName('Saved Layouts')
+                .setHeading();
+
+            const savedGrid = container.createDiv({ cls: 'sc-cards-grid' });
+            this.plugin.settings.customLayouts.forEach((layout, index) => {
+                const item = savedGrid.createDiv({ cls: 'sc-card-item' });
+                const top = item.createDiv({ cls: 'sc-card-top' });
+                top.createDiv({ cls: 'sc-card-title', text: layout.name });
+
+                const code = item.createEl('code', { text: `> [!multi-callout] (${layout.name})` });
+                code.style.fontSize = '0.75rem';
+                code.style.padding = '4px 6px';
+                code.style.background = 'var(--background-primary)';
+                code.style.borderRadius = '4px';
+
+                const actions = item.createDiv({ cls: 'sc-card-actions' });
+                const delBtn = actions.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete' });
+                setIcon(delBtn, 'trash');
+                delBtn.onclick = async () => {
+                    this.plugin.settings.customLayouts.splice(index, 1);
+                    await this.plugin.saveSettings();
+                    this.renderSettings();
+                };
+            });
+        }
+    }
+
+    private initLayoutMatrix(): void {
+        this.builderGridMatrix = [];
+        let nextId = 1;
+        for (let r = 0; r < this.builderRows; r++) {
+            const row: number[] = [];
+            for (let c = 0; c < this.builderCols; c++) {
+                row.push(nextId++);
+            }
+            this.builderGridMatrix.push(row);
+        }
+    }
+
+    private normalizeMatrix(): void {
+        let currentId = 1;
+        const oldToNew = new Map<number, number>();
+        for (let r = 0; r < this.builderRows; r++) {
+            for (let c = 0; c < this.builderCols; c++) {
+                const oldId = this.builderGridMatrix[r][c];
+                if (!oldToNew.has(oldId)) {
+                    oldToNew.set(oldId, currentId++);
+                }
+                this.builderGridMatrix[r][c] = oldToNew.get(oldId)!;
+            }
+        }
+    }
+
+    // =========================================================================
+    // TAB 5: GUIDE & SYNTAX REFERENCE
+    // =========================================================================
+    private renderGuideTab(container: HTMLElement): void {
+        new Setting(container)
+            .setName('Syntax & Metadata Cheat Sheet')
+            .setDesc('Learn all ways to write and customize callouts in Special Callouts.')
+            .setHeading();
+
+        const guideContainer = container.createDiv({ cls: 'sc-live-preview-container' });
+
+        // Method Overview
+        guideContainer.createEl('h3', { text: '📝 Supported Callout Formats', attr: { style: 'margin-top:0; color:var(--interactive-accent);' } });
+        
+        const methods = [
+            { title: '1. Direct Type Name', code: '> [!my-style]\n> Callout content', desc: 'Use any custom style directly as the callout type name.' },
+            { title: '2. Native Obsidian Pipe Syntax', code: '> [!note|bg:red,icon:flame,compact]\n> Callout content', desc: 'Add parameters after the pipe delimiter.' },
+            { title: '3. Leading / Trailing Parentheses', code: '> [!note] (bg:blue,radius:12) Title\n-- OR --\n> [!note] Title (bg:blue,compact)', desc: 'Place parameters in parentheses anywhere in the title line.' },
+            { title: '4. Multi-Column Lists', code: '> [!note] (col:3)\n> - Item 1\n> - Item 2\n> - Item 3', desc: 'Divide bullet lists into responsive CSS columns.' },
+            { title: '5. Multi-Callout Dashboard Grid', code: '> [!multi-callout]\n> > [!info] (1:2)\n> > Left Column\n> > [!tip] (2:2)\n> > Right Column', desc: 'Side-by-side callout grids using position:columns syntax.' }
+        ];
+
+        methods.forEach(m => {
+            const box = guideContainer.createDiv({ cls: 'sc-card-item' });
+            box.style.marginBottom = '12px';
+            box.createEl('strong', { text: m.title });
+            box.createEl('p', { text: m.desc, attr: { style: 'margin:4px 0 8px 0; font-size:0.85rem; color:var(--text-muted);' } });
+            const pre = box.createEl('pre', { text: m.code });
+            pre.style.margin = '0';
+            pre.style.padding = '8px 10px';
+            pre.style.borderRadius = '4px';
+            pre.style.background = 'var(--background-primary)';
+            pre.style.fontSize = '0.82rem';
+        });
+
+        // Parameters Table
+        guideContainer.createEl('h3', { text: '🎨 All Available Metadata Modifiers', attr: { style: 'margin-top:1.5rem; color:var(--interactive-accent);' } });
+
+        const paramTable = guideContainer.createEl('table');
+        paramTable.style.width = '100%';
+        paramTable.style.borderCollapse = 'collapse';
+        paramTable.style.fontSize = '0.85rem';
+
+        const thead = paramTable.createEl('thead');
+        const hRow = thead.createEl('tr');
+        hRow.createEl('th', { text: 'Parameter', attr: { style: 'text-align:left; padding:6px; border-bottom:1px solid var(--background-modifier-border);' } });
+        hRow.createEl('th', { text: 'Example', attr: { style: 'text-align:left; padding:6px; border-bottom:1px solid var(--background-modifier-border);' } });
+        hRow.createEl('th', { text: 'Description', attr: { style: 'text-align:left; padding:6px; border-bottom:1px solid var(--background-modifier-border);' } });
+
+        const paramsList = [
+            ['bg:color', 'bg:#00bcd4 or bg:red', 'Background tint color'],
+            ['text:color', 'text:#ffffff or text:white', 'Content text color'],
+            ['title:color', 'title:cyan', 'Title text color'],
+            ['icon:name', 'icon:flame or icon:star', 'Lucide icon name'],
+            ['icon-color:color', 'icon-color:gold', 'Override icon color separately from title'],
+            ['border:color', 'border:#ff9800 or border:none', 'Border color or remove border'],
+            ['border-width:N', 'border-width:2 or border-width:4px', 'Border thickness'],
+            ['border-style:style', 'border-style:dashed', 'solid, dashed, dotted, double'],
+            ['radius:N', 'radius:16 or radius:0', 'Corner roundness (in px)'],
+            ['neon:color', 'neon:#00f2ff', 'Glowing cyber neon border effect'],
+            ['font:name', 'font:mono, font:serif, font:hand', 'Custom typography style'],
+            ['font-size:1-5', 'font-size:4', 'Font size multiplier (3 is default)'],
+            ['compact', 'compact', 'Dense mode with tighter padding'],
+            ['dense', 'dense', 'Compact padding + tighter line height'],
+            ['center', 'center', 'Center align title and text'],
+            ['title:center', 'title:center', 'Center title only'],
+            ['no-icon', 'no-icon', 'Hide callout icon completely'],
+            ['col:N', 'col:2 or col:3', 'Multi-column list layout']
+        ];
+
+        const tbody = paramTable.createEl('tbody');
+        paramsList.forEach(([p, ex, desc]) => {
+            const tr = tbody.createEl('tr');
+            tr.style.borderBottom = '1px solid var(--background-modifier-border-focus, rgba(128,128,128,0.1))';
+            tr.createEl('td', { text: p, attr: { style: 'padding:6px; font-weight:600;' } });
+            const tdEx = tr.createEl('td', { attr: { style: 'padding:6px;' } });
+            tdEx.createEl('code', { text: ex });
+            tr.createEl('td', { text: desc, attr: { style: 'padding:6px; color:var(--text-muted);' } });
+        });
+    }
+
+    // =========================================================================
+    // TAB 6: GENERAL & DEFAULTS
+    // =========================================================================
+    private renderGeneralTab(container: HTMLElement): void {
+        new Setting(container)
             .setName('Default Callout Metadata')
-            .setDesc('Enter the default metadata (e.g. "col:2, bg:ocean") to automatically append when using the "Insert Custom Callout" command.')
+            .setDesc('Default metadata (e.g. "compact, col:2") automatically appended when inserting callouts via command palette.')
             .addText(text => text
-                .setPlaceholder('col:2, bg:ocean')
+                .setPlaceholder('compact, col:2')
                 .setValue(this.plugin.settings.defaultMetadata || '')
                 .onChange(async (value) => {
                     this.plugin.settings.defaultMetadata = value;
                     await this.plugin.saveSettings();
                 }));
-    }
 
-    private createCalloutsSection(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-656f9746');
+        new Setting(container)
+            .setName('Command Palette Shortcuts')
+            .setDesc('You can assign hotkeys to your favorite callouts in Settings → Hotkeys → Special Callouts.')
+            .setHeading();
 
-        const h1 = new Setting(section).setName('Callouts' ).setHeading();
-        (h1.settingEl).addClass('sc-style-83fa57df');
+        new Setting(container)
+            .setName('Backup & Data Management')
+            .setDesc('Export or import your Special Callouts configuration as JSON')
+            .setHeading();
 
-        this.createCustomStylesSection(section);
-        this.createStandardStylesSection(section);
-    }
+        const backupRow = container.createDiv();
+        backupRow.style.display = 'flex';
+        backupRow.style.gap = '10px';
+        backupRow.style.marginTop = '10px';
 
-    private createColorsSection(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-656f9746');
-
-        const h1 = new Setting(section).setName('Colors' ).setHeading();
-        (h1.settingEl).addClass('sc-style-83fa57df');
-
-        this.createStandardColorsSection(section);
-        this.createCustomColorsSection(section);
-    }
-
-    createLayoutBuilderSection(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-656f9746');
-
-        const h1 = new Setting(section).setName('Visual Layout Builder (Interactive)' ).setHeading();
-        (h1.settingEl).addClass('sc-style-83fa57df');
-
-        const desc = section.createEl('p', { text: 'Drag to select cells, then click Merge or Split. Use layouts by typing their name in the callout metadata. e.g. > [!multi-callout] (my_dashboard).' });
-        desc.addClass('sc-style-41798230');
-
-        const builderCard = section.createDiv();
-        (builderCard).addClass('sc-style-e918ea73');
-
-        let isDragging = false;
-        let dragStart: {r: number, c: number} | null = null;
-        
-        const initMatrix = () => {
-            this.builderGridMatrix = [];
-            let nextId = 1;
-            for(let r=0; r<this.builderRows; r++) {
-                let row = [];
-                for(let c=0; c<this.builderCols; c++) {
-                    row.push(nextId++);
-                }
-                this.builderGridMatrix.push(row);
-            }
-        };
-
-        // Ensure matrix exists and matches dimensions (failsafe)
-        if (!this.builderGridMatrix || this.builderGridMatrix.length !== this.builderRows || (this.builderGridMatrix[0]?.length || 0) !== this.builderCols) {
-            initMatrix();
-        }
-
-        const normalizeMatrix = () => {
-            let currentId = 1;
-            let oldToNew = new Map<number, number>();
-            for(let r=0; r<this.builderRows; r++) {
-                for(let c=0; c<this.builderCols; c++) {
-                    const oldId = this.builderGridMatrix[r][c];
-                    if(!oldToNew.has(oldId)) {
-                        oldToNew.set(oldId, currentId++);
-                    }
-                    this.builderGridMatrix[r][c] = oldToNew.get(oldId)!;
-                }
-            }
-        };
-
-        // Settings Row
-        const controlsRow = builderCard.createDiv();
-        controlsRow.addClass('sc-style-3c58b917');
-        
-        const nameGroup = controlsRow.createDiv();
-        (nameGroup.createEl('label', { text: 'Layout Name' })).addClass('sc-style-83e047a0');
-        const nameInput = nameGroup.createEl('input', { type: 'text', placeholder: 'my_dashboard' });
-        nameInput.addClass('sc-style-2e4036f8');
-        nameInput.value = this.builderLayoutName;
-        nameInput.oninput = (e) => this.builderLayoutName = (e.target as HTMLInputElement).value;
-
-        const colsGroup = controlsRow.createDiv();
-        (colsGroup.createEl('label', { text: 'Columns' })).addClass('sc-style-83e047a0');
-        const colsSelect = new DropdownComponent(colsGroup);
-        [1,2,3,4,5,6,7,8].forEach(n => colsSelect.addOption(n.toString(), n.toString()));
-        colsSelect.setValue(this.builderCols.toString());
-
-        const rowsGroup = controlsRow.createDiv();
-        (rowsGroup.createEl('label', { text: 'Rows' })).addClass('sc-style-83e047a0');
-        const rowsSelect = new DropdownComponent(rowsGroup);
-        [1,2,3,4,5,6,7,8].forEach(n => rowsSelect.addOption(n.toString(), n.toString()));
-        rowsSelect.setValue(this.builderRows.toString());
-
-        const actionGroup = controlsRow.createDiv();
-        actionGroup.addClass('sc-style-8e73ff36');
-        
-        const mergeBtn = actionGroup.createEl('button');
-        mergeBtn.addClass('sc-style-042ed0a9');
-        setIcon(mergeBtn.createSpan(), 'combine');
-        mergeBtn.createSpan({ text: 'Merge' });
-        mergeBtn.onclick = () => {
-            if(this.builderSelectedCells.length < 2) return;
-            const minR = Math.min(...this.builderSelectedCells.map(s=>s.r));
-            const maxR = Math.max(...this.builderSelectedCells.map(s=>s.r));
-            const minC = Math.min(...this.builderSelectedCells.map(s=>s.c));
-            const maxC = Math.max(...this.builderSelectedCells.map(s=>s.c));
-            
-            const targetId = this.builderGridMatrix[minR][minC];
-            for(let r=minR; r<=maxR; r++) {
-                for(let c=minC; c<=maxC; c++) {
-                    this.builderGridMatrix[r][c] = targetId;
-                }
-            }
-            normalizeMatrix();
-            this.builderSelectedCells = [];
-            drawGrid();
-        };
-        
-        const splitBtn = actionGroup.createEl('button');
-        splitBtn.addClass('sc-style-e8b62f99');
-        setIcon(splitBtn.createSpan(), 'scissors');
-        splitBtn.createSpan({ text: 'Split' });
-        splitBtn.onclick = () => {
-            if(this.builderSelectedCells.length === 0) return;
-            let maxExisting = 0;
-            for(let r=0; r<this.builderRows; r++) {
-                for(let c=0; c<this.builderCols; c++) {
-                    if(this.builderGridMatrix[r][c] > maxExisting) maxExisting = this.builderGridMatrix[r][c];
-                }
-            }
-            
-            this.builderSelectedCells.forEach(s => {
-                const currentId = this.builderGridMatrix[s.r][s.c];
-                for(let r=0; r<this.builderRows; r++) {
-                    for(let c=0; c<this.builderCols; c++) {
-                        if(this.builderGridMatrix[r][c] === currentId) {
-                            this.builderGridMatrix[r][c] = ++maxExisting;
-                        }
-                    }
-                }
+        new ButtonComponent(backupRow)
+            .setButtonText('Export Settings (Copy JSON)')
+            .onClick(() => {
+                const json = JSON.stringify(this.plugin.settings, null, 2);
+                navigator.clipboard.writeText(json);
+                new Notice('Copied full settings JSON to clipboard!');
             });
-            normalizeMatrix();
-            this.builderSelectedCells = [];
-            drawGrid();
-        };
 
-        const gridContainer = builderCard.createDiv();
-        
-        const updateSelectionVisuals = () => {
-            const children = Array.from(gridContainer.children) as HTMLElement[];
-            children.forEach(cell => {
-                const id = parseInt(cell.getAttribute('data-id') || '0');
-                const isSelected = this.builderSelectedCells.some(s => this.builderGridMatrix[s.r]?.[s.c] === id);
-                if(isSelected) {
-                    cell.removeClasses(['sc-style-9a360b3f', 'sc-style-fdf11a02', 'sc-style-f31841c1', 'sc-style-4eebc6ad']);
-                    cell.addClasses(['sc-style-5e0853c5', 'sc-style-e7813acd', 'sc-style-4d6aa729', 'sc-style-1a92a345']);
-                } else {
-                    cell.removeClasses(['sc-style-5e0853c5', 'sc-style-e7813acd', 'sc-style-4d6aa729', 'sc-style-1a92a345']);
-                    cell.addClasses(['sc-style-9a360b3f', 'sc-style-fdf11a02', 'sc-style-f31841c1', 'sc-style-4eebc6ad']);
-                }
-            });
-        };
-
-        const onMouseUp = () => {
-            isDragging = false;
-            activeDocument.removeEventListener('mouseup', onMouseUp);
-        };
-
-        const drawGrid = () => {
-            gridContainer.empty();
-            gridContainer.addClasses(['sc-var-display', 'sc-var-grid-template-columns', 'sc-var-grid-template-rows', 'sc-var-gap', 'sc-var-background', 'sc-var-padding', 'sc-var-border-radius', 'sc-var-border', 'sc-var-user-select']); gridContainer.setCssProps({ '--sc-dyn-display': `grid`, '--sc-dyn-grid-template-columns': `repeat(${this.builderCols}, 1fr)`, '--sc-dyn-grid-template-rows': `repeat(${this.builderRows}, 80px)`, '--sc-dyn-gap': `8px`, '--sc-dyn-background': `var(--background-primary)`, '--sc-dyn-padding': `15px`, '--sc-dyn-border-radius': `8px`, '--sc-dyn-border': `1px dashed var(--background-modifier-border)`, '--sc-dyn-user-select': `none` });
-            
-            const processed = new Set<number>();
-            
-            for(let r=0; r<this.builderRows; r++) {
-                for(let c=0; c<this.builderCols; c++) {
-                    const id = this.builderGridMatrix[r]?.[c];
-                    if(id === undefined || processed.has(id)) continue;
-                    processed.add(id);
-                    
-                    let maxR = r, maxC = c;
-                    for(let tr=r; tr<this.builderRows; tr++) {
-                        if(this.builderGridMatrix[tr][c] === id) maxR = tr;
-                        else break;
-                    }
-                    for(let tc=c; tc<this.builderCols; tc++) {
-                        if(this.builderGridMatrix[r][tc] === id) maxC = tc;
-                        else break;
-                    }
-                    
-                    const cell = gridContainer.createDiv();
-                    cell.setAttribute('data-id', id.toString());
-                    cell.addClasses(['sc-var-grid-row-start', 'sc-var-grid-row-end', 'sc-var-grid-column-start', 'sc-var-grid-column-end', 'sc-var-border', 'sc-var-border-radius', 'sc-var-display', 'sc-var-flex-direction', 'sc-var-align-items', 'sc-var-justify-content', 'sc-var-cursor', 'sc-var-transition', 'sc-var-font-weight', 'sc-var-font-size', 'sc-var-box-shadow']); cell.setCssProps({ '--sc-dyn-grid-row-start': `${r + 1}`, '--sc-dyn-grid-row-end': `${maxR + 2}`, '--sc-dyn-grid-column-start': `${c + 1}`, '--sc-dyn-grid-column-end': `${maxC + 2}`, '--sc-dyn-border': `2px solid var(--background-modifier-border)`, '--sc-dyn-border-radius': `6px`, '--sc-dyn-display': `flex`, '--sc-dyn-flex-direction': `column`, '--sc-dyn-align-items': `center`, '--sc-dyn-justify-content': `center`, '--sc-dyn-cursor': `pointer`, '--sc-dyn-transition': `all 0.15s ease`, '--sc-dyn-font-weight': `bold`, '--sc-dyn-font-size': `1.5rem`, '--sc-dyn-box-shadow': `inset 0 0 10px rgba(0,0,0,0.05)` });
-                    
-                    cell.createSpan({ text: `${id}` });
-                    const subtitle = cell.createSpan({ text: `Callout ${id}` });
-                    subtitle.addClass('sc-style-aad34d77');
-                    
-                    cell.onmousedown = () => {
-                        isDragging = true;
-                        activeDocument.addEventListener('mouseup', onMouseUp);
-                        dragStart = {r, c};
-                        this.builderSelectedCells = [];
-                        for(let br=r; br<=maxR; br++) {
-                            for(let bc=c; bc<=maxC; bc++) {
-                                this.builderSelectedCells.push({r: br, c: bc});
-                            }
-                        }
-                        updateSelectionVisuals();
-                    };
-                    
-                    cell.onmouseenter = () => {
-                        if(isDragging && dragStart) {
-                            const minRow = Math.min(dragStart.r, r);
-                            const maxRow = Math.max(dragStart.r, maxR);
-                            const minCol = Math.min(dragStart.c, c);
-                            const maxCol = Math.max(dragStart.c, maxC);
-                            
-                            this.builderSelectedCells = [];
-                            for(let tr=minRow; tr<=maxRow; tr++) {
-                                for(let tc=minCol; tc<=maxCol; tc++) {
-                                    this.builderSelectedCells.push({r: tr, c: tc});
-                                }
-                            }
-                            updateSelectionVisuals();
-                        }
-                    };
-                }
-            }
-            updateSelectionVisuals();
-        };
-
-        colsSelect.onChange(v => { this.builderCols = parseInt(v); initMatrix(); drawGrid(); });
-        rowsSelect.onChange(v => { this.builderRows = parseInt(v); initMatrix(); drawGrid(); });
-        drawGrid();
-
-        const saveBtnRow = builderCard.createDiv();
-        saveBtnRow.addClass('sc-style-639d80c2');
-        
-        const ioGroup = saveBtnRow.createDiv();
-        ioGroup.addClass('sc-style-13262f5a');
-
-        const exportBtn = ioGroup.createEl('button');
-        exportBtn.addClass('sc-style-a0d2c240');
-        setIcon(exportBtn, 'upload');
-        exportBtn.createSpan({ text: 'Export All' });
-        exportBtn.onclick = () => { void (async () => {
-            const data = this.plugin.settings.customLayouts || [];
-            try {
-                await navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-                new Notice('All layouts copied to clipboard!');
-            } catch { new Notice('Export failed'); }
-        })(); };
-
-        const importBtn = ioGroup.createEl('button');
-        importBtn.addClass('sc-style-a0d2c240');
-        setIcon(importBtn, 'download');
-        importBtn.createSpan({ text: 'Import' });
-        importBtn.onclick = () => {
-            const modal = new Modal(this.app);
-            modal.titleEl.setText('Import Layouts (JSON)');
-            const area = new TextAreaComponent(modal.contentEl);
-            area.setPlaceholder('Paste JSON here...');
-            area.inputEl.addClass('sc-style-199b6f0e');
-            area.inputEl.addClass('sc-style-09213361');
-            
-            const btn = modal.contentEl.createEl('button', { text: 'Import' });
-            btn.addClass('sc-style-7724b6b4');
-            btn.onclick = () => { void (async () => {
-                try {
-                    const data = JSON.parse(area.getValue());
-                    if (Array.isArray(data)) {
-                        this.plugin.settings.customLayouts = data;
-                        await this.plugin.saveSettings();
-                        new Notice('Layouts imported!');
-                        modal.close();
-                        this.renderSettings();
-                    }
-                } catch(e) {
-                    new Notice('Invalid JSON');
-                }
-            })(); };
-            modal.open();
-        };
-
-        const saveBtn = saveBtnRow.createEl('button', { text: 'Save Layout' });
-        saveBtn.addClass('sc-style-d345155f');
-        saveBtn.onclick = () => { void (async () => {
-            if (!this.builderLayoutName) {
-                new Notice('Please enter a layout name');
-                return;
-            }
-            if (!this.plugin.settings.customLayouts) {
-                this.plugin.settings.customLayouts = [];
-            }
-            
-            const cleanName = this.builderLayoutName.toLowerCase().replace(/\s+/g, '_');
-            const existingIdx = this.plugin.settings.customLayouts.findIndex(l => l.name === cleanName);
-            
-            // Read matrix
-            let gridAreasStr = '';
-            for(let r=0; r<this.builderRows; r++) {
-                let rowStr = '';
-                for(let c=0; c<this.builderCols; c++) {
-                    rowStr += `area${this.builderGridMatrix[r][c]} `;
-                }
-                gridAreasStr += `"${rowStr.trim()}" `;
-            }
-            
-            const newLayout = {
-                name: cleanName,
-                cols: this.builderCols,
-                rows: this.builderRows,
-                gridAreas: gridAreasStr.trim()
-            };
-
-            if (existingIdx >= 0) {
-                this.plugin.settings.customLayouts[existingIdx] = newLayout;
-                new Notice('Layout updated!');
-            } else {
-                this.plugin.settings.customLayouts.push(newLayout);
-                new Notice('Layout saved!');
-            }
-            
-            await this.plugin.saveSettings();
-            this.renderSettings(); // refresh
-        })(); };
-
-        // Saved Layouts List
-        if (this.plugin.settings.customLayouts && this.plugin.settings.customLayouts.length > 0) {
-            const listDiv = section.createDiv();
-            new Setting(listDiv).setName('Saved Layouts' ).setHeading()
-            
-            const grid = listDiv.createDiv();
-            grid.addClass('sc-style-1d29bbfe');
-            
-            this.plugin.settings.customLayouts.forEach((layout, idx) => {
-                const card = grid.createDiv();
-                card.addClass('sc-style-0ad8d283');
-                
-                const info = card.createDiv();
-                info.createDiv({ text: layout.name }).addClass('sc-style-1188fbba');
-                info.createDiv({ text: `${layout.cols}x${layout.rows} Grid` }).addClass('sc-style-bd308a19');
-                
-                const actionBtns = card.createDiv();
-                actionBtns.addClass('sc-style-9d612677');
-
-                const editBtn = actionBtns.createEl('button');
-                setIcon(editBtn, 'pencil');
-                editBtn.addClass('sc-style-a84482d8');
-                editBtn.title = 'Edit Layout';
-                editBtn.onclick = () => {
-                    // Hydrate UI State
-                    this.builderCols = layout.cols;
-                    this.builderRows = layout.rows;
-                    this.builderLayoutName = layout.name;
-                    
-                    colsSelect.setValue(this.builderCols.toString());
-                    rowsSelect.setValue(this.builderRows.toString());
-                    nameInput.value = this.builderLayoutName;
-                    
-                    // Parse gridAreas string back to matrix
-                    const rowsArr = layout.gridAreas.match(/"([^"]+)"/g)?.map(r => r.replace(/"/g, '').trim().split(/\s+/)) || [];
-                    if (rowsArr.length === this.builderRows) {
-                        this.builderGridMatrix = rowsArr.map(row => row.map(area => parseInt(area.replace('area', ''))));
-                    } else {
-                        initMatrix(); // Fallback if corrupted
-                    }
-                    
-                    drawGrid();
-                    new Notice(`Editing layout: ${this.builderLayoutName}`);
-                    
-                    // Scroll to top of builder
-                    builderCard.scrollIntoView({ behavior: 'smooth' });
-                };
-
-                const delBtn = actionBtns.createEl('button');
-                setIcon(delBtn, 'trash');
-                delBtn.addClass('sc-style-12c7087c');
-                delBtn.title = 'Delete Layout';
-                delBtn.onclick = () => { void (async () => {
-                    this.plugin.settings.customLayouts.splice(idx, 1);
+        new ButtonComponent(backupRow)
+            .setButtonText('Reset All to Defaults')
+            .setWarning()
+            .onClick(async () => {
+                if (confirm('Are you sure you want to reset all settings to defaults? This cannot be undone.')) {
+                    this.plugin.settings.customStyles = [];
+                    this.plugin.settings.customColors = [];
+                    this.plugin.settings.customLayouts = [];
+                    this.plugin.settings.standardColors = { ...DEFAULT_STANDARD_COLORS };
+                    this.plugin.settings.standardStyles = { ...DEFAULT_STANDARD_STYLES };
+                    this.plugin.settings.defaultMetadata = '';
                     await this.plugin.saveSettings();
+                    new Notice('Settings reset to defaults.');
                     this.renderSettings();
-                })(); };
+                }
             });
-        }
     }
 
-    createStandardStylesSection(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-d3297f95');
-
-        const sectionHeader = section.createDiv();
-        sectionHeader.addClass('sc-style-0d91c8a8');
-
-        (new Setting(sectionHeader).setName('Standard Callouts').setHeading().settingEl).addClass('sc-style-fc320a4f');
-
-        // Grid/List toggle
-        const toggleDiv = sectionHeader.createDiv();
-        toggleDiv.addClass('sc-style-827a418e');
-
-        const gridBtn = toggleDiv.createEl('button', { text: 'Grid' });
-        gridBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-cursor', 'sc-var-font-size', 'sc-var-background', 'sc-var-color']);
-        gridBtn.setCssProps({
-            '--sc-dyn-padding': '4px 10px',
-            '--sc-dyn-border': 'none',
-            '--sc-dyn-cursor': 'pointer',
-            '--sc-dyn-font-size': '0.8rem',
-            '--sc-dyn-background': this.standardStylesViewMode === 'grid' ? 'var(--interactive-accent)' : 'var(--background-secondary)',
-            '--sc-dyn-color': this.standardStylesViewMode === 'grid' ? 'var(--text-on-accent)' : 'var(--text-muted)'
-        });
-        gridBtn.onclick = () => { this.standardStylesViewMode = 'grid'; this.renderSettings(); };
-
-        const listBtn = toggleDiv.createEl('button', { text: 'List' });
-        listBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-cursor', 'sc-var-font-size', 'sc-var-background', 'sc-var-color']);
-        listBtn.setCssProps({
-            '--sc-dyn-padding': '4px 10px',
-            '--sc-dyn-border': 'none',
-            '--sc-dyn-cursor': 'pointer',
-            '--sc-dyn-font-size': '0.8rem',
-            '--sc-dyn-background': this.standardStylesViewMode === 'list' ? 'var(--interactive-accent)' : 'var(--background-secondary)',
-            '--sc-dyn-color': this.standardStylesViewMode === 'list' ? 'var(--text-on-accent)' : 'var(--text-muted)'
-        });
-        listBtn.onclick = () => { this.standardStylesViewMode = 'list'; this.renderSettings(); };
-
-        const standardStyleNames = Object.keys(this.plugin.settings.standardStyles);
-
-        if (this.standardStylesViewMode === 'list') {
-            this.renderStandardStylesList(section, standardStyleNames);
-        } else {
-            this.renderStandardStylesGrid(section, standardStyleNames);
-        }
-    }
-
-    private renderStandardStylesList(section: HTMLElement, styleNames: string[]): void {
-        const list = section.createDiv();
-        list.addClass('sc-style-5bcf4cf5');
-
-        styleNames.forEach(styleName => {
-            const style = this.plugin.settings.standardStyles[styleName];
-            const defaultStyle = DEFAULT_STANDARD_STYLES[styleName];
-            const isModified = style.bg !== defaultStyle.bg ||
-                style.text !== defaultStyle.text ||
-                style.titleColor !== defaultStyle.titleColor;
-
-            const row = list.createDiv();
-            (row).addClass('sc-style-92860a82');
-            row.onmouseover = () => row.addClass('sc-style-5332d565');
-            row.onmouseout = () => row.addClass('sc-style-fdf11a02');
-
-            // Color bar
-            const colorBar = row.createDiv();
-            colorBar.addClasses(['sc-var-width', 'sc-var-height', 'sc-var-border-radius', 'sc-var-background']); colorBar.setCssProps({ '--sc-dyn-width': `4px`, '--sc-dyn-height': `24px`, '--sc-dyn-border-radius': `2px`, '--sc-dyn-background': `${style.bg}` });
-
-            // Icon
-            const iconSpan = row.createSpan();
-            iconSpan.addClasses(['sc-var-color', 'sc-var-display', 'sc-var-align-items']); iconSpan.setCssProps({ '--sc-dyn-color': `${style.bg}`, '--sc-dyn-display': `flex`, '--sc-dyn-align-items': `center` });
-            setIcon(iconSpan, style.icon || 'file');
-
-            // Name
-            const nameSpan = row.createSpan({ text: styleName.charAt(0).toUpperCase() + styleName.slice(1) });
-            nameSpan.addClasses(['sc-var-flex', 'sc-var-font-weight', 'sc-var-color', 'sc-var-font-size']); nameSpan.setCssProps({ '--sc-dyn-flex': `1`, '--sc-dyn-font-weight': `500`, '--sc-dyn-color': `${style.bg}`, '--sc-dyn-font-size': `0.95rem` });
-
-            // Modified indicator
-            if (isModified) {
-                const modBadge = row.createSpan({ text: 'â—' });
-                modBadge.addClass('sc-style-1f856992');
-                modBadge.title = 'Modified';
-            }
-
-            // Edit button
-            const editBtn = row.createEl('button');
-            editBtn.addClass('sc-style-7236432e');
-            setIcon(editBtn, 'pencil');
-            editBtn.title = 'Edit';
-            editBtn.onclick = (e) => { e.stopPropagation(); this.openStandardStyleEditor(styleName); };
-
-            // Reset button
-            if (isModified) {
-                const resetBtn = row.createEl('button');
-                resetBtn.addClass('sc-style-7236432e');
-                setIcon(resetBtn, 'rotate-ccw');
-                resetBtn.title = 'Reset';
-                resetBtn.onclick = (e) => {
-                    // Satirin kendi tiklama isleyicisi editoru acmasin
-                    e.stopPropagation();
-                    void (async () => {
-                        this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
-                        await this.plugin.saveSettings();
-                        this.renderSettings();
-                    })();
-                };
-            }
-        });
-    }
-
-    private renderStandardStylesGrid(section: HTMLElement, styleNames: string[]): void {
-        const grid = section.createDiv();
-        grid.addClass('sc-style-17bf2b32');
-
-        styleNames.forEach(styleName => {
-            const style = this.plugin.settings.standardStyles[styleName];
-            const defaultStyle = DEFAULT_STANDARD_STYLES[styleName];
-            const isModified = style.bg !== defaultStyle.bg ||
-                style.text !== defaultStyle.text ||
-                style.titleColor !== defaultStyle.titleColor;
-
-            const card = grid.createDiv();
-            (card).addClass('sc-style-e99cca07');
-            card.onmouseover = () => { card.addClass('sc-style-5332d565'); card.addClass('sc-style-1eff9e7a'); };
-            card.onmouseout = () => { card.addClass('sc-style-fdf11a02'); card.addClass('sc-style-d760c932'); };
-            card.onclick = () => this.openStandardStyleEditor(styleName);
-
-            // Icon
-            const iconDiv = card.createDiv();
-            iconDiv.addClasses(['sc-var-color', 'sc-var-margin-bottom', 'sc-var-display', 'sc-var-justify-content']); iconDiv.setCssProps({ '--sc-dyn-color': `${style.bg}`, '--sc-dyn-margin-bottom': `8px`, '--sc-dyn-display': `flex`, '--sc-dyn-justify-content': `center` });
-            setIcon(iconDiv, style.icon || 'file');
-
-            // Name
-            const nameDiv = card.createDiv({ text: styleName.charAt(0).toUpperCase() + styleName.slice(1) });
-            nameDiv.addClasses(['sc-var-font-weight', 'sc-var-color', 'sc-var-font-size']); nameDiv.setCssProps({ '--sc-dyn-font-weight': `500`, '--sc-dyn-color': `${style.bg}`, '--sc-dyn-font-size': `0.85rem` });
-
-            // Modified dot
-            if (isModified) {
-                const modDot = card.createDiv({ text: 'â—' });
-                modDot.addClass('sc-style-f69b2e98');
-            }
-        });
-    }
-
-    openStandardStyleEditor(styleName: string): void {
-        const style = this.plugin.settings.standardStyles[styleName];
-        if (!style) return;
-
-        const editorModal = new Modal(this.app);
-        editorModal.titleEl.setText(`Edit "${styleName}" Style`);
-
-        const { contentEl } = editorModal;
-
-        // Preview
-        const previewDiv = contentEl.createDiv();
-        previewDiv.addClasses(['sc-var-background', 'sc-var-border-left']);
-        previewDiv.setCssProps({ '--sc-dyn-background': `color-mix(in srgb, ${style.bg} 15%, transparent)`, '--sc-dyn-border-left': `4px solid ${style.bg}` });
-        previewDiv.addClass('sc-style-602659fe');
-        previewDiv.addClass('sc-style-b59e4501');
-        previewDiv.addClass('sc-style-d3297f95');
-
-        const previewTitle = previewDiv.createEl('strong', { text: style.name });
-        previewTitle.addClass('sc-var-color'); previewTitle.setCssProps({ '--sc-dyn-color': style.titleColor || style.bg  });
-        previewDiv.createEl('br');
-        const previewText = previewDiv.createEl('span', { text: 'Preview text content' });
-        previewText.addClass('sc-var-color'); previewText.setCssProps({ '--sc-dyn-color': style.text || 'var(--text-normal)'  });
-
-        const updatePreview = () => {
-            previewDiv.addClasses(['sc-var-background', 'sc-var-border-left']);
-            previewDiv.setCssProps({ '--sc-dyn-background': `color-mix(in srgb, ${style.bg} 15%, transparent)`, '--sc-dyn-border-left': `4px solid ${style.bg}` });
-            previewTitle.textContent = style.name;
-            previewTitle.addClass('sc-var-color'); previewTitle.setCssProps({ '--sc-dyn-color': style.titleColor || style.bg  });
-            previewText.addClass('sc-var-color'); previewText.setCssProps({ '--sc-dyn-color': style.text || 'var(--text-normal)'  });
-        };
-
-        // Background color
-        const bgRow = contentEl.createDiv();
-        bgRow.addClass('sc-style-e9ebe922');
-        bgRow.addClass('sc-style-d0da858a');
-        bgRow.addClass('sc-style-2a117045');
-        bgRow.addClass('sc-style-7b754eef');
-        bgRow.createEl('label', { text: 'Background:' }).addClass('sc-style-019910d6');
-        const bgInput = bgRow.createEl('input', { type: 'color', value: style.bg });
-        bgInput.oninput = () => { style.bg = bgInput.value; style.border = bgInput.value; updatePreview(); };
-
-        // Title color
-        const titleRow = contentEl.createDiv();
-        titleRow.addClass('sc-style-e9ebe922');
-        titleRow.addClass('sc-style-d0da858a');
-        titleRow.addClass('sc-style-2a117045');
-        titleRow.addClass('sc-style-7b754eef');
-        titleRow.createEl('label', { text: 'Title Color:' }).addClass('sc-style-019910d6');
-        const titleInput = titleRow.createEl('input', { type: 'color', value: style.titleColor || style.bg });
-        titleInput.oninput = () => { style.titleColor = titleInput.value; updatePreview(); };
-
-        // Text color
-        const textRow = contentEl.createDiv();
-        textRow.addClass('sc-style-e9ebe922');
-        textRow.addClass('sc-style-d0da858a');
-        textRow.addClass('sc-style-2a117045');
-        textRow.addClass('sc-style-d3297f95');
-        textRow.createEl('label', { text: 'Text Color:' }).addClass('sc-style-019910d6');
-        const textInput = textRow.createEl('input', { type: 'color', value: style.text || '#ffffff' });
-        textInput.oninput = () => { style.text = textInput.value; updatePreview(); };
-
-        // Buttons
-        const buttons = contentEl.createDiv();
-        buttons.addClass('sc-style-e9ebe922');
-        buttons.addClass('sc-style-2a117045');
-
-        const saveBtn = buttons.createEl('button', { text: 'Save' });
-        saveBtn.addClass('sc-style-49cdf874');
-        saveBtn.addClass('sc-style-440dce23');
-        saveBtn.addClass('sc-style-5e0853c5');
-        saveBtn.addClass('sc-style-4d6aa729');
-        saveBtn.addClass('sc-style-3e0512b1');
-        saveBtn.addClass('sc-style-602659fe');
-        saveBtn.addClass('sc-style-24b531c6');
-        saveBtn.onclick = () => {
-            void (async () => {
-                this.plugin.settings.standardStyles[styleName] = style;
-                await this.plugin.saveSettings();
-                editorModal.close();
-                this.renderSettings();
-            })();
-        };
-
-        const resetBtn = buttons.createEl('button', { text: 'Reset' });
-        resetBtn.addClass('sc-style-5a53f8c5');
-        resetBtn.addClass('sc-style-a1222d24');
-        resetBtn.addClass('sc-style-4d6aa729');
-        resetBtn.addClass('sc-style-3e0512b1');
-        resetBtn.addClass('sc-style-602659fe');
-        resetBtn.addClass('sc-style-24b531c6');
-        resetBtn.onclick = () => {
-            void (async () => {
-                this.plugin.settings.standardStyles[styleName] = { ...DEFAULT_STANDARD_STYLES[styleName] };
-                await this.plugin.saveSettings();
-                editorModal.close();
-                this.renderSettings();
-            })();
-        };
-
-        const cancelBtn = buttons.createEl('button', { text: 'Cancel' });
-        cancelBtn.addClass('sc-style-5a53f8c5');
-        cancelBtn.addClass('sc-style-602659fe');
-        cancelBtn.addClass('sc-style-24b531c6');
-        cancelBtn.onclick = () => editorModal.close();
-
-        editorModal.open();
-    }
-
-    createCustomStylesSection(container: HTMLElement): void {
-        const section = container.createDiv();
-        section.addClass('sc-style-d3297f95');
-
-        const sectionHeader = section.createDiv();
-        sectionHeader.addClass('sc-style-3d41e2d2');
-
-        (new Setting(sectionHeader).setName('Custom Callouts').setHeading().settingEl).addClass('sc-style-fc320a4f');
-
-        if (this.editingIndex !== null) {
-            const banner = section.createDiv();
-            banner.addClass('sc-style-172a5f1d');
-            banner.createSpan({ text: `Editing: ${this.tempName || 'Untitled'}` }).addClass('sc-style-647d6e41');
-            const cancelBtn = banner.createEl('button', { text: 'Cancel' });
-            cancelBtn.addClass('sc-style-8cf4511d');
-            cancelBtn.onclick = () => {
-                this.editingIndex = null;
-                this.resetForm();
-                this.renderSettings();
-            };
-        }
-
-        // Creator card
-        const creatorCard = section.createDiv();
-        (creatorCard).addClass('sc-style-58b7f31a');
-
-        // Quick presets section
-        this.createPresetsSection(creatorCard);
-
-        // Form inputs
-        this.createFormSection(creatorCard);
-
-
-
-        // Saved styles list
-        if (this.plugin.settings.customStyles.length > 0) {
-            this.createSavedStylesList(section, container);
-        }
-    }
-
-    private createPresetsSection(creatorCard: HTMLElement): void {
-        const presetsDiv = creatorCard.createDiv();
-        presetsDiv.addClass('sc-style-7002f9ca');
-
-        const presetsLabel = presetsDiv.createDiv();
-        presetsLabel.addClass('sc-style-d9cf68d2');
-        (presetsLabel.createEl('span', { text: 'Quick Start' })).addClass('sc-style-e9e540a9');
-        presetsLabel.createDiv().addClass('sc-style-bf9d1c7c');
-
-        const presetsGrid = presetsDiv.createDiv();
-        presetsGrid.addClass('sc-style-d9c401ed');
-
-        QUICK_START_PRESETS.forEach(preset => {
-            const presetBtn = presetsGrid.createEl('button', { text: preset.name });
-            (presetBtn).addClass('sc-style-e54bbf0b');
-            presetBtn.onmouseover = () => { presetBtn.addClass('sc-var-border-color'); presetBtn.setCssProps({ '--sc-dyn-border-color': preset.border  }); presetBtn.addClass('sc-var-color'); presetBtn.setCssProps({ '--sc-dyn-color': preset.border  }); };
-            presetBtn.onmouseout = () => { presetBtn.addClass('sc-style-fdf11a02'); presetBtn.addClass('sc-style-f31841c1'); };
-            presetBtn.onclick = () => {
-                this.tempName = preset.name.toLowerCase() + '-style';
-                this.tempBg = preset.bg;
-                this.tempBorder = preset.border;
-                this.tempTitleColor = preset.title;
-                this.tempText = preset.text;
-                this.tempIcon = preset.icon;
-                this.renderSettings();
-            };
-        });
-
-        const randomBtn = presetsGrid.createEl('button');
-        (randomBtn).addClass('sc-style-aebc428a');
-        setIcon(randomBtn.createSpan(), 'dice');
-        randomBtn.createSpan({ text: 'Random' }); // Just 'Random' to fit grid
-        randomBtn.onmouseover = () => { randomBtn.addClass('sc-style-5e0853c5'); randomBtn.addClass('sc-style-f6234f9f'); };
-        randomBtn.onmouseout = () => { randomBtn.addClass('sc-style-403789f1'); randomBtn.addClass('sc-style-f31841c1'); };
-        randomBtn.onclick = () => {
-            this.applyRandomStyle();
+    // =========================================================================
+    // STYLE EDITOR MODALS WITH FULL PARAMETERS & LIVE PREVIEW
+    // =========================================================================
+    private openStyleEditorModal(existingStyle?: CalloutStyle, editIndex?: number): void {
+        new StyleEditorModal(this.app, this.plugin, existingStyle, editIndex, () => {
             this.renderSettings();
+        }).open();
+    }
+
+    private openStandardStyleEditorModal(styleName: string): void {
+        const style = this.plugin.settings.standardStyles[styleName];
+        new StandardStyleEditorModal(this.app, this.plugin, styleName, style, () => {
+            this.renderSettings();
+        }).open();
+    }
+}
+
+/**
+ * Interactive Modal for editing / creating Custom Callout Styles with Live Preview & Section Tabs
+ */
+type StyleModalSection = 'identity' | 'colors' | 'icon' | 'layout';
+
+class StyleEditorModal extends Modal {
+    private plugin: PluginWithSettings;
+    private style: CalloutStyle;
+    private editIndex?: number;
+    private onSave: () => void;
+    private activeSection: StyleModalSection = 'identity';
+
+    constructor(app: App, plugin: PluginWithSettings, existingStyle?: CalloutStyle, editIndex?: number, onSave?: () => void) {
+        super(app);
+        this.plugin = plugin;
+        this.editIndex = editIndex;
+        this.onSave = onSave || (() => {});
+
+        this.style = existingStyle ? { ...existingStyle } : {
+            name: 'custom-' + Math.floor(Math.random() * 900 + 100),
+            bg: '#3498db',
+            border: '#3498db',
+            text: '',
+            link: '',
+            titleColor: '',
+            icon: 'pencil',
+            iconColor: '',
+            boldBorder: false,
+            font: '',
+            fontSize: 3,
+            borderWidth: '1px',
+            borderStyle: 'solid',
+            borderRadius: '8px',
+            neon: '',
+            noIcon: false,
+            compact: false,
+            center: false,
+            titleCenter: false
         };
     }
 
-    private createFormSection(creatorCard: HTMLElement): HTMLElement {
-        // --- 1. PREVIEW (Top, full width) ---
-        const previewLabel = creatorCard.createDiv();
-        previewLabel.addClass('sc-style-6751f8e3');
-        (previewLabel.createEl('span', { text: 'Live Preview' })).addClass('sc-style-1906f84d');
-        previewLabel.createDiv().addClass('sc-style-bf9d1c7c');
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('special-callouts-ui');
 
-        const previewBox = creatorCard.createDiv({ cls: 'callout' });
-        previewBox.addClass('sc-style-a780619a');
+        contentEl.createEl('h2', { text: this.editIndex !== undefined ? `Edit Style: ${this.style.name}` : 'New Callout Style' });
 
-        // --- 2. CONTROLS GRID ---
-        const gridContainer = creatorCard.createDiv();
-        gridContainer.addClass('sc-style-e03f38d6');
+        // Sticky Live Preview Box
+        const previewContainer = contentEl.createDiv({ cls: 'sc-live-preview-container sc-sticky-preview' });
+        const previewHeader = previewContainer.createDiv({ cls: 'sc-live-preview-header' });
+        previewHeader.createSpan({ text: 'Live Interactive Preview' });
 
-        const leftCol = gridContainer.createDiv();
-        leftCol.addClass('sc-style-6a4f6b63');
+        const liveCallout = previewContainer.createDiv({ cls: 'callout sc-live-callout' });
+        this.updateLivePreview(liveCallout);
 
-        const rightCol = gridContainer.createDiv();
-        rightCol.addClass('sc-style-6a4f6b63');
+        // Section Tabs
+        const nav = contentEl.createDiv({ cls: 'sc-nav-tabs' });
+        nav.style.marginBottom = '1rem';
 
-        // === LEFT COLUMN (Visuals) ===
-
-        // PANEL: IDENTITY
-        const identityPanel = leftCol.createDiv();
-        this.createPanelHeader(identityPanel, 'Identity');
-
-        const identityGrid = identityPanel.createDiv();
-        identityGrid.addClass('sc-style-7499c745');
-
-        // Name
-        const nameGroup = identityGrid.createDiv();
-        (nameGroup.createEl('label', { text: 'Style Name' })).addClass('sc-style-c17b7822');
-        const nameInput = nameGroup.createEl('input', { type: 'text', placeholder: 'my-style' });
-        nameInput.addClass('sc-style-293faa8a');
-        nameInput.value = this.tempName;
-        nameInput.oninput = () => { this.tempName = nameInput.value; this.updatePreview(previewBox); };
-
-        // Icon
-        const iconGroup = identityGrid.createDiv();
-        (iconGroup.createEl('label', { text: 'Icon' })).addClass('sc-style-c17b7822');
-
-        const iconWrapper = iconGroup.createDiv();
-        iconWrapper.addClass('sc-style-4a5d9a10');
-        const iconInput = iconWrapper.createEl('input', { type: 'text' });
-        iconInput.addClass('sc-style-f0b13e17');
-        iconInput.value = this.tempIcon;
-        iconInput.oninput = () => { this.tempIcon = iconInput.value; this.updatePreview(previewBox); };
-
-        const iconSearchBtn = iconWrapper.createEl('button');
-        iconSearchBtn.addClass('sc-style-d84b68f5');
-        setIcon(iconSearchBtn, 'search');
-        iconSearchBtn.onclick = () => {
-            new IconPickerModal(this.app, (selected) => {
-                this.tempIcon = selected;
-                iconInput.value = selected;
-                this.updatePreview(previewBox);
-            }).open();
-        };
-
-        // PANEL: COLORS
-        const colorsPanel = leftCol.createDiv();
-        this.createPanelHeader(colorsPanel, 'Palette');
-
-        const colorsGrid = colorsPanel.createDiv();
-        colorsGrid.addClass('sc-style-578b24de');
-
-        const colorConfigs: Array<{
-            label: string;
-            val: () => string;
-            set: (v: string) => void;
-            clear?: () => void;
-            clearTitle?: string;
-        }> = [
-            { label: 'Background', val: () => this.tempBg, set: (v: string) => this.tempBg = v },
-            { label: 'Border', val: () => this.tempBorder, set: (v: string) => this.tempBorder = v },
-            { label: 'Title', val: () => this.tempTitleColor, set: (v: string) => this.tempTitleColor = v },
-            // Bos tempIconColor "basligi takip et" demek, ama <input type="color"> bos
-            // degeri temsil edemiyor; o yuzden efektif rengi gosterip yanina sifirla koyuyoruz
-            {
-                label: 'Icon',
-                val: () => this.tempIconColor || this.tempTitleColor,
-                set: (v: string) => this.tempIconColor = v,
-                clear: () => this.tempIconColor = '',
-                clearTitle: 'Reset — let the icon follow the title colour'
-            },
-            { label: 'Text', val: () => this.tempText, set: (v: string) => this.tempText = v },
-            { label: 'Link', val: () => this.tempLink, set: (v: string) => this.tempLink = v }
+        const sections: { id: StyleModalSection; label: string; icon: string }[] = [
+            { id: 'identity', label: 'Style Name', icon: 'tag' },
+            { id: 'colors', label: 'Colors & Glow', icon: 'palette' },
+            { id: 'icon', label: 'Icon & Font', icon: 'type' },
+            { id: 'layout', label: 'Borders & Layout', icon: 'layout' }
         ];
 
-        colorConfigs.forEach(c => {
-            const row = colorsGrid.createDiv();
-            row.addClass('sc-style-b55d3587');
+        sections.forEach(sec => {
+            const btn = nav.createEl('button', { cls: `sc-nav-tab ${this.activeSection === sec.id ? 'is-active' : ''}` });
+            const iconSpan = btn.createSpan();
+            setIcon(iconSpan, sec.icon);
+            btn.createSpan({ text: sec.label });
 
-            (row.createEl('label', { text: c.label })).addClass('sc-style-42d3744b');
-
-            const hexInput = row.createEl('input', { type: 'text' });
-            hexInput.addClass('sc-style-187fb37d');
-            hexInput.value = c.val().toUpperCase();
-
-            const wrapper = row.createDiv();
-            wrapper.addClass('sc-style-a822468c');
-            const picker = wrapper.createEl('input', { type: 'color' });
-            picker.addClass('sc-style-4c6420cf');
-            picker.value = c.val();
-
-            const display = wrapper.createDiv();
-            display.addClasses(['sc-var-width', 'sc-var-height', 'sc-var-background', 'sc-var-pointer-events']); display.setCssProps({ '--sc-dyn-width': `100%`, '--sc-dyn-height': `100%`, '--sc-dyn-background': `${c.val()}`, '--sc-dyn-pointer-events': `none` });
-
-            picker.oninput = (e: Event) => {
-                c.set((e.target as HTMLInputElement).value);
-                display.addClass('sc-var-background'); display.setCssProps({ '--sc-dyn-background': (e.target as HTMLInputElement).value  });
-                hexInput.value = (e.target as HTMLInputElement).value.toUpperCase();
-                this.updatePreview(previewBox);
+            btn.onclick = () => {
+                this.activeSection = sec.id;
+                this.renderSectionContent(sectionContainer, liveCallout);
+                nav.querySelectorAll('.sc-nav-tab').forEach((b, i) => {
+                    if (sections[i].id === sec.id) b.addClass('is-active');
+                    else b.removeClass('is-active');
+                });
             };
-
-            hexInput.onchange = (e: Event) => {
-                let v = (e.target as HTMLInputElement).value;
-                if (!v.startsWith('#')) v = '#' + v;
-                if (isValidHex(v)) {
-                    v = normalizeHex(v);
-                    c.set(v);
-                    picker.value = v;
-                    display.addClass('sc-var-background'); display.setCssProps({ '--sc-dyn-background': v  });
-                    this.updatePreview(previewBox);
-                } else {
-                    hexInput.value = c.val().toUpperCase();
-                }
-            };
-            wrapper.appendChild(display);
-            wrapper.appendChild(picker);
-
-            if (c.clear) {
-                const clearBtn = row.createEl('button');
-                clearBtn.addClass('sc-color-clear');
-                clearBtn.title = c.clearTitle || 'Reset';
-                setIcon(clearBtn, 'rotate-ccw');
-                clearBtn.onclick = () => {
-                    c.clear?.();
-                    const v = c.val();
-                    picker.value = v;
-                    hexInput.value = v.toUpperCase();
-                    display.setCssProps({ '--sc-dyn-background': v });
-                    this.updatePreview(previewBox);
-                };
-            }
         });
 
-        // PANEL: EFFECTS
-        const effectsPanel = leftCol.createDiv();
-        this.createPanelHeader(effectsPanel, 'Effects');
-
-        // Neon
-        const neonRow = effectsPanel.createDiv();
-        neonRow.addClass('sc-style-7d958f55');
-
-        const neonLabel = neonRow.createDiv();
-        neonLabel.createDiv({ text: 'Neon Glow' }).addClass('sc-style-60315bed');
-
-        const neonControls = neonRow.createDiv();
-        neonControls.addClass('sc-style-bd9db1cb');
-
-        const neonPicker = neonControls.createEl('input', { type: 'color' });
-        neonPicker.addClass('sc-style-c02a4b3f');
-        neonPicker.value = this.tempNeon || '#000000';
-
-        const neonToggle = new ToggleComponent(neonControls);
-        neonToggle.setValue(!!this.tempNeon);
-        neonToggle.onChange(val => {
-            if (val) {
-                this.tempNeon = neonPicker.value;
-            } else {
-                this.tempNeon = '';
-            }
-            this.updatePreview(previewBox);
-        });
-
-        neonPicker.oninput = (e: Event) => {
-            if (neonToggle.getValue()) {
-                this.tempNeon = (e.target as HTMLInputElement).value;
-                this.updatePreview(previewBox);
-            }
-        };
-
-        // === RIGHT COLUMN (Layout) ===
-
-        // PANEL: TYPOGRAPHY
-        const typoPanel = rightCol.createDiv();
-        this.createPanelHeader(typoPanel, 'Typography');
-
-        const typoGrid = typoPanel.createDiv();
-        typoGrid.addClass('sc-style-7499c745');
-
-        const fontGroup = typoGrid.createDiv();
-        (fontGroup.createEl('label', { text: 'Font Family' })).addClass('sc-style-c17b7822');
-        const fontSelect = new DropdownComponent(fontGroup);
-        fontSelect.selectEl.addClass('sc-style-199b6f0e');
-        fontSelect.addOption('', 'Default');
-        Object.keys(FONT_FAMILIES).forEach(f => fontSelect.addOption(f, f.charAt(0).toUpperCase() + f.slice(1)));
-        fontSelect.setValue(this.tempFont);
-        fontSelect.onChange(val => { this.tempFont = val; this.updatePreview(previewBox); });
-
-        const sizeGroup = typoGrid.createDiv();
-        (sizeGroup.createEl('label', { text: 'Size' })).addClass('sc-style-c17b7822');
-        const sizeSelect = new DropdownComponent(sizeGroup);
-        sizeSelect.selectEl.addClass('sc-style-199b6f0e');
-        Object.keys(FONT_SIZES).forEach(s => sizeSelect.addOption(s, s));
-        sizeSelect.setValue(this.tempFontSize.toString());
-        sizeSelect.onChange(val => { this.tempFontSize = parseInt(val); this.updatePreview(previewBox); });
-
-
-        // PANEL: STRUCTURE
-        const structPanel = rightCol.createDiv();
-        this.createPanelHeader(structPanel, 'Structure');
-
-        // Border Style
-        const bsRow = structPanel.createDiv();
-        bsRow.addClass('sc-style-7b754eef');
-        (bsRow.createEl('label', { text: 'Border Style' })).addClass('sc-style-c17b7822');
-        const bsSelect = new DropdownComponent(bsRow);
-        bsSelect.selectEl.addClass('sc-style-199b6f0e');
-        ['solid', 'dashed', 'dotted', 'double', 'groove', 'ridge', 'inset', 'outset', 'none'].forEach(s => bsSelect.addOption(s, s));
-        bsSelect.setValue(this.tempBorderStyle || 'solid');
-        bsSelect.onChange(val => { this.tempBorderStyle = val; this.updatePreview(previewBox); });
-
-        // Sliders
-        const createSliderRow = (label: string, value: string, setter: (v: string) => void, min: number, max: number, step: number) => {
-            const row = structPanel.createDiv();
-            row.addClass('sc-style-7b754eef');
-            const header = row.createDiv();
-            header.addClass('sc-style-952640c5');
-            (header.createEl('label', { text: label })).addClass('sc-style-5b6de27b');
-            const valLabel = header.createSpan({ text: value || 'Default' });
-            valLabel.addClass('sc-style-af89d6d6');
-
-            const slider = new SliderComponent(row);
-            slider.sliderEl.addClass('sc-style-199b6f0e');
-            slider.setLimits(min, max, step);
-            const numVal = parseFloat(value) || 0;
-            slider.setValue(numVal);
-            slider.onChange(v => {
-                const newVal = v === 0 ? '' : v.toString();
-                setter(newVal);
-                valLabel.setText(newVal || 'Default');
-                this.updatePreview(previewBox);
-            });
-        };
-
-        createSliderRow('Border Thickness', this.tempBorderWidth, (v) => this.tempBorderWidth = v, 0, 20, 1);
-        createSliderRow('Corner Radius', this.tempBorderRadius, (v) => this.tempBorderRadius = v, 0, 50, 1);
-
-
-        // PANEL: LAYOUT
-        const layoutPanel = rightCol.createDiv();
-        layoutPanel.createDiv().addClass('sc-style-07f9c2fc');
-        this.createPanelHeader(layoutPanel, 'Layout Modes');
-
-        const createToggleRow = (label: string, value: boolean, setter: (v: boolean) => void) => {
-            const row = layoutPanel.createDiv();
-            row.addClass('sc-style-deeba9b8');
-            row.createSpan({ text: label }).addClass('sc-style-647d6e41');
-            const t = new ToggleComponent(row);
-            t.setValue(value);
-            t.onChange(v => { setter(v); this.updatePreview(previewBox); });
-        };
-
-        createToggleRow('Compact Mode', this.tempCompact, (v) => this.tempCompact = v);
-        createToggleRow('Hide Icon', this.tempNoIcon, (v) => this.tempNoIcon = v);
-
-
-        // --- ACTION BUTTONS ---
-        const actionsContainer = creatorCard.createDiv();
-        actionsContainer.addClass('sc-style-aefcf1a5');
-
-        this.renderActionButtons(actionsContainer, previewBox); // Call new helper
-
-        this.updatePreview(previewBox);
-        return previewBox;
-    }
-
-    private renderActionButtons(container: HTMLElement, previewBox: HTMLElement): void {
-        const row = container.createDiv();
-        row.addClass('sc-style-5b95e9cb');
-
-        const leftGroup = row.createDiv();
-        leftGroup.addClass('sc-style-295223d1');
-
-        const exportBtn = leftGroup.createEl('button');
-        exportBtn.addClass('sc-style-7e45aa8b');
-        setIcon(exportBtn, 'upload');
-        exportBtn.createSpan({ text: 'Export' });
-        exportBtn.onclick = () => { void (async () => {
-            const styleData = this.getStyleFromForm();
-            try {
-                await navigator.clipboard.writeText(JSON.stringify(styleData, null, 2));
-                new Notice('Style JSON copied to clipboard!');
-            } catch { new Notice('Export failed'); }
-        })(); };
-
-        const importBtn = leftGroup.createEl('button');
-        importBtn.addClass('sc-style-7e45aa8b');
-        setIcon(importBtn, 'download');
-        importBtn.createSpan({ text: 'Import' });
-        importBtn.onclick = () => {
-            new ImportStyleModal(this.app, this.plugin.settings, (imported: CalloutStyle) => {
-                this.loadStyleToForm(imported);
-                this.updatePreview(previewBox);
-                new Notice('Imported!');
-            }).open();
-        };
-
-        const cancelBtn = row.createEl('button', { text: 'Reset' });
-        cancelBtn.onclick = () => {
-            this.resetForm();
-            this.editingIndex = null;
-            this.updatePreview(previewBox);
-            this.renderSettings();
-        };
-
-        const saveBtn = row.createEl('button', { text: this.editingIndex !== null ? 'Update Style' : 'Create Style' });
-        saveBtn.addClass('sc-style-b01285b3');
-        saveBtn.onclick = () => { void (async () => {
-            await this.saveCurrentStyle();
-            this.resetForm();
-            this.renderSettings();
-        })(); };
-    }
-
-
-    private createActionButtons(creatorCard: HTMLElement, section: HTMLElement, previewBox: HTMLElement): void {
-        const bottomRow = creatorCard.createDiv();
-        bottomRow.addClass('sc-style-c955cbf4');
-
-        const leftGroup = bottomRow.createDiv();
-        leftGroup.addClass('sc-style-47c52002');
-
-        const toggleRow = leftGroup.createDiv();
-        toggleRow.addClass('sc-style-bd9db1cb');
-        const toggle = toggleRow.createEl('input', { type: 'checkbox' });
-        toggle.checked = this.tempBoldBorder;
-        toggle.addClass('sc-style-094a63df');
-        toggle.onchange = () => { this.tempBoldBorder = toggle.checked; this.updatePreview(previewBox); };
-        (toggleRow.createEl('span', { text: 'Bold border' })).addClass('sc-style-15aacc3a');
-
-        const centerToggle = toggleRow.createEl('input', { type: 'checkbox' });
-        centerToggle.checked = this.tempCenter;
-        centerToggle.addClass('sc-style-094a63df');
-        centerToggle.onchange = () => { this.tempCenter = centerToggle.checked; this.updatePreview(previewBox); };
-        (toggleRow.createEl('span', { text: 'Center' })).addClass('sc-style-15aacc3a');
-
-        const titleCenterToggle = toggleRow.createEl('input', { type: 'checkbox' });
-        titleCenterToggle.checked = this.tempTitleCenter;
-        titleCenterToggle.addClass('sc-style-094a63df');
-        titleCenterToggle.onchange = () => { this.tempTitleCenter = titleCenterToggle.checked; this.updatePreview(previewBox); };
-        (toggleRow.createEl('span', { text: 'Title Center' })).addClass('sc-style-acb67b42');
-
-        // ------------------------------------------------------------
-        // IMPORT / EXPORT BUTTONS
-        // ------------------------------------------------------------
-        const ioGroup = leftGroup.createDiv();
-        ioGroup.addClass('sc-style-ff941712');
-
-        // EXPORT BUTTON
-        const exportBtn = ioGroup.createEl('button');
-        (exportBtn).addClass('sc-style-c7d21299');
-        setIcon(exportBtn, 'upload'); // Changed from 'download'
-        exportBtn.createSpan({ text: 'Export' });
-        exportBtn.title = 'Copy current style to clipboard as JSON';
-
-        exportBtn.onmouseover = () => { exportBtn.addClass('sc-style-f31841c1'); exportBtn.addClass('sc-style-5332d565'); };
-        exportBtn.onmouseout = () => { exportBtn.addClass('sc-style-7abb3a4e'); exportBtn.addClass('sc-style-fdf11a02'); };
-
-        exportBtn.onclick = () => { void (async () => {
-            const styleData = {
-                name: this.tempName,
-                bg: this.tempBg,
-                border: this.tempBorder,
-                text: this.tempText,
-                link: this.tempLink,
-                titleColor: this.tempTitleColor,
-                iconColor: this.tempIconColor,
-                icon: this.tempIcon,
-                boldBorder: this.tempBoldBorder,
-                center: this.tempCenter,
-                titleCenter: this.tempTitleCenter
-            };
-
-            try {
-                await navigator.clipboard.writeText(JSON.stringify(styleData, null, 2));
-                new Notice('Style JSON copied to clipboard!');
-                exportBtn.addClass('sc-style-b2ac600d');
-                exportBtn.addClass('sc-style-f6234f9f');
-                window.setTimeout(() => {
-                    exportBtn.addClass('sc-style-403789f1');
-                    exportBtn.addClass('sc-style-7abb3a4e');
-                }, 1000);
-            } catch (err) {
-                new Notice('Failed to copy to clipboard.');
-                console.error(err);
-            }
-        })(); };
-
-        // IMPORT BUTTON
-        const importBtn = ioGroup.createEl('button');
-        (importBtn).addClass('sc-style-c7d21299');
-        setIcon(importBtn, 'download'); // Changed from 'upload'
-        importBtn.createSpan({ text: 'Import' });
-        importBtn.title = 'Paste JSON style';
-
-        importBtn.onmouseover = () => { importBtn.addClass('sc-style-f31841c1'); importBtn.addClass('sc-style-5332d565'); };
-        importBtn.onmouseout = () => { importBtn.addClass('sc-style-7abb3a4e'); importBtn.addClass('sc-style-fdf11a02'); };
-
-        importBtn.onclick = () => {
-            const modal = new ImportStyleModal(this.app, this.plugin.settings, (importedStyle: import("../types").CalloutStyle) => {
-                // Apply imported style to form
-                this.tempName = importedStyle.name || this.tempName;
-                this.tempBg = importedStyle.bg || this.tempBg;
-                this.tempBorder = importedStyle.border || this.tempBorder;
-                this.tempText = importedStyle.text || this.tempText;
-                this.tempLink = importedStyle.link || this.tempLink;
-                this.tempTitleColor = importedStyle.titleColor || this.tempBg;
-                this.tempIcon = importedStyle.icon || this.tempIcon;
-                this.tempBoldBorder = importedStyle.boldBorder || false;
-
-                // Refresh UI
-                this.renderSettings();
-                new Notice('Style imported successfully!');
-            });
-            modal.open();
-        };
-
-        const buttonsRow = bottomRow.createDiv();
-        buttonsRow.addClass('sc-style-0ed0e90f');
-
-        // Cancel button
-        const cancelBtn = buttonsRow.createEl('button', { text: 'Cancel' });
-        (cancelBtn).addClass('sc-style-cf7c062c');
-        cancelBtn.onmouseover = () => cancelBtn.addClass('sc-style-d0def548');
-        cancelBtn.onmouseout = () => cancelBtn.addClass('sc-style-2128f674');
-        cancelBtn.onclick = () => {
-            this.editingIndex = null;
-            this.resetForm();
-            this.renderSettings();
-        };
-
-        // Save button
-        const saveBtn = buttonsRow.createEl('button', { text: this.editingIndex !== null ? 'Update Style' : 'Save Style' });
-        (saveBtn).addClass('sc-style-3459676a');
-        saveBtn.onmouseover = () => saveBtn.addClass('sc-style-d0def548');
-        saveBtn.onmouseout = () => saveBtn.addClass('sc-style-2128f674');
-        saveBtn.onclick = () => { void (async () => {
-            if (this.tempName) {
-                // Check for duplicate names
-                const existingIndex = this.plugin.settings.customStyles.findIndex(
-                    s => s.name.toLowerCase() === this.tempName.toLowerCase()
-                );
-
-                if (existingIndex !== -1 && existingIndex !== this.editingIndex) {
-                    const errorDiv = creatorCard.querySelector('.duplicate-error');
-                    if (errorDiv) errorDiv.remove();
-
-                    const error = creatorCard.createDiv({ cls: 'duplicate-error' });
-                    error.addClass('sc-style-eb4140ec');
-                    error.textContent = `A style named "${this.tempName}" already exists. Please use a different name.`;
-
-                    window.setTimeout(() => error.remove(), 3000);
-                    return;
-                }
-
-                const newStyle: CalloutStyle = {
-                    name: this.tempName,
-                    bg: this.tempBg,
-                    border: this.tempBorder,
-                    text: this.tempText,
-                    link: this.tempLink,
-                    icon: this.tempIcon,
-                    titleColor: this.tempTitleColor,
-                    iconColor: this.tempIconColor,
-                    boldBorder: this.tempBoldBorder,
-                    font: this.tempFont,
-                    fontSize: this.tempFontSize,
-                    center: this.tempCenter,
-                    titleCenter: this.tempTitleCenter
-                };
-
-                if (this.editingIndex !== null) {
-                    this.plugin.settings.customStyles[this.editingIndex] = newStyle;
-                    this.editingIndex = null;
-                } else {
-                    this.plugin.settings.customStyles.push(newStyle);
-                }
-
-                await this.plugin.saveSettings();
-                this.resetForm();
-                this.renderSettings();
-            }
-        })(); };
-    }
-
-    private createSavedStylesList(section: HTMLElement, container: HTMLElement): void {
-        const savedHeader = section.createDiv();
-        savedHeader.addClass('sc-style-aceab0cc');
-
-        const headerTitle = new Setting(savedHeader).setName('Saved Styles' ).setHeading();
-        (headerTitle.settingEl).addClass('sc-style-e2b74ba6');
-
-        const viewToggle = savedHeader.createDiv();
-        viewToggle.addClass('sc-style-9d612677');
-
-        const gridBtn = viewToggle.createEl('button', { text: 'Grid' });
-        gridBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-background', 'sc-var-color', 'sc-var-border-radius', 'sc-var-cursor', 'sc-var-font-size']);
-        gridBtn.setCssProps({
-            '--sc-dyn-padding': '5px 12px',
-            '--sc-dyn-border': '1px solid var(--background-modifier-border)',
-            '--sc-dyn-background': this.stylesViewMode === 'grid' ? 'var(--interactive-accent)' : 'var(--background-primary)',
-            '--sc-dyn-color': this.stylesViewMode === 'grid' ? 'white' : 'var(--text-normal)',
-            '--sc-dyn-border-radius': '4px',
-            '--sc-dyn-cursor': 'pointer',
-            '--sc-dyn-font-size': '0.8rem'
-        });
-        gridBtn.onclick = () => { this.stylesViewMode = 'grid'; this.renderSettings(); };
-
-        const listBtn = viewToggle.createEl('button', { text: 'List' });
-        listBtn.addClasses(['sc-var-padding', 'sc-var-border', 'sc-var-background', 'sc-var-color', 'sc-var-border-radius', 'sc-var-cursor', 'sc-var-font-size']);
-        listBtn.setCssProps({
-            '--sc-dyn-padding': '5px 12px',
-            '--sc-dyn-border': '1px solid var(--background-modifier-border)',
-            '--sc-dyn-background': this.stylesViewMode === 'list' ? 'var(--interactive-accent)' : 'var(--background-primary)',
-            '--sc-dyn-color': this.stylesViewMode === 'list' ? 'white' : 'var(--text-normal)',
-            '--sc-dyn-border-radius': '4px',
-            '--sc-dyn-cursor': 'pointer',
-            '--sc-dyn-font-size': '0.8rem'
-        });
-        listBtn.onclick = () => { this.stylesViewMode = 'list'; this.renderSettings(); };
-
-        const stylesContainer = section.createDiv();
-        // element.style'a yazmak eklenti incelemesinde reddediliyor; kurallar styles.css'te
-        stylesContainer.addClass(this.stylesViewMode === 'grid' ? 'sc-styles-grid' : 'sc-styles-list');
-
-        this.plugin.settings.customStyles.forEach((s, i) => {
-            this.renderStyleCard(stylesContainer, s, i, container);
-        });
-    }
-
-    private renderStyleCard(stylesContainer: HTMLElement, s: CalloutStyle, i: number, container: HTMLElement): void {
-        const card = stylesContainer.createDiv();
-        card.addClass('sc-style-3b7a3f0f');
-
-        const header = card.createDiv();
-        header.addClass('sc-style-f2099010');
-
-        const title = new Setting(header).setName(s.name ).setHeading();
-        title.settingEl.addClass('sc-style-7f76fe22');
-
-        const actions = header.createDiv();
-        actions.addClass('sc-style-91550526');
-
-        const editBtn = actions.createEl('button');
-        editBtn.addClass('sc-style-657651d1');
-        setIcon(editBtn, 'pencil');
-        editBtn.onclick = () => {
-            this.editingIndex = i;
-            this.tempName = s.name;
-            this.tempIcon = s.icon;
-            this.tempBg = s.bg;
-            this.tempBorder = s.border;
-            this.tempText = s.text;
-            this.tempLink = s.link;
-            this.tempTitleColor = s.titleColor || s.bg;
-            this.tempBoldBorder = s.boldBorder || false;
-            this.tempFont = s.font || '';
-            this.tempFontSize = s.fontSize || 3;
-            this.tempBorderWidth = s.borderWidth || '';
-            this.tempBorderStyle = s.borderStyle || 'solid';
-            this.tempBorderRadius = s.borderRadius || '';
-            this.tempNeon = s.neon || '';
-            this.tempNoIcon = s.noIcon || false;
-            this.tempCompact = s.compact || false;
-            this.tempCenter = s.center || false;
-            this.tempTitleCenter = s.titleCenter || false;
-            this.renderSettings();
-            container.scrollIntoView({ behavior: 'smooth' });
-        };
-
-        const deleteBtn = actions.createEl('button');
-        deleteBtn.addClass('sc-style-657651d1');
-        setIcon(deleteBtn, 'trash-2');
-        deleteBtn.onclick = () => { void (async () => {
-            this.plugin.settings.customStyles.splice(i, 1);
-            await this.plugin.saveSettings();
-            this.renderSettings();
-        })(); };
-
-        if (this.stylesViewMode === 'grid') {
-            const preview = card.createDiv();
-            const borderWidth = s.boldBorder ? '5px' : '2px';
-            preview.addClasses(['sc-var-background', 'sc-var-border', 'sc-var-border-left', 'sc-var-border-radius', 'sc-var-padding', 'sc-var-margin-bottom']); preview.setCssProps({ '--sc-dyn-background': `linear-gradient(135deg, ${s.bg}15 0%, ${s.border}25 100%)`, '--sc-dyn-border': `1px solid ${s.border}30`, '--sc-dyn-border-left': `${borderWidth} solid ${s.bg}`, '--sc-dyn-border-radius': `6px`, '--sc-dyn-padding': `10px`, '--sc-dyn-margin-bottom': `8px` });
-
-            const previewTitle = preview.createDiv();
-            previewTitle.addClasses(['sc-var-display', 'sc-var-align-items', 'sc-var-gap', 'sc-var-font-weight', 'sc-var-font-size', 'sc-var-color']); previewTitle.setCssProps({ '--sc-dyn-display': `flex`, '--sc-dyn-align-items': `center`, '--sc-dyn-gap': `6px`, '--sc-dyn-font-weight': `600`, '--sc-dyn-font-size': `0.9rem`, '--sc-dyn-color': `${s.titleColor || s.bg}` });
-
-            const icon = previewTitle.createSpan();
-            icon.addClasses(['sc-var-display', 'sc-var-color']); icon.setCssProps({ '--sc-dyn-display': `inline-flex`, '--sc-dyn-color': `${s.titleColor || s.bg}` });
-            setIcon(icon, s.icon || 'box');
-
-            previewTitle.createSpan({ text: 'Sample Callout' });
-
-            const previewContent = preview.createDiv();
-            previewContent.addClasses(['sc-var-color', 'sc-var-font-size', 'sc-var-margin-top', 'sc-var-line-height']); previewContent.setCssProps({ '--sc-dyn-color': `${s.text}`, '--sc-dyn-font-size': `0.85rem`, '--sc-dyn-margin-top': `6px`, '--sc-dyn-line-height': `1.4` });
-
-            // Apply font to preview card
-            if (s.font && FONT_FAMILIES[s.font]) {
-                preview.addClass('sc-var-font-family'); preview.setCssProps({ '--sc-dyn-font-family': FONT_FAMILIES[s.font]  });
-            }
-
-            previewContent.textContent = 'This is how your callout will look with ';
-
-            const link = previewContent.createEl('a', { text: 'a link', href: '#' });
-            link.addClasses(['sc-var-color', 'sc-var-text-decoration']); link.setCssProps({ '--sc-dyn-color': `${s.link}`, '--sc-dyn-text-decoration': `underline` });
-            link.onclick = (e: Event) => e.preventDefault();
-
-            previewContent.appendText(' inside.');
-        }
-
-        const details = card.createDiv();
-        details.addClass('sc-style-1c86c501');
-
-        const iconBadge = details.createEl('span', { text: `Icon: ${s.icon}` });
-        iconBadge.addClass('sc-style-1fc12529');
-
-        if (s.boldBorder) {
-            const boldBadge = details.createEl('span', { text: 'Bold Border' });
-            boldBadge.addClass('sc-style-1fc12529');
-        }
-
-        if (s.titleColor && s.titleColor !== s.bg) {
-            const titleBadge = details.createEl('span', { text: `Title: ${s.titleColor}` });
-            titleBadge.addClass('sc-style-1fc12529');
-        }
-    }
-
-    createStandardColorsSection(container: HTMLElement): void {
-        const section = container.createEl('details');
-        section.open = false;
-        const summary = section.createEl('summary');
-        summary.addClass('sc-style-4a36afb4');
-        summary.textContent = 'Standard Colors';
-
-        Object.keys(this.plugin.settings.standardColors).forEach(colorName => {
-            if (colorName === 'gray') return;
-
-            const setting = new Setting(section)
-                .setName(colorName.charAt(0).toUpperCase() + colorName.slice(1));
-
-            setting.controlEl.addClass('sc-style-cf62ce6f');
-
-            setting.addText(t => {
-                t.inputEl.addClass('sc-style-1f4df890');
-                t.setValue(this.plugin.settings.standardColors[colorName])
-                    .setPlaceholder('#FFFFFF')
-                    .onChange(async (v) => {
-                        if (isValidHex(v)) {
-                            this.plugin.settings.standardColors[colorName] = normalizeHex(v);
-                            if (colorName === 'grey') this.plugin.settings.standardColors['gray'] = normalizeHex(v);
-                            await this.plugin.saveSettings();
-                        }
-                    });
-            }).then((setting) => {
-                // Native color picker — replaces deprecated addColorPicker()
-                const colorInput = setting.controlEl.createEl('input', { type: 'color' });
-                colorInput.value = this.plugin.settings.standardColors[colorName];
-                colorInput.addEventListener('change', async () => {
-                    const v = colorInput.value.toUpperCase();
-                    this.plugin.settings.standardColors[colorName] = v;
-                    if (colorName === 'grey') this.plugin.settings.standardColors['gray'] = v;
+        // Dynamic Section Container
+        const sectionContainer = contentEl.createDiv({ cls: 'sc-section-content' });
+        sectionContainer.style.minHeight = '200px';
+        this.renderSectionContent(sectionContainer, liveCallout);
+
+        // Action Buttons
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('Save Style')
+                .setCta()
+                .onClick(async () => {
+                    if (!this.style.name) {
+                        new Notice('Please enter a valid style name.');
+                        return;
+                    }
+                    if (this.editIndex !== undefined) {
+                        this.plugin.settings.customStyles[this.editIndex] = this.style;
+                    } else {
+                        this.plugin.settings.customStyles.push(this.style);
+                    }
                     await this.plugin.saveSettings();
-                    this.renderSettings();
-                });
-            });
-        });
+                    new Notice(`Saved style "${this.style.name}"!`);
+                    this.onSave();
+                    this.close();
+                }))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => this.close()));
     }
 
-    createCustomColorsSection(container: HTMLElement): void {
-        const section = container.createEl('details');
-        section.open = false;
-        const summary = section.createEl('summary');
-        summary.addClass('sc-style-e26ab750');
-        summary.textContent = 'Custom Colors';
+    private renderSectionContent(container: HTMLElement, liveCallout: HTMLElement): void {
+        container.empty();
 
-        const addColorRow = section.createDiv();
-        addColorRow.addClass('sc-style-866166c3');
+        switch (this.activeSection) {
+            case 'identity':
+                new Setting(container)
+                    .setName('Style Name / Identifier')
+                    .setDesc('The identifier you will use in markdown: > [!style-name]')
+                    .addText(text => text
+                        .setValue(this.style.name)
+                        .onChange(val => {
+                            this.style.name = val.toLowerCase().replace(/\s+/g, '-');
+                            this.updateLivePreview(liveCallout);
+                        }));
+                break;
 
-        const nameInput = addColorRow.createEl('input', { type: 'text', placeholder: 'Color name' });
-        nameInput.addClass('sc-style-fff60487');
+            case 'colors':
+                new Setting(container)
+                    .setName('Background Color')
+                    .addText(text => text
+                        .setPlaceholder('#3498db or blue')
+                        .setValue(this.style.bg)
+                        .onChange(val => {
+                            this.style.bg = val;
+                            this.updateLivePreview(liveCallout);
+                        }))
+                    .addColorPicker(picker => picker
+                        .setValue(normalizeHex(this.style.bg || '#3498db'))
+                        .onChange(val => {
+                            this.style.bg = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        const colorPicker = addColorRow.createEl('input', { type: 'color' });
-        colorPicker.addClass('sc-style-1c8a9c7b');
-        colorPicker.value = this.newCustomColorHex;
+                new Setting(container)
+                    .setName('Border Color')
+                    .addText(text => text
+                        .setPlaceholder('#3498db or blue')
+                        .setValue(this.style.border)
+                        .onChange(val => {
+                            this.style.border = val;
+                            this.updateLivePreview(liveCallout);
+                        }))
+                    .addColorPicker(picker => picker
+                        .setValue(normalizeHex(this.style.border || '#3498db'))
+                        .onChange(val => {
+                            this.style.border = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        const hexInput = addColorRow.createEl('input', { type: 'text', placeholder: '#FFFFFF' });
-        hexInput.addClass('sc-style-8176cb6c');
-        hexInput.value = this.newCustomColorHex;
+                new Setting(container)
+                    .setName('Title Color')
+                    .addText(text => text
+                        .setPlaceholder('#ffffff or auto')
+                        .setValue(this.style.titleColor || '')
+                        .onChange(val => {
+                            this.style.titleColor = val;
+                            this.updateLivePreview(liveCallout);
+                        }))
+                    .addColorPicker(picker => picker
+                        .setValue(normalizeHex(this.style.titleColor || '#ffffff'))
+                        .onChange(val => {
+                            this.style.titleColor = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        nameInput.addEventListener('input', (e) => this.newCustomColorName = (e.target as HTMLInputElement).value);
+                new Setting(container)
+                    .setName('Icon Color')
+                    .setDesc('Leave blank to follow title color')
+                    .addText(text => text
+                        .setPlaceholder('Auto (follows title)')
+                        .setValue(this.style.iconColor || '')
+                        .onChange(val => {
+                            this.style.iconColor = val;
+                            this.updateLivePreview(liveCallout);
+                        }))
+                    .addColorPicker(picker => picker
+                        .setValue(normalizeHex(this.style.iconColor || '#ffffff'))
+                        .onChange(val => {
+                            this.style.iconColor = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        hexInput.addEventListener('input', (e) => {
-            let v = (e.target as HTMLInputElement).value;
-            if (!v.startsWith('#')) v = '#' + v;
-            if (isValidHex(v)) {
-                this.newCustomColorHex = normalizeHex(v);
-                colorPicker.value = this.newCustomColorHex;
-            }
-        });
+                new Setting(container)
+                    .setName('Text Color')
+                    .setDesc('Content text color (leave blank for theme default)')
+                    .addText(text => text
+                        .setPlaceholder('theme default')
+                        .setValue(this.style.text || '')
+                        .onChange(val => {
+                            this.style.text = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        colorPicker.addEventListener('input', (e) => {
-            this.newCustomColorHex = (e.target as HTMLInputElement).value;
-            hexInput.value = this.newCustomColorHex.toUpperCase();
-        });
+                new Setting(container)
+                    .setName('Link Color')
+                    .addText(text => text
+                        .setPlaceholder('theme default')
+                        .setValue(this.style.link || '')
+                        .onChange(val => {
+                            this.style.link = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-        const addBtn = addColorRow.createEl('button', { text: 'Add' });
-        addBtn.addClass('sc-style-915f964b');
-        addBtn.onclick = () => { void (async () => {
-            if (this.newCustomColorName.trim() && isValidHex(this.newCustomColorHex)) {
-                this.plugin.settings.customColors.push({
-                    name: this.newCustomColorName.trim(),
-                    hex: this.newCustomColorHex
-                });
-                await this.plugin.saveSettings();
-                nameInput.value = '';
-                hexInput.value = '#FFFFFF';
-                this.newCustomColorName = '';
-                this.newCustomColorHex = '#FFFFFF';
-                colorPicker.value = '#FFFFFF';
-                this.renderSettings();
-            }
-        })(); };
+                new Setting(container)
+                    .setName('Neon Glow Effect')
+                    .setDesc('Illuminated cyber neon border glow')
+                    .addText(text => text
+                        .setPlaceholder('#00f2ff or cyan')
+                        .setValue(this.style.neon || '')
+                        .onChange(val => {
+                            this.style.neon = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
+                break;
 
-        this.plugin.settings.customColors.forEach((c, i) => {
-            const colorRow = section.createDiv();
-            colorRow.addClass('sc-style-9e7437b2');
+            case 'icon':
+                const iconSetting = new Setting(container)
+                    .setName('Callout Icon')
+                    .setDesc('Choose a Lucide icon');
 
-            const leftSide = colorRow.createDiv();
-            leftSide.addClass('sc-style-93c113a2');
+                const iconPreviewSpan = iconSetting.nameEl.createSpan();
+                iconPreviewSpan.style.marginLeft = '10px';
+                setIcon(iconPreviewSpan, this.style.icon || 'pencil');
 
-            const colorCircle = leftSide.createDiv();
-            colorCircle.addClasses(['sc-var-width', 'sc-var-height', 'sc-var-border-radius', 'sc-var-background', 'sc-var-border', 'sc-var-flex-shrink']); colorCircle.setCssProps({ '--sc-dyn-width': `32px`, '--sc-dyn-height': `32px`, '--sc-dyn-border-radius': `50%`, '--sc-dyn-background': `${c.hex}`, '--sc-dyn-border': `2px solid var(--background-modifier-border)`, '--sc-dyn-flex-shrink': `0` });
+                iconSetting.addButton(btn => btn
+                    .setButtonText('Choose Icon')
+                    .onClick(() => {
+                        new IconPickerModal(this.app, (selected) => {
+                            this.style.icon = selected;
+                            iconPreviewSpan.empty();
+                            setIcon(iconPreviewSpan, selected);
+                            this.updateLivePreview(liveCallout);
+                        }).open();
+                    }));
 
-            const textInfo = leftSide.createDiv();
-            const nameEl = textInfo.createDiv({ text: c.name });
-            nameEl.addClass('sc-style-b69eadcf');
+                new Setting(container)
+                    .setName('Font Family')
+                    .addDropdown(drop => drop
+                        .addOption('', 'Default (Interface Font)')
+                        .addOption('mono', 'Monospace')
+                        .addOption('serif', 'Serif')
+                        .addOption('sans', 'Sans-Serif')
+                        .addOption('hand', 'Handwritten')
+                        .addOption('marker', 'Marker')
+                        .setValue(this.style.font || '')
+                        .onChange(val => {
+                            this.style.font = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-            const hexEl = textInfo.createDiv({ text: c.hex });
-            hexEl.addClass('sc-style-b76710d9');
+                new Setting(container)
+                    .setName('Font Size')
+                    .addDropdown(drop => drop
+                        .addOption('1', '1 - Smallest (0.85em)')
+                        .addOption('2', '2 - Small (0.92em)')
+                        .addOption('3', '3 - Medium / Default (1.0em)')
+                        .addOption('4', '4 - Large (1.2em)')
+                        .addOption('5', '5 - Largest (1.5em)')
+                        .setValue((this.style.fontSize || 3).toString())
+                        .onChange(val => {
+                            this.style.fontSize = parseInt(val);
+                            this.updateLivePreview(liveCallout);
+                        }));
+                break;
 
-            const deleteBtn = colorRow.createEl('button');
-            deleteBtn.addClass('sc-style-98da0ee1');
-            setIcon(deleteBtn, 'trash-2');
-            deleteBtn.onclick = () => { void (async () => {
-                this.plugin.settings.customColors.splice(i, 1);
-                await this.plugin.saveSettings();
-                this.renderSettings();
-            })(); };
-        });
-    }
+            case 'layout':
+                new Setting(container)
+                    .setName('Border Width')
+                    .addDropdown(drop => drop
+                        .addOption('', 'Default')
+                        .addOption('1px', '1px (Thin)')
+                        .addOption('2px', '2px (Medium)')
+                        .addOption('4px', '4px (Thick)')
+                        .setValue(this.style.borderWidth || '1px')
+                        .onChange(val => {
+                            this.style.borderWidth = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-    resetForm(): void {
-        this.tempName = '';
-        this.tempIcon = '';
-        this.tempBg = '#3498db';
-        this.tempBorder = '#3498db';
-        this.tempText = '#ffffff';
-        this.tempLink = '#dfe4ea';
-        this.tempTitleColor = '#3498db';
-        this.tempIconColor = '';
-        this.tempBoldBorder = false;
-        this.tempFont = '';
-        this.tempFontSize = 3;
-        this.tempBorderWidth = '';
-        this.tempBorderStyle = 'solid';
-        this.tempBorderRadius = '';
-        this.tempNeon = '';
-        this.tempNoIcon = false;
-        this.tempCompact = false;
-        this.tempCenter = false;
-        this.tempTitleCenter = false;
-    }
+                new Setting(container)
+                    .setName('Border Style')
+                    .addDropdown(drop => drop
+                        .addOption('solid', 'Solid')
+                        .addOption('dashed', 'Dashed')
+                        .addOption('dotted', 'Dotted')
+                        .addOption('double', 'Double')
+                        .addOption('groove', 'Groove')
+                        .addOption('ridge', 'Ridge')
+                        .addOption('inset', 'Inset')
+                        .addOption('outset', 'Outset')
+                        .addOption('none', 'None')
+                        .setValue(this.style.borderStyle || 'solid')
+                        .onChange(val => {
+                            this.style.borderStyle = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-    private createPanelHeader(parent: HTMLElement, text: string) {
-        const h = parent.createDiv();
-        h.addClass('sc-style-2974682a');
-        if (parent.children.length === 1) h.addClass('sc-style-480cc9a4'); // First item no border
-        h.textContent = text;
-    }
+                new Setting(container)
+                    .setName('Corner Radius')
+                    .addSlider(slider => slider
+                        .setLimits(0, 30, 1)
+                        .setValue(parseInt(this.style.borderRadius) || 8)
+                        .onChange(val => {
+                            this.style.borderRadius = `${val}px`;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-    private getStyleFromForm(): CalloutStyle {
-        return {
-            name: this.tempName,
-            bg: this.tempBg,
-            border: this.tempBorder,
-            text: this.tempText,
-            link: this.tempLink,
-            icon: this.tempIcon,
-            titleColor: this.tempTitleColor,
-            iconColor: this.tempIconColor,
-            boldBorder: this.tempBoldBorder,
-            font: this.tempFont,
-            fontSize: this.tempFontSize,
-            borderWidth: this.tempBorderWidth,
-            borderStyle: this.tempBorderStyle,
-            borderRadius: this.tempBorderRadius,
-            neon: this.tempNeon,
-            noIcon: this.tempNoIcon,
-            compact: this.tempCompact,
-            center: this.tempCenter,
-            titleCenter: this.tempTitleCenter
-        };
-    }
+                new Setting(container)
+                    .setName('Compact Mode')
+                    .setDesc('Tighter padding for lists & dense notes')
+                    .addToggle(toggle => toggle
+                        .setValue(this.style.compact || false)
+                        .onChange(val => {
+                            this.style.compact = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-    private loadStyleToForm(s: CalloutStyle) {
-        this.tempName = s.name || '';
-        this.tempBg = s.bg || '#ffffff';
-        this.tempBorder = s.border || '#dedede';
-        this.tempText = s.text || '#333333';
-        this.tempLink = s.link || '#dfe4ea';
-        this.tempIcon = s.icon || '';
-        this.tempTitleColor = s.titleColor || s.bg;
-        this.tempIconColor = s.iconColor || '';
-        this.tempBoldBorder = s.boldBorder || false;
-        this.tempFont = s.font || '';
-        this.tempFontSize = s.fontSize || 3;
-        this.tempBorderWidth = s.borderWidth || '';
-        this.tempBorderStyle = s.borderStyle || 'solid';
-        this.tempBorderRadius = s.borderRadius || '';
-        this.tempNeon = s.neon || '';
-        this.tempNoIcon = s.noIcon || false;
-        this.tempCompact = s.compact || false;
-        // Bunlar eksikti: form geri yuklenmeyince duzenlenen preset tekrar
-        // kaydedildiginde center/titleCenter sessizce dusuyordu.
-        this.tempCenter = s.center || false;
-        this.tempTitleCenter = s.titleCenter || false;
-    }
+                new Setting(container)
+                    .setName('Center Alignment')
+                    .setDesc('Center align both title and content text')
+                    .addToggle(toggle => toggle
+                        .setValue(this.style.center || false)
+                        .onChange(val => {
+                            this.style.center = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
 
-    private async saveCurrentStyle() {
-        if (!this.tempName.trim()) {
-            new Notice('Please enter a name');
-            return;
+                new Setting(container)
+                    .setName('Center Title Only')
+                    .setDesc('Center align only the title while keeping text left-aligned')
+                    .addToggle(toggle => toggle
+                        .setValue(this.style.titleCenter || false)
+                        .onChange(val => {
+                            this.style.titleCenter = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
+
+                new Setting(container)
+                    .setName('Hide Icon (no-icon)')
+                    .setDesc('Hide the callout icon completely for a minimalist look')
+                    .addToggle(toggle => toggle
+                        .setValue(this.style.noIcon || false)
+                        .onChange(val => {
+                            this.style.noIcon = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
+                break;
         }
-
-        const newStyle = this.getStyleFromForm();
-
-        if (this.editingIndex !== null) {
-            this.plugin.settings.customStyles[this.editingIndex] = newStyle;
-            this.editingIndex = null;
-        } else {
-            if (this.plugin.settings.customStyles.some(s => s.name === newStyle.name)) {
-                new Notice('Name already exists!');
-                return;
-            }
-            this.plugin.settings.customStyles.push(newStyle);
-        }
-
-        await this.plugin.saveSettings();
-        new Notice('Style saved!');
     }
 
-    updatePreview(el: HTMLElement): void {
+    private updateLivePreview(el: HTMLElement): void {
         el.empty();
 
-        // --- CONTAINER STYLES ---
-        el.addClass('sc-style-3e0512b1'); // reset default
+        const bg = this.style.bg ? `color-mix(in srgb, ${this.style.bg} 15%, transparent)` : 'var(--background-secondary)';
+        const border = this.style.border ? `${this.style.borderWidth || '1px'} ${this.style.borderStyle || 'solid'} ${this.style.border}` : '1px solid var(--background-modifier-border)';
 
-        if (this.tempBg && (this.tempBg.includes('gradient') || this.tempBg.startsWith('url'))) {
-            el.addClass('sc-var-background'); el.setCssProps({ '--sc-dyn-background': this.tempBg  });
+        el.style.backgroundColor = bg;
+        el.style.border = border;
+        el.style.borderRadius = this.style.borderRadius ? toPx(this.style.borderRadius) : '8px';
+        el.style.padding = this.style.compact ? '0.4em 0.8em' : '0.8em 1.2em';
+        el.style.textAlign = this.style.center ? 'center' : 'left';
+
+        if (this.style.font && FONT_FAMILIES[this.style.font]) {
+            el.style.fontFamily = FONT_FAMILIES[this.style.font];
         } else {
-            el.addClass('sc-var-background'); el.setCssProps({ '--sc-dyn-background': `color-mix(in srgb, ${this.tempBg} 15%, transparent)` });
+            el.style.fontFamily = 'inherit';
         }
 
-        // Borders
-        let borderWidth = this.tempBoldBorder ? '5px' : '2px';
-        if (this.tempBorderWidth) borderWidth = this.tempBorderWidth;
-        // ensure unit
-        if (!isNaN(Number(borderWidth))) borderWidth += 'px';
-
-        const borderStyle = this.tempBorderStyle || 'solid';
-        const borderColor = this.tempBorder || 'var(--text-accent)'; // fallback
-
-        // Apply to all sides as per user preference
-        el.addClasses(['sc-var-border', 'sc-var-border-left']);
-        el.setCssProps({ '--sc-dyn-border': `${borderWidth} ${borderStyle} ${borderColor}`, '--sc-dyn-border-left': `${borderWidth} ${borderStyle} ${borderColor}` });
-
-        // Radius
-        if (this.tempBorderRadius) {
-            el.addClass('sc-var-border-radius'); el.setCssProps({ '--sc-dyn-border-radius': this.tempBorderRadius + (isNaN(Number(this.tempBorderRadius)) ? '' : 'px')  });
+        if (this.style.fontSize && FONT_SIZES[this.style.fontSize]) {
+            el.style.fontSize = FONT_SIZES[this.style.fontSize];
         } else {
-            el.addClass('sc-style-602659fe');
+            el.style.fontSize = '1em';
         }
 
-        // Neon Glow
-        if (this.tempNeon) {
-            el.addClass('sc-var-box-shadow'); el.setCssProps({ '--sc-dyn-box-shadow': `0 0 10px ${this.tempNeon}, inset 0 0 5px ${this.tempNeon}20` });
-            el.addClass('sc-var-border-color'); el.setCssProps({ '--sc-dyn-border-color': this.tempNeon  });
+        if (this.style.neon) {
+            const neon = neonStyles(this.style.neon);
+            el.style.border = neon['--sc-neon-border'];
+            el.style.boxShadow = neon['--sc-neon-shadow'];
         } else {
-            el.addClass('sc-style-fbf1b2fc');
+            el.style.boxShadow = 'none';
         }
 
-        // Typography - Font Family
-        if (this.tempFont && FONT_FAMILIES[this.tempFont]) {
-            el.addClass('sc-var-font-family'); el.setCssProps({ '--sc-dyn-font-family': FONT_FAMILIES[this.tempFont]  });
-        } else {
-            el.addClass('sc-style-b384338c');
+        // Title
+        const titleEl = el.createDiv({ cls: 'callout-title' });
+        titleEl.style.display = 'flex';
+        titleEl.style.alignItems = 'center';
+        titleEl.style.gap = '8px';
+        titleEl.style.justifyContent = (this.style.center || this.style.titleCenter) ? 'center' : 'flex-start';
+        titleEl.style.color = this.style.titleColor || this.style.border || 'var(--text-normal)';
+        titleEl.style.fontWeight = '600';
+        titleEl.style.marginBottom = '4px';
+
+        if (!this.style.noIcon) {
+            const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+            iconEl.style.color = this.style.iconColor || this.style.titleColor || this.style.border || 'inherit';
+            setIcon(iconEl, this.style.icon || 'pencil');
         }
 
-        // Typography - Font Size
-        if (this.tempFontSize && FONT_SIZES[this.tempFontSize]) {
-            el.addClass('sc-var-font-size'); el.setCssProps({ '--sc-dyn-font-size': FONT_SIZES[this.tempFontSize]  });
-        } else {
-            el.addClass('sc-style-1adfbb28');
-        }
+        titleEl.createSpan({ text: this.style.name || 'Sample Title' });
 
-        // --- LAYOUT ---
-        const isCompact = this.tempCompact;
-        const isCenter = this.tempCenter;
-        const isTitleCenter = this.tempTitleCenter;
-        const noIcon = this.tempNoIcon;
-
-        if (isCenter) {
-            el.addClass('sc-style-cdd8ca06');
-            el.addClass('sc-style-d0da858a'); // if flex not strictly needed for block preview but good for future props
-        }
-
-        if (isCompact) {
-            el.addClass('sc-style-25e52174');
-            el.addClass('sc-style-ed3c7314');
-            el.addClass('sc-style-8d76abfb'); // Callout normally has padding
-            el.addClass('sc-style-71296b1d');
-        } else {
-            el.addClass('sc-style-d8d6f7a6');
-        }
-
-        // --- TITLE ---
-        const t = el.createDiv({ cls: 'callout-title' });
-        t.addClass('sc-var-color'); t.setCssProps({ '--sc-dyn-color': this.tempTitleColor  });
-        t.addClass('sc-style-a3ef34e1');
-        t.addClass('sc-style-e9ebe922');
-        t.addClass('sc-style-d0da858a');
-        t.addClass('sc-style-cd31ce4d');
-        t.addClass('sc-style-db117290');
-
-        if (isCenter || isTitleCenter) {
-            t.addClass('sc-style-95f7f0d8');
-            t.addClass('sc-style-cdd8ca06');
-        }
-
-        if (isCompact) t.addClass('sc-style-bcb36ba8');
-
-        // Icon
-        if (!noIcon) {
-            const i = t.createDiv({ cls: 'callout-icon' });
-            i.addClass('sc-var-color'); i.setCssProps({ '--sc-dyn-color': this.tempIconColor || this.tempTitleColor  });
-            i.addClass('sc-style-e9ebe922');
-            setIcon(i, this.tempIcon || 'pencil');
-        }
-
-        // Title Text
-        const titleInner = t.createDiv({ cls: 'callout-title-inner', text: this.tempName || 'Callout Preview' });
-        if (this.tempFontSize) {
-            // Title usually stays 1em relative to container font size
-            titleInner.addClass('sc-style-1adfbb28');
-        }
-
-        // --- CONTENT ---
-        const c = el.createDiv({ cls: 'callout-content' });
-        c.addClass('sc-var-color'); c.setCssProps({ '--sc-dyn-color': this.tempText  });
-        c.addClass('sc-style-374aad47');
-
-        if (isCenter) {
-            c.addClass('sc-style-cdd8ca06');
-            c.addClass('sc-style-e9ebe922');
-            c.addClass('sc-style-cb2b281a');
-            c.addClass('sc-style-d0da858a');
-        }
-
-        if (isCompact) {
-            c.addClass('sc-style-ce875d4e');
-        } else {
-            c.addClass('sc-style-68a09f73');
-        }
-
-        c.createDiv({ text: 'This is how your callout will appear with customizable styles. ' });
-        const l = c.createEl('a', { text: 'Links look like this', href: '#' });
-        l.addClass('sc-var-color'); l.setCssProps({ '--sc-dyn-color': this.tempLink  });
-        l.addClass('sc-style-f6bf23d8');
-        l.onclick = (e) => e.preventDefault();
-        c.createSpan({ text: '.' });
-    }
-
-    private applyRandomStyle(): void {
-        const hue = Math.floor(Math.random() * 360);
-        const sat = 50 + Math.floor(Math.random() * 30); // 50-80%
-        const light = 20 + Math.floor(Math.random() * 30); // 20-50%
-
-        const secHue = (hue + 180) % 360; // Complementary
-
-        this.tempBg = this.hslToHex(hue, sat, Math.max(10, light - 10));
-        this.tempBorder = this.hslToHex(hue, sat + 10, light + 20);
-        this.tempTitleColor = this.hslToHex(hue, sat + 20, Math.min(90, light + 40));
-
-        this.tempText = '#eeeeee';
-        this.tempLink = this.hslToHex(secHue, 70, 70);
-
-        const icons = ['zap', 'star', 'heart', 'anchor', 'book', 'box', 'flame', 'droplet', 'feather', 'sun', 'moon', 'award'];
-        this.tempIcon = icons[Math.floor(Math.random() * icons.length)];
-
-        this.tempName = `random-${Math.floor(Math.random() * 999)}`;
-        this.tempNeon = Math.random() > 0.6 ? this.tempBorder : '';
-        this.tempCompact = Math.random() > 0.8;
-        this.tempBoldBorder = Math.random() > 0.7;
-    }
-
-    private hslToHex(h: number, s: number, l: number): string {
-        l /= 100;
-        const a = s * Math.min(l, 1 - l) / 100;
-        const f = (n: number) => {
-            const k = (n + h / 30) % 12;
-            const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-            const hex = Math.round(255 * color).toString(16);
-            return hex.length === 1 ? '0' + hex : hex;
-        };
-        return `#${f(0)}${f(8)}${f(4)}`;
+        // Content
+        const contentEl = el.createDiv({ cls: 'callout-content' });
+        contentEl.style.color = this.style.text || 'var(--text-muted)';
+        contentEl.createEl('p', { text: 'This is how your callout will render in your notes. Try adding lists, paragraphs, or links!' });
     }
 }
 
-/** Modal for importing style */
-class ImportStyleModal extends Modal {
-    onSubmit: (style: import("../types").CalloutStyle) => void;
-    settings: SpecialCalloutsSettings;
-    jsonText: string = '';
+/**
+ * Interactive Modal for editing standard Obsidian callouts
+ */
+class StandardStyleEditorModal extends Modal {
+    private plugin: PluginWithSettings;
+    private styleName: string;
+    private style: CalloutStyle;
+    private onSave: () => void;
 
-    constructor(app: App, settings: SpecialCalloutsSettings, onSubmit: (style: import("../types").CalloutStyle) => void) {
+    constructor(app: App, plugin: PluginWithSettings, styleName: string, existingStyle: CalloutStyle, onSave?: () => void) {
         super(app);
-        this.settings = settings;
-        this.onSubmit = onSubmit;
+        this.plugin = plugin;
+        this.styleName = styleName;
+        this.style = { ...existingStyle };
+        this.onSave = onSave || (() => {});
     }
 
-    ensureHex(color: string): string {
-        if (!color) return color;
-        if (color.startsWith('#')) return color;
-
-        // Basic web colors to hex for UI compatibility
-        const basicColors: Record<string, string> = {
-            'white': '#ffffff',
-            'black': '#000000',
-            'transparent': '#00000000', // approximate or keep transparent if UI handles it? keep transparent.
-            // UI Color picker hates 'transparent', but standard hex is needed.
-            // Let's use clean hexes.
-            'red': '#ff0000',
-            'green': '#008000',
-            'blue': '#0000ff',
-            'yellow': '#ffff00',
-            'cyan': '#00ffff',
-            'magenta': '#ff00ff',
-            'gray': '#808080',
-            'grey': '#808080',
-            'silver': '#c0c0c0',
-            'maroon': '#800000',
-            'olive': '#808000',
-            'purple': '#800080',
-            'teal': '#008080',
-            'navy': '#000080',
-            'orange': '#ffa500',
-            'brown': '#a52a2a',
-            'pink': '#ffc0cb',
-            'lime': '#00ff00',
-            'indigo': '#4b0082',
-            'violet': '#ee82ee',
-            'gold': '#ffd700',
-            'coral': '#ff7f50',
-            'crimson': '#dc143c',
-            'darkblue': '#00008b',
-            'darkcyan': '#008b8b',
-            'darkgray': '#a9a9a9',
-            'darkgreen': '#006400',
-            'darkorange': '#ff8c00',
-            'darkred': '#8b0000',
-            'deeppink': '#ff1493',
-            'deepskyblue': '#00bfff',
-            'dimgray': '#696969',
-            'dodgerblue': '#1e90ff',
-            'forestgreen': '#228b22',
-            'hotpink': '#ff69b4',
-            'lightblue': '#add8e6',
-            'lightgreen': '#90ee90',
-            'lightgrey': '#d3d3d3',
-            'lightpink': '#ffb6c1',
-            'lightsalmon': '#ffa07a',
-            'lightseagreen': '#20b2aa',
-            'lightskyblue': '#87cefa',
-            'limegreen': '#32cd32',
-            'midnightblue': '#191970',
-            'orangered': '#ff4500',
-            'royalblue': '#4169e1',
-            'salmon': '#fa8072',
-            'seagreen': '#2e8b57',
-            'skyblue': '#87ceeb',
-            'slateblue': '#6a5acd',
-            'slategray': '#708090',
-            'springgreen': '#00ff7f',
-            'steelblue': '#4682b4',
-            'tomato': '#ff6347',
-            'turquoise': '#40e0d0'
-        };
-
-        return basicColors[color.toLowerCase()] || color;
-    }
-
-    onOpen() {
+    onOpen(): void {
         const { contentEl } = this;
-        new Setting(contentEl).setName('Import Style' ).setHeading();
+        contentEl.empty();
+        contentEl.addClass('special-callouts-ui');
 
-        const helpText = contentEl.createEl('p', { text: 'Paste a JSON style object OR a callout with metadata (e.g., > [!callout] (col:2, neon:red)).' });
-        helpText.addClass('sc-style-7abb3a4e');
-        helpText.addClass('sc-style-33dd45cd');
+        contentEl.createEl('h2', { text: `Customize "${this.styleName.toUpperCase()}" Callout` });
 
-        const textArea = new TextAreaComponent(contentEl);
-        textArea.inputEl.addClass('sc-style-199b6f0e');
-        textArea.inputEl.addClass('sc-style-5e7790db');
-        textArea.inputEl.addClass('sc-style-3bd72200');
-        textArea.inputEl.addClass('sc-style-fb2a7115');
-        textArea.setPlaceholder('JSON or > [!type] (metadata)...');
-        textArea.onChange((value) => {
-            this.jsonText = value;
-        });
+        // Preview Box (Sticky at top)
+        const previewContainer = contentEl.createDiv({ cls: 'sc-live-preview-container sc-sticky-preview' });
+        const liveCallout = previewContainer.createDiv({ cls: 'callout sc-live-callout' });
+        this.updateLivePreview(liveCallout);
 
-        const buttonDiv = contentEl.createDiv();
-        buttonDiv.addClass('sc-style-7ff7833b');
+        new Setting(contentEl)
+            .setName('Color')
+            .addText(text => text
+                .setValue(this.style.bg)
+                .onChange(val => {
+                    this.style.bg = val;
+                    this.style.border = val;
+                    this.updateLivePreview(liveCallout);
+                }))
+            .addColorPicker(picker => picker
+                .setValue(normalizeHex(this.style.bg || '#448aff'))
+                .onChange(val => {
+                    this.style.bg = val;
+                    this.style.border = val;
+                    this.updateLivePreview(liveCallout);
+                }));
 
-        new ButtonComponent(buttonDiv)
-            .setButtonText('Import')
-            .setCta()
+        new Setting(contentEl)
+            .setName('Title Color')
+            .addText(text => text
+                .setPlaceholder('Auto (same as color)')
+                .setValue(this.style.titleColor || '')
+                .onChange(val => {
+                    this.style.titleColor = val;
+                    this.updateLivePreview(liveCallout);
+                }));
+
+        new Setting(contentEl)
+            .setName('Text Color')
+            .addText(text => text
+                .setPlaceholder('Auto (theme text)')
+                .setValue(this.style.text || '')
+                .onChange(val => {
+                    this.style.text = val;
+                    this.updateLivePreview(liveCallout);
+                }));
+
+        const iconSetting = new Setting(contentEl)
+            .setName('Icon');
+        const iconSpan = iconSetting.nameEl.createSpan();
+        iconSpan.style.marginLeft = '10px';
+        setIcon(iconSpan, this.style.icon || 'pencil');
+
+        iconSetting.addButton(btn => btn
+            .setButtonText('Change Icon')
             .onClick(() => {
-                const text = this.jsonText.trim();
-                if (!text) return;
+                new IconPickerModal(this.app, (selected) => {
+                    this.style.icon = selected;
+                    iconSpan.empty();
+                    setIcon(iconSpan, selected);
+                    this.updateLivePreview(liveCallout);
+                }).open();
+            }));
 
-                try {
-                    const parsed = JSON.parse(text);
-                    if (parsed && typeof parsed === 'object') {
-                        this.onSubmit(parsed);
-                        this.close();
-                        new Notice(`Imported style: ${parsed.name || 'custom-style'}`);
-                        return;
-                    }
-                } catch (e) { /* Not JSON */ }
-
-                let detectedType = '';
-                let detectedMetadata = '';
-
-                const ALIAS_MAP: Record<string, string> = {
-                    'summary': 'abstract', 'tldr': 'abstract',
-                    'hint': 'tip', 'important': 'tip',
-                    'check': 'success', 'done': 'success',
-                    'help': 'question', 'faq': 'question',
-                    'caution': 'warning', 'attention': 'warning',
-                    'fail': 'failure', 'missing': 'failure',
-                    'error': 'danger',
-                    'cite': 'quote'
-                };
-
-                const lines = text.split('\n');
-                const calloutLine = lines.find(l => l.match(/^\s*>?\s*\[!.*?\]/)) || text;
-
-                const typeMatch = calloutLine.match(/\[!(.*?)\]/);
-                if (typeMatch) {
-                    detectedType = typeMatch[1].trim().toLowerCase();
-                }
-
-                let metadataStr = '';
-                const parenMatch = calloutLine.match(/\((.*?)\)/);
-
-                if (parenMatch) {
-                    metadataStr = parenMatch[1];
-                } else if (calloutLine.includes('|')) {
-                    const parts = calloutLine.split('|');
-                    if (parts.length > 1) metadataStr = parts.slice(1).join('|').trim();
-                } else if (!detectedType && calloutLine.includes(':')) {
-                    metadataStr = calloutLine;
-                }
-
-                if (metadataStr && !metadataStr.includes(',')) {
-                    metadataStr = metadataStr.replace(/\s+([a-zA-Z0-9-]+:)/g, ', $1');
-                }
-
-                detectedMetadata = metadataStr;
-
-                let baseStyle: CalloutStyle = {
-                    name: detectedType || 'imported-style',
-                    bg: '#ffffff',
-                    border: '#dddddd',
-                    text: '', // Empty by default for theme inheritance
-                    link: '#dddddd',
-                    icon: 'pencil'
-                };
-
-                let inherited = false;
-                if (detectedType) {
-                    let lookupType = detectedType;
-                    if (ALIAS_MAP[detectedType]) {
-                        lookupType = ALIAS_MAP[detectedType];
-                    }
-
-                    const existingCustom = this.settings.customStyles.find(
-                        s => s.name.toLowerCase() === detectedType
-                    );
-                    if (existingCustom) {
-                        baseStyle = { ...existingCustom, name: `${existingCustom.name}-copy` };
-                        inherited = true;
-                    }
-                    else if (this.settings.standardStyles && this.settings.standardStyles[lookupType]) {
-                        const stdStyle = this.settings.standardStyles[lookupType];
-                        baseStyle = {
-                            ...baseStyle,
-                            ...stdStyle,
-                            name: `${detectedType}-custom`
-                        };
-                        if (!baseStyle.link) baseStyle.link = baseStyle.border;
-                        inherited = true;
-                    }
-                }
-
-                if (detectedMetadata) {
-                    try {
-                        const { config } = parseMetadata(
-                            detectedMetadata,
-                            this.settings.standardColors,
-                            this.settings.customColors
-                        );
-
-                        if (config.bg) baseStyle.bg = this.ensureHex(config.bg);
-                        if (config.text) baseStyle.text = this.ensureHex(config.text);
-                        if (config.border) baseStyle.border = this.ensureHex(config.border);
-                        if (config.link) baseStyle.link = this.ensureHex(config.link);
-                        if (config.titleColor) baseStyle.titleColor = this.ensureHex(config.titleColor);
-                        if (config.iconColor) baseStyle.iconColor = this.ensureHex(config.iconColor);
-                        if (config.borderWidth) baseStyle.borderWidth = config.borderWidth;
-                        if (config.borderStyle) baseStyle.borderStyle = config.borderStyle;
-                        if (config.radius) baseStyle.borderRadius = config.radius;
-                        if (config.neon) baseStyle.neon = this.ensureHex(config.neon);
-
-                        if (config.gradient) {
-                            const parts = config.gradient.split('-');
-                            if (parts.length >= 2) {
-                                const resolve = (c: string) => {
-                                    c = c.trim();
-                                    const custom = this.settings.customColors.find(col => col.name.toLowerCase() === c.toLowerCase());
-                                    if (custom) return custom.hex;
-                                    const std = this.settings.standardColors[c.toLowerCase()];
-                                    if (std) return std;
-                                    return this.ensureHex(c); // Ensure hex for gradient parts too if simple
-                                };
-
-                                const c1 = resolve(parts[0]);
-                                const c2 = resolve(parts[1]);
-                                baseStyle.bg = `linear-gradient(90deg, ${c1}, ${c2})`;
-                            } else {
-                                baseStyle.bg = config.gradient;
-                            }
-                        }
-
-                        if (config.noIcon) baseStyle.noIcon = true;
-                        if (config.compact) baseStyle.compact = true;
-                        if (config.font) baseStyle.font = config.font;
-                        if (config.fontSize) baseStyle.fontSize = config.fontSize;
-
-                        this.onSubmit(baseStyle);
-                        this.close();
-                        new Notice(`Imported style: ${baseStyle.name} ` + (inherited ? '(Inherited)' : ''));
-                        return;
-                    } catch (err) {
-                        console.error('Metadata parsing failed', err);
-                    }
-                } else if (detectedType && baseStyle.name.endsWith('-copy')) {
-                    this.onSubmit(baseStyle);
+        new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('Save Changes')
+                .setCta()
+                .onClick(async () => {
+                    this.plugin.settings.standardStyles[this.styleName] = this.style;
+                    await this.plugin.saveSettings();
+                    new Notice(`Updated "${this.styleName}" callout!`);
+                    this.onSave();
                     this.close();
-                    new Notice(`Imported style base: ${baseStyle.name}`);
-                    return;
-                } else if (inherited) {
-                    this.onSubmit(baseStyle);
-                    this.close();
-                    new Notice(`Imported standard style: ${baseStyle.name}`);
-                    return;
-                }
-
-                new Notice('Could not extract valid style. Use JSON or Callout syntax (e.g. > [!type] (metadata)).');
-            });
+                }))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => this.close()));
     }
 
-    onClose() {
-        this.contentEl.empty();
+    private updateLivePreview(el: HTMLElement): void {
+        el.empty();
+        el.style.backgroundColor = `color-mix(in srgb, ${this.style.bg} 15%, transparent)`;
+        el.style.border = `1px solid ${this.style.bg}`;
+        el.style.borderRadius = '8px';
+        el.style.padding = '0.8em 1.2em';
+
+        const titleEl = el.createDiv({ cls: 'callout-title' });
+        titleEl.style.display = 'flex';
+        titleEl.style.alignItems = 'center';
+        titleEl.style.gap = '8px';
+        titleEl.style.color = this.style.titleColor || this.style.bg;
+        titleEl.style.fontWeight = '600';
+        titleEl.style.marginBottom = '4px';
+
+        const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+        iconEl.style.color = 'inherit';
+        setIcon(iconEl, this.style.icon || 'pencil');
+
+        titleEl.createSpan({ text: this.styleName.toUpperCase() });
+
+        const contentEl = el.createDiv({ cls: 'callout-content' });
+        contentEl.style.color = this.style.text || 'var(--text-muted)';
+        contentEl.style.fontSize = '0.9em';
+        contentEl.createEl('p', { text: `This is a sample ${this.styleName} callout text.` });
     }
 }
-
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment -- Re-enable after UI hooks */
-/* eslint-enable @typescript-eslint/no-misused-promises -- Re-enable after UI hooks */
-/* eslint-enable @typescript-eslint/no-unsafe-call -- Re-enable after UI hooks */
-/* eslint-enable @typescript-eslint/no-unsafe-member-access -- Re-enable after UI hooks */
-/* eslint-enable @typescript-eslint/no-unsafe-argument -- Re-enable after UI hooks */
-/* eslint-enable @typescript-eslint/no-unused-vars -- Re-enable after UI hooks */

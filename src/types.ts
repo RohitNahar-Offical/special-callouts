@@ -88,4 +88,6 @@ export interface GridConfig {
     position: number;
     columns: number;
     row: number;
+    colSpan?: number;
+    rowSpan?: number;
 }

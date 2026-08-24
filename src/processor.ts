@@ -11,12 +11,17 @@ import { resolveColor, applyTextBorder, debounce, toPx, neonStyles } from './uti
 import { parseMetadata, parseGridLayout, extractMetadata } from './parser';
 import { setIcon } from 'obsidian';
 
+const LIST_SELECTOR = 'ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol';
+const MUTATION_TARGET_SELECTOR = 'ul,ol,.dataview,.cm-embed-block,.markdown-rendered';
+
 /**
  * CalloutProcessor handles all callout styling operations
  */
 export class CalloutProcessor {
     private settings: SpecialCalloutsSettings;
-    private observers: Map<HTMLElement, MutationObserver> = new Map();
+    private observers: WeakMap<HTMLElement, MutationObserver> = new WeakMap();
+    private activeObservers: Set<MutationObserver> = new Set();
+    private activeTimeouts: WeakMap<HTMLElement, number[]> = new WeakMap();
     private processedElements: WeakMap<HTMLElement, string> = new WeakMap();
     private debouncedColumnApply: (container: HTMLElement, colCount: number) => void;
 
@@ -42,15 +47,15 @@ export class CalloutProcessor {
             const titleEl = calloutEl.querySelector('.callout-title');
             if (!titleEl) return;
 
-            const innerTitleEl = titleEl.querySelector('.callout-title-inner') || titleEl;
+            const innerTitleEl = (titleEl.querySelector('.callout-title-inner') || titleEl) as HTMLElement;
             const fullText = innerTitleEl.textContent || '';
-            const cacheKey = `${calloutEl.getAttribute('data-callout')}_${fullText}`;
+            const pipeMetadata = calloutEl.getAttribute('data-callout-metadata') || '';
+            const calloutType = calloutEl.getAttribute('data-callout');
+            const cacheKey = `${calloutType}_${pipeMetadata}_${fullText}`;
 
             // Skip if already processed with same content
             if (this.processedElements.get(calloutEl) === cacheKey) return;
             this.processedElements.set(calloutEl, cacheKey);
-
-            const calloutType = calloutEl.getAttribute('data-callout');
 
             // Apply standard style if modified
             this.applyStandardStyleIfModified(calloutEl, calloutType);
@@ -58,8 +63,8 @@ export class CalloutProcessor {
             // Apply custom style by type name
             this.applyCustomStyleByType(calloutEl, calloutType);
 
-            // Parse and apply metadata
-            this.processMetadata(calloutEl, innerTitleEl as HTMLElement, fullText);
+            // Parse and apply metadata (from pipe and/or title)
+            this.processMetadata(calloutEl, innerTitleEl, fullText, pipeMetadata);
         } catch (error) {
             console.error('Special Callouts: Error processing callout', error);
         }
@@ -101,32 +106,65 @@ export class CalloutProcessor {
     }
 
     /**
-     * Processes inline metadata from callout title
+     * Processes metadata from callout title and pipe attribute
      */
-    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string): void {
+    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string, pipeMetadata: string): void {
         const extracted = extractMetadata(fullText);
-        if (!extracted) return;
-
-        // Update title text
-        if (innerTitleEl.textContent !== extracted.title) {
-            innerTitleEl.textContent = extracted.title;
+        
+        // Safely update title text if metadata was inside parentheses in the title
+        if (extracted && innerTitleEl.textContent !== extracted.title) {
+            // Find text nodes to update text cleanly without destroying child nodes (like fold indicator or custom icons)
+            let updated = false;
+            for (let i = 0; i < innerTitleEl.childNodes.length; i++) {
+                const node = innerTitleEl.childNodes[i];
+                if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+                    if (node.nodeValue.includes(`(${extracted.content})`)) {
+                        node.nodeValue = node.nodeValue.replace(`(${extracted.content})`, '').trim();
+                        updated = true;
+                        break;
+                    }
+                }
+            }
+            if (!updated) {
+                innerTitleEl.textContent = extracted.title;
+            }
         }
+
+        // Combine metadata from pipe (e.g. [!note|bg:red]) and title (e.g. (bg:red))
+        const rawMetadataParts: string[] = [];
+        if (pipeMetadata.trim()) {
+            rawMetadataParts.push(pipeMetadata.trim());
+        }
+        if (extracted && extracted.content.trim()) {
+            rawMetadataParts.push(extracted.content.trim());
+        }
+
+        if (rawMetadataParts.length === 0) return;
+        const combinedMetadata = rawMetadataParts.join(', ');
 
         // Extract custom layout names
         const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
 
         // Parse metadata
         const { config, layoutParam, styleParam } = parseMetadata(
-            extracted.content,
+            combinedMetadata,
             this.settings.standardColors,
             this.settings.customColors,
             layoutNames
         );
 
-        // Apply style parameter first
-        if (styleParam) {
+        // Apply style parameter first (or if pipe metadata matches a custom style name)
+        let resolvedStyleName = styleParam;
+        if (!resolvedStyleName && pipeMetadata) {
+            const matchCustom = this.settings.customStyles.find(
+                s => s.name.toLowerCase() === pipeMetadata.trim().toLowerCase()
+            );
+            if (matchCustom) resolvedStyleName = matchCustom.name;
+        }
+
+        if (resolvedStyleName) {
             const manualStyle = this.settings.customStyles.find(
-                s => s.name.toLowerCase() === styleParam
+                s => s.name.toLowerCase() === resolvedStyleName.toLowerCase()
             );
             if (manualStyle) {
                 this.applyStyleObject(calloutEl, manualStyle);
@@ -144,17 +182,12 @@ export class CalloutProcessor {
             }
         }
 
-        // AI_CONTEXT: Removed advanced grid and flex logic (flex, gridCols, gridW, gridH, vertical)
-        // These were undocumented and caused complexity. The visual builder handles complex layouts now.
-
         // Handle column layout for lists
         if (config.col !== null) {
             calloutEl.setAttribute('data-col', config.col.toString());
             calloutEl.setCssProps({ '--smart-list-cols': config.col.toString() });
             this.applyColumnsToContainer(calloutEl, config.col);
             this.setupObserver(calloutEl, config.col);
-            // AI_CONTEXT: Retry mechanism required because Dataview/Homepage plugins load content asynchronously
-            // AI_CONTEXT_WARN: Do NOT remove - columns won't work on initial page load without this
             this.scheduleColumnRetry(calloutEl, config.col);
         }
 
@@ -233,7 +266,8 @@ export class CalloutProcessor {
                 calloutEl.setAttribute('data-sc-no-border', '');
             } else {
                 const style = config.borderStyle || 'solid';
-                calloutEl.setCssProps({ '--sc-border': `1px ${style} ${config.border}` });
+                const width = config.borderWidth ? toPx(config.borderWidth) : '1px';
+                calloutEl.setCssProps({ '--sc-border': `${width} ${style} ${config.border}` });
                 calloutEl.setAttribute('data-sc-border', '');
             }
         }
@@ -243,7 +277,7 @@ export class CalloutProcessor {
             calloutEl.setAttribute('data-sc-bw', '');
         }
 
-        if (config.borderStyle && !config.border) {
+        if (config.borderStyle) {
             calloutEl.setCssProps({ '--sc-border-style': config.borderStyle });
             calloutEl.setAttribute('data-sc-bs', '');
         }
@@ -342,15 +376,19 @@ export class CalloutProcessor {
     /**
      * Applies grid layout to callout
      */
-    private applyGridLayout(calloutEl: HTMLElement, gridConfig: { position: number; columns: number; row: number }): void {
-        const gap = 10;
-        const widthCalc = `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
-
+    private applyGridLayout(calloutEl: HTMLElement, gridConfig: import('./types').GridConfig): void {
         const wrapper = this.getDirectWrapper(calloutEl);
         this.neutralizeWrapper(wrapper);
 
-        // Use CSS custom property + class; .sc-grid-item-wrapper rule in styles.css applies flex/width
-        wrapper.setCssProps({ '--sc-flex-width': widthCalc });
+        const colSpan = gridConfig.colSpan || 1;
+        const rowSpan = gridConfig.rowSpan || 1;
+
+        wrapper.setCssProps({
+            '--sc-grid-col-start': gridConfig.position.toString(),
+            '--sc-grid-col-span': colSpan.toString(),
+            '--sc-grid-row-start': gridConfig.row.toString(),
+            '--sc-grid-row-span': rowSpan.toString()
+        });
         wrapper.addClass('sc-grid-item-wrapper');
 
         if (wrapper !== calloutEl) {
@@ -361,6 +399,15 @@ export class CalloutProcessor {
         calloutEl.setAttribute('data-grid-pos', gridConfig.position.toString());
         calloutEl.setAttribute('data-grid-cols', gridConfig.columns.toString());
         calloutEl.setAttribute('data-grid-row', gridConfig.row.toString());
+
+        // Update outer container grid column count
+        const outerMulti = wrapper.closest('.callout[data-callout="multi-callout"]') as HTMLElement;
+        if (outerMulti) {
+            const content = outerMulti.querySelector('.callout-content') as HTMLElement;
+            if (content) {
+                content.setCssProps({ '--sc-multi-cols': gridConfig.columns.toString() });
+            }
+        }
     }
 
     /**
@@ -385,19 +432,27 @@ export class CalloutProcessor {
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
         
+        // Clean up previous observer if exists
+        const prevObserver = this.observers.get(calloutEl);
+        if (prevObserver) {
+            prevObserver.disconnect();
+            this.activeObservers.delete(prevObserver);
+        }
+
         const observer = new MutationObserver(() => {
+            if (!calloutEl.isConnected) {
+                observer.disconnect();
+                this.activeObservers.delete(observer);
+                return;
+            }
             this.applyAreasToChildren(contentEl as HTMLElement);
         });
         
         observer.observe(contentEl, { childList: true });
-        
-        // Clean up previous observer if exists
-        if (this.observers.has(calloutEl)) {
-            this.observers.get(calloutEl)?.disconnect();
-        }
         this.observers.set(calloutEl, observer);
+        this.activeObservers.add(observer);
     }
-    
+
     private applyAreasToChildren(contentEl: HTMLElement): void {
         const children = Array.from(contentEl.children);
 
@@ -405,11 +460,17 @@ export class CalloutProcessor {
         children.forEach(child => {
             const el = child as HTMLElement;
 
-            // Skip structural/empty nodes inserted by Markdown rendering
-            if (el.tagName === 'BR' || el.tagName === 'HR') return;
+            // Hide empty structural nodes inserted by Markdown rendering so they don't break grid areas
+            if (el.tagName === 'BR' || el.tagName === 'HR') {
+                el.style.display = 'none';
+                return;
+            }
             if (el.tagName === 'P') {
                 const html = el.innerHTML.trim();
-                if (html === '' || html === '<br>') return;
+                if (html === '' || html === '<br>' || html === '&nbsp;') {
+                    el.style.display = 'none';
+                    return;
+                }
             }
 
             this.neutralizeWrapper(el);
@@ -419,7 +480,6 @@ export class CalloutProcessor {
 
             const innerCallout = el.classList.contains('callout') ? el : el.querySelector('.callout');
             if (innerCallout) {
-                // .sc-area-inner in styles.css sets flex:1, width:100%, etc.
                 (innerCallout as HTMLElement).addClass('sc-area-inner');
             }
 
@@ -431,97 +491,39 @@ export class CalloutProcessor {
      * Applies a style object to callout
      */
     applyStyleObject(calloutEl: HTMLElement, style: CalloutStyle): void {
-        this.applyColor(calloutEl, style.bg);
-        this.applyTextColor(calloutEl, style.text);
-        this.applyLinkColor(calloutEl, style.link);
-
-        if (style.border) {
-            const width = style.borderWidth ? toPx(style.borderWidth) : (style.boldBorder ? '4px' : '1px');
-
-            const bStyle = style.borderStyle || 'solid';
-            // CSS var + data attr; .callout[data-sc-border] in styles.css applies with !important
-            calloutEl.setCssProps({ '--sc-border': `${width} ${bStyle} ${style.border}` });
-            calloutEl.setAttribute('data-sc-border', '');
-        }
-
-        if (style.titleColor) {
-            calloutEl.setCssProps({ '--sc-title-color': style.titleColor });
-            calloutEl.setAttribute('data-sc-title-color', '');
-        }
-
-        if (style.iconColor) {
-            calloutEl.setCssProps({ '--sc-icon-color': style.iconColor });
-            calloutEl.setAttribute('data-sc-icon-color', '');
-        }
-
-        if (style.font && FONT_FAMILIES[style.font]) {
-            calloutEl.setCssProps({ '--font-interface': FONT_FAMILIES[style.font], '--sc-font-family': FONT_FAMILIES[style.font] });
-            calloutEl.setAttribute('data-sc-font', '');
-        }
-
-        if (style.fontSize && FONT_SIZES[style.fontSize]) {
-            calloutEl.setCssProps({ '--sc-font-size': FONT_SIZES[style.fontSize] });
-            calloutEl.setAttribute('data-sc-fontsize', '');
-        }
-
-        // Advanced Borders
-        // AI_CONTEXT: Uses the plugin's own --sc-border-width, not Obsidian's
-        // --callout-border-width, so it goes through the same styles.css rule as inline
-        // metadata. The old variable was also written unitless, which was invalid CSS.
-        if (style.borderWidth) {
-            calloutEl.setCssProps({ '--sc-border-width': toPx(style.borderWidth) });
-            calloutEl.setAttribute('data-sc-bw', '');
-        }
-        if (style.borderStyle) {
-            calloutEl.setCssProps({ '--sc-border-style': style.borderStyle });
-            calloutEl.setAttribute('data-sc-bs', '');
-        }
-        if (style.borderRadius) {
-            calloutEl.setCssProps({ '--sc-radius': toPx(style.borderRadius) });
-            calloutEl.setAttribute('data-sc-radius', '');
-        }
-
-        // Layout & Effects
-        if (style.noIcon) {
-            calloutEl.classList.add('no-icon');
-            const icon = calloutEl.querySelector('.callout-icon');
-            if (icon) (icon as HTMLElement).addClass('sc-hidden');
-        } else if (style.icon) {
-            let iconEl = calloutEl.querySelector('.callout-icon');
-            if (!iconEl) {
-                const titleEl = calloutEl.querySelector('.callout-title');
-                if (titleEl) {
-                    iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-                    titleEl.prepend(iconEl);
-                }
-            }
-            if (iconEl) {
-                this.forceApplyIcon(iconEl as HTMLElement, style.icon);
-            }
-        }
-
-        if (style.compact) {
-            // CSS .callout[data-compact="true"] in styles.css handles all padding overrides
-            calloutEl.setAttribute('data-compact', 'true');
-        }
-
-        if (style.center) {
-            calloutEl.setAttribute('data-center', 'true');
-        } else if (style.titleCenter) {
-            calloutEl.setAttribute('data-title-center', 'true');
-        }
-
-        if (style.neon) {
-            calloutEl.setCssProps(neonStyles(style.neon));
-            calloutEl.setAttribute('data-sc-neon', '');
-        }
+        const config: CalloutConfig = {
+            bg: style.bg || '',
+            text: style.text || '',
+            textBorder: '',
+            link: style.link || '',
+            linkBorder: '',
+            titleColor: style.titleColor || '',
+            titleBorder: '',
+            border: style.border || '',
+            borderWidth: style.borderWidth || (style.boldBorder ? '4px' : ''),
+            borderStyle: style.borderStyle || 'solid',
+            neon: style.neon || '',
+            radius: style.borderRadius || '',
+            gradient: '',
+            font: style.font || '',
+            fontSize: style.fontSize || null,
+            col: null,
+            customLayout: null,
+            compact: !!style.compact,
+            dense: false,
+            noIcon: !!style.noIcon,
+            center: !!style.center,
+            titleCenter: !!style.titleCenter,
+            icon: style.icon || null,
+            iconColor: style.iconColor || ''
+        };
+        this.applyConfig(calloutEl, config);
     }
 
     /**
      * Applies background color
      */
     applyColor(callout: HTMLElement, color: string): void {
-        // CSS var + data attr; .callout[data-sc-bg] rule in styles.css applies !important
         callout.setCssProps({ '--sc-bg-color': `color-mix(in srgb, ${color} 15%, transparent)` });
         callout.setAttribute('data-sc-bg', '');
     }
@@ -530,7 +532,6 @@ export class CalloutProcessor {
      * Applies text color
      */
     applyTextColor(callout: HTMLElement, color: string): void {
-        // CSS var + data attr; .callout[data-sc-text] > .callout-content rule in styles.css applies it
         callout.setCssProps({ '--sc-text-color': color });
         callout.setAttribute('data-sc-text', '');
     }
@@ -545,42 +546,37 @@ export class CalloutProcessor {
 
     /**
      * Applies column layout to list containers using CSS Grid
-     * 
-     * AI_CONTEXT: Uses CSS Grid instead of CSS Columns for reliable distribution.
-     * AI_CONTEXT_WHY: CSS Columns with column-fill has unpredictable behavior.
-     *                 Grid with manual row calculation gives exact control.
-     * AI_CONTEXT_WARN: Do NOT switch back to CSS columns - they don't work reliably.
-     * AI_CONTEXT_SIDE_EFFECT: Changes list display to grid, sets grid-row on each li.
-     * 
-     * Distribution: Items flow top-to-bottom, then left-to-right (newspaper style)
-     * Formula: rowCount = Math.ceil(itemCount / colCount)
-     * Example: 7 items, 2 cols -> 4 rows -> Col1: 1,2,3,4  Col2: 5,6,7
      */
     applyColumnsToContainer(container: HTMLElement, colCount: number): void {
         window.requestAnimationFrame(() => {
+            if (!container.isConnected) return;
             const contentEl = container.querySelector('.callout-content');
             if (!contentEl) return;
 
-            const lists = contentEl.querySelectorAll('ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol');
+            const lists = contentEl.querySelectorAll(LIST_SELECTOR);
 
             lists.forEach(list => {
                 const listEl = list as HTMLElement;
-                const items = listEl.querySelectorAll(':scope > li, :scope > .list-item');
-                const itemCount = items.length;
+                const items: HTMLElement[] = [];
+                for (let i = 0; i < listEl.children.length; i++) {
+                    const child = listEl.children[i] as HTMLElement;
+                    if (child.tagName === 'LI' || child.classList.contains('list-item')) {
+                        items.push(child);
+                    }
+                }
 
+                const itemCount = items.length;
                 if (itemCount === 0) return;
 
                 const rowCount = Math.ceil(itemCount / colCount);
 
-                // CSS class + vars; .sc-multi-col-list rule in styles.css sets display:grid etc.
                 listEl.setCssProps({
                     '--sc-list-cols': colCount.toString(),
                     '--sc-list-rows': rowCount.toString()
                 });
                 listEl.addClass('sc-multi-col-list');
 
-                items.forEach((li, index) => {
-                    const liEl = li as HTMLElement;
+                items.forEach((liEl, index) => {
                     const col = Math.floor(index / rowCount) + 1;
                     const row = (index % rowCount) + 1;
 
@@ -593,100 +589,104 @@ export class CalloutProcessor {
 
     /**
      * Schedules retry attempts for column layout (handles Dataview/Homepage delayed rendering)
-     * 
-     * AI_CONTEXT: Dataview and Homepage plugins render content asynchronously after initial page load.
-     *             Without retry, columns won't apply when page first opens.
-     * AI_CONTEXT_WHY: MutationObserver alone isn't enough - sometimes content is already there but
-     *                 not fully rendered. Multiple retries at increasing intervals ensure we catch it.
-     * AI_CONTEXT_WARN: Do NOT remove retry delays or reduce them significantly.
-     *                  2000ms final delay is intentional for slow Dataview queries.
-     * AI_CONTEXT_SIDE_EFFECT: Creates 5 setTimeout calls per col:X callout. Minimal performance impact.
      */
     private scheduleColumnRetry(calloutEl: HTMLElement, colCount: number): void {
+        const existingTimers = this.activeTimeouts.get(calloutEl);
+        if (existingTimers) {
+            existingTimers.forEach(id => window.clearTimeout(id));
+        }
+
         const retryDelays = [100, 300, 600, 1000, 2000];
+        const timerIds: number[] = [];
 
         retryDelays.forEach(delay => {
-            window.setTimeout(() => {
+            const id = window.setTimeout(() => {
+                if (!calloutEl.isConnected) {
+                    // Cancel remaining timeouts if element was unmounted from DOM
+                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    this.activeTimeouts.delete(calloutEl);
+                    return;
+                }
+
                 const contentEl = calloutEl.querySelector('.callout-content');
                 if (!contentEl) return;
 
-                const lists = contentEl.querySelectorAll('ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol');
+                const lists = contentEl.querySelectorAll(LIST_SELECTOR);
                 if (lists.length > 0) {
                     this.applyColumnsToContainer(calloutEl, colCount);
+                    // Cancel remaining timeouts once successfully applied
+                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    this.activeTimeouts.delete(calloutEl);
                 }
             }, delay);
+            timerIds.push(id);
         });
+
+        this.activeTimeouts.set(calloutEl, timerIds);
     }
 
     /**
      * Sets up mutation observer for dynamic content
      */
     setupObserver(calloutEl: HTMLElement, colCount: number): void {
-        if (this.observers.has(calloutEl)) {
-            this.observers.get(calloutEl)?.disconnect();
+        const prev = this.observers.get(calloutEl);
+        if (prev) {
+            prev.disconnect();
+            this.activeObservers.delete(prev);
         }
 
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
 
         const observer = new MutationObserver((mutations) => {
+            if (!calloutEl.isConnected) {
+                observer.disconnect();
+                this.activeObservers.delete(observer);
+                this.observers.delete(calloutEl);
+                return;
+            }
             let update = false;
-            mutations.forEach(m => {
+            for (let i = 0; i < mutations.length; i++) {
+                const m = mutations[i];
                 if (m.addedNodes.length > 0) {
-                    m.addedNodes.forEach(n => {
+                    for (let j = 0; j < m.addedNodes.length; j++) {
+                        const n = m.addedNodes[j];
                         if (n.nodeType === 1) {
                             const el = n as Element;
-                            if (el.matches('ul,ol,.dataview,.cm-embed-block,.markdown-rendered') || el.querySelector('ul,ol,.dataview,.cm-embed-block,.markdown-rendered')) {
+                            if (el.matches(MUTATION_TARGET_SELECTOR) || el.querySelector(MUTATION_TARGET_SELECTOR)) {
                                 update = true;
+                                break;
                             }
                         }
-                    });
+                    }
                 }
-                // Text change inside could mean dataview re-rendered
-                if (m.type === 'characterData') update = true;
-            });
+                if (m.type === 'characterData') {
+                    update = true;
+                }
+                if (update) break;
+            }
             if (update) this.debouncedColumnApply(calloutEl, colCount);
         });
 
         observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
         this.observers.set(calloutEl, observer);
+        this.activeObservers.add(observer);
     }
 
     /**
      * Safely applies an icon bypassing Obsidian's native override
      */
     private forceApplyIcon(iconEl: HTMLElement, iconName: string): void {
-        const apply = () => {
-            iconEl.empty();
-            setIcon(iconEl, iconName);
-            iconEl.removeClass('sc-hidden');
-        };
-
-        // Apply immediately
-        apply();
-
-        // Obsidian often overwrites the custom type's icon with the default 'pencil'
-        // shortly after the element is rendered. We wait for the next tick to override it back.
-        window.setTimeout(() => {
-            apply();
-        }, 0);
-
-        // Fallback: If Obsidian takes longer, observe the element temporarily
-        const observer = new MutationObserver(() => {
-            observer.disconnect();
-            apply();
-        });
-        observer.observe(iconEl, { childList: true });
-        
-        // Clean up observer after a short window to prevent memory leaks
-        window.setTimeout(() => observer.disconnect(), 150);
+        iconEl.empty();
+        setIcon(iconEl, iconName);
+        iconEl.removeClass('sc-hidden');
     }
 
     /**
-     * Cleans up all observers
+     * Cleans up all observers and active timeouts
      */
     cleanup(): void {
-        this.observers.forEach(o => o.disconnect());
-        this.observers.clear();
+        this.activeObservers.forEach(o => o.disconnect());
+        this.activeObservers.clear();
     }
 }

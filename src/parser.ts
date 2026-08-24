@@ -17,8 +17,9 @@ import { resolveColor, smartSplit } from './utils';
  * @returns Parsed configuration object
  */
 // Module-level constants for performance
-const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
+const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
 const GROUP_REGEX = /^\(([^)]+)\)$/;
+const GRID_REGEX = /^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?(?:[:,/](\d+))?(?:[:,/](\d+))?$/;
 
 export function parseMetadata(
     content: string,
@@ -30,13 +31,14 @@ export function parseMetadata(
     let layoutParam: string | null = null;
     let styleParam: string | null = null;
 
-    // Check for layout parameter (e.g., 1:3 or 1:3:2)
-    const layoutMatch = content.match(LAYOUT_REGEX);
     let remainingContent = content;
+    const layoutMatch = remainingContent.match(LAYOUT_REGEX);
 
-    if (layoutMatch) {
+    if (layoutMatch && layoutMatch.index !== undefined) {
         layoutParam = layoutMatch[1];
-        remainingContent = remainingContent.replace(layoutParam, '').replace(/,,/g, ',');
+        // Replace exact match substring at index to avoid corrupting other matching substrings
+        const matchStart = layoutMatch.index + layoutMatch[0].indexOf(layoutParam);
+        remainingContent = remainingContent.substring(0, matchStart) + remainingContent.substring(matchStart + layoutParam.length);
     }
 
     const params = smartSplit(remainingContent);
@@ -45,7 +47,10 @@ export function parseMetadata(
     // Check for style parameter
     const styleParamValue = params.find(p => p.toLowerCase().startsWith('style:'));
     if (styleParamValue) {
-        styleParam = styleParamValue.split(':')[1].trim().toLowerCase();
+        const styleParts = styleParamValue.split(':');
+        if (styleParts.length > 1) {
+            styleParam = styleParts.slice(1).join(':').trim().toLowerCase();
+        }
     }
 
     // Color resolver helper
@@ -56,7 +61,8 @@ export function parseMetadata(
 
         // Handle standalone flags (no colon)
         const loweredPair = pair.trim().toLowerCase();
-        
+        if (!loweredPair) return;
+
         // Check for custom layout names
         if (customLayoutNames.includes(loweredPair)) {
             config.customLayout = loweredPair;
@@ -72,7 +78,6 @@ export function parseMetadata(
             return;
         }
         if (loweredPair === 'compact' || loweredPair === 'dense') {
-            // dense is compact plus a tighter line-height, so it implies compact
             config.compact = true;
             if (loweredPair === 'dense') config.dense = true;
             return;
@@ -86,9 +91,11 @@ export function parseMetadata(
             return;
         }
 
+        if (!key || !rawValue) return;
+
         // Check for grouped syntax: key:(value1, value2)
         const groupMatch = rawValue.match(GROUP_REGEX);
-        if (groupMatch && ['text', 'title', 'link'].includes(key)) {
+        if (groupMatch) {
             const groupValues = groupMatch[1].split(',').map(v => v.trim().toLowerCase());
             groupValues.forEach(val => {
                 if (['dark-border', 'light-border'].includes(val)) {
@@ -97,11 +104,17 @@ export function parseMetadata(
                     else if (key === 'link') config.linkBorder = val;
                 } else if (val === 'center' && key === 'title') {
                     config.titleCenter = true;
+                } else if (key === 'icon') {
+                    config.icon = val;
+                } else if (key === 'icon-color' || key === 'iconcolor') {
+                    config.iconColor = resolve(val);
                 } else {
                     const color = resolve(val);
                     if (key === 'text') config.text = color;
                     else if (key === 'title') config.titleColor = color;
                     else if (key === 'link') config.link = color;
+                    else if (key === 'bg' || key === 'background') config.bg = color;
+                    else if (key === 'border') config.border = color;
                 }
             });
             return;
@@ -111,8 +124,6 @@ export function parseMetadata(
         const isBorderValue = ['dark-border', 'light-border'].includes(rawValue.toLowerCase());
 
         // Parse by key type
-        // AI_CONTEXT: Removed undocumented flex and advanced grid parameters (w:X, h:X, grid-cols:X) 
-        // to simplify inline usage and encourage the Visual Layout Builder.
         switch (key) {
             case 'col':
             case 'column': {
@@ -150,9 +161,11 @@ export function parseMetadata(
             case 'border':
                 config.border = resolve(rawValue);
                 break;
+            case 'bw':
             case 'border-width':
                 config.borderWidth = rawValue;
                 break;
+            case 'bs':
             case 'border-style':
                 config.borderStyle = rawValue;
                 break;
@@ -211,14 +224,31 @@ export function parseMetadata(
  * @returns Grid configuration or null
  */
 export function parseGridLayout(param: string): GridConfig | null {
-    const match = param.match(/^(\d+)[:,/](\d+)(?:[:,/](\d+))?$/);
+    const match = param.match(GRID_REGEX);
     if (!match) return null;
 
-    return {
-        position: parseInt(match[1]),
-        columns: parseInt(match[2]),
-        row: match[3] ? parseInt(match[3]) : 1
+    const colStart = parseInt(match[1]);
+    const colEnd = match[2] ? parseInt(match[2]) : colStart;
+    const columns = parseInt(match[3]);
+    const rowStart = match[4] ? parseInt(match[4]) : 1;
+    const rowEnd = match[5] ? parseInt(match[5]) : rowStart;
+
+    let colSpan = match[6] ? parseInt(match[6]) : (colEnd - colStart + 1);
+    let rowSpan = match[7] ? parseInt(match[7]) : (rowEnd - rowStart + 1);
+
+    if (colSpan < 1) colSpan = 1;
+    if (rowSpan < 1) rowSpan = 1;
+
+    const res: GridConfig = {
+        position: colStart,
+        columns: columns,
+        row: rowStart
     };
+
+    if (colSpan > 1) res.colSpan = colSpan;
+    if (rowSpan > 1) res.rowSpan = rowSpan;
+
+    return res;
 }
 
 /**
@@ -227,27 +257,55 @@ export function parseGridLayout(param: string): GridConfig | null {
  * @returns Object with metadata content and remaining title
  */
 export function extractMetadata(fullText: string): { content: string; title: string } | null {
-    const trimmedText = fullText.replace(/^\s+/, '');
-    if (!trimmedText.startsWith('(')) return null;
+    const trimmedText = fullText.trim();
+    if (!trimmedText) return null;
 
-    // Find matching closing parenthesis
-    let depth = 0;
-    let endIndex = -1;
-    for (let i = 0; i < trimmedText.length; i++) {
-        if (trimmedText[i] === '(') depth++;
-        else if (trimmedText[i] === ')') {
-            depth--;
-            if (depth === 0) {
-                endIndex = i;
-                break;
+    // 1. Check leading metadata: (metadata) Title
+    if (trimmedText.startsWith('(')) {
+        let depth = 0;
+        let endIndex = -1;
+        for (let i = 0; i < trimmedText.length; i++) {
+            if (trimmedText[i] === '(') depth++;
+            else if (trimmedText[i] === ')') {
+                depth--;
+                if (depth === 0) {
+                    endIndex = i;
+                    break;
+                }
             }
+        }
+
+        if (endIndex !== -1) {
+            return {
+                content: trimmedText.substring(1, endIndex).trim(),
+                title: trimmedText.substring(endIndex + 1).trim()
+            };
+        }
+        return null;
+    }
+
+    // 2. Check trailing metadata: Title (metadata)
+    if (trimmedText.endsWith(')')) {
+        let depth = 0;
+        let startIndex = -1;
+        for (let i = trimmedText.length - 1; i >= 0; i--) {
+            if (trimmedText[i] === ')') depth++;
+            else if (trimmedText[i] === '(') {
+                depth--;
+                if (depth === 0) {
+                    startIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (startIndex !== -1) {
+            return {
+                content: trimmedText.substring(startIndex + 1, trimmedText.length - 1).trim(),
+                title: trimmedText.substring(0, startIndex).trim()
+            };
         }
     }
 
-    if (endIndex === -1) return null;
-
-    return {
-        content: trimmedText.substring(1, endIndex),
-        title: trimmedText.substring(endIndex + 1).trim()
-    };
+    return null;
 }

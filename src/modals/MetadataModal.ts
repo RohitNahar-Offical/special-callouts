@@ -15,7 +15,7 @@ export function showMetadataReference(app: App): void {
 class MetadataReferenceModal extends Modal {
     constructor(app: App) {
         super(app);
-        this.titleEl.setText('Metadata Reference');
+        this.titleEl.setText('Metadata Reference & Cheat Sheet');
     }
 
     onOpen(): void {
@@ -26,92 +26,72 @@ class MetadataReferenceModal extends Modal {
 
         // Colors
         this.createTable(contentEl, '🎨 Colors', [
-            ['bg:red or bg:#ff0000', 'Background color'],
-            ['text:white', 'Content text color'],
-            ['title:cyan', 'Title text color'],
-            ['link:orange', 'Link color'],
+            ['bg:red or bg:#ff0000', 'Background color (tinted 15%)'],
+            ['text:white or text:#fff', 'Content text color'],
+            ['title:cyan or title:#00e5ff', 'Title text color'],
+            ['link:orange or link:#ff9800', 'Link color inside callout'],
+            ['icon-color:gold', 'Override icon color separately from title'],
         ]);
 
         // Typography
         this.createTable(contentEl, 'Aa Typography', [
-            ['font:mono', 'Monospace font'],
-            ['font:serif', 'Serif font'],
-            ['font:hand', 'Handwritten style'],
-            ['font-size:1 to 5', 'Font size (3 is default)'],
-            ['text:dark-border', 'Dark outline on text'],
+            ['font:mono', 'Monospace font family'],
+            ['font:serif', 'Serif font family'],
+            ['font:hand', 'Handwritten cursive font'],
+            ['font:marker', 'Chalkboard marker font'],
+            ['font-size:1 to 5', 'Font size multiplier (3 is default 1.0em)'],
         ]);
 
-        // Text Border
-        this.createTable(contentEl, '✨ Text Border (Readability)', [
-            ['text:dark-border', 'Dark outline on text'],
-            ['text:light-border', 'Light outline on text'],
-            ['text:(white, dark-border)', 'Grouped: color + border'],
-            ['title:(cyan, dark-border)', 'Same for title'],
+        // Text Outline / Borders
+        this.createTable(contentEl, '✨ Text Outline & Readability Strokes', [
+            ['text:dark-border', 'Dark readability stroke around text'],
+            ['text:light-border', 'Light readability stroke around text'],
+            ['text:(white, dark-border)', 'Grouped syntax: text color + outline stroke'],
+            ['title:(cyan, dark-border)', 'Grouped syntax for callout title'],
         ]);
 
-        // Effects
-        this.createTable(contentEl, '🎨 Effects', [
-            ['neon:#00f2ff', 'Neon border with glow'],
-            ['gradient:blue-purple', '2-color gradient background'],
-            ['border:red', 'Border color'],
-            ['border:none', 'Remove all borders'],
-            ['border-width:4', 'Border thickness (px)'],
-            ['border-style:dashed', 'dashed, dotted, double, solid'],
-            ['radius:20', 'Corner roundness (px)'],
-            ['no-icon', 'Hide the callout icon'],
+        // Borders & Visual Effects
+        this.createTable(contentEl, '🎨 Borders & Visual Effects', [
+            ['border:red or border:#ff5722', 'Border color'],
+            ['border:none', 'Remove callout borders entirely'],
+            ['border-width:2 or border-width:4px', 'Custom border thickness'],
+            ['border-style:dashed', 'Border styles: dashed, dotted, double, solid'],
+            ['radius:16', 'Corner roundness in pixels (0 to 30px)'],
+            ['neon:#00f2ff', 'Cyber illuminated neon border with radiant glow'],
+            ['no-icon', 'Hide the callout icon completely'],
         ]);
 
-        // Layout
-        this.createTable(contentEl, '📊 Layout', [
-            ['col:3', 'Multi-column list (inside callout)'],
-            ['compact', 'Reduce padding (dense mode)'],
-            ['center', 'Center title and content'],
-
-            ['title:center', 'Center title only'],
-            ['1:3', 'Grid: position 1 of 3 columns'],
-            ['1:3:2', 'Grid: pos 1, 3 cols, row 2'],
+        // Layout & Structure
+        this.createTable(contentEl, '📊 Layout & Columns', [
+            ['col:2 or col:3', 'Multi-column list layout inside callout'],
+            ['compact', 'Tighter padding for lists & dense notes'],
+            ['dense', 'Compact padding + tighter line height'],
+            ['center', 'Center align all content and title'],
+            ['title:center', 'Center align title only while keeping content left-aligned'],
+            ['1:2 or 1:3', 'Inline Dashboard Grid (position : columns)'],
+            ['1:3:2', 'Grid layout: position 1 of 3 columns, row 2'],
         ]);
 
-        // Presets
         // Example box
         const exampleBox = contentEl.createDiv();
         exampleBox.addClass('sc-modal-info-box');
-        exampleBox.createEl('strong', { text: '💡 Example:' }).addClass('sc-text-accent');
-        exampleBox.createEl('br');
-        const exCode = exampleBox.createEl('code', {
-            text: '(bg:#1a1a2e, text:(white, dark-border), neon:#00f2ff, radius:10)',
-        });
-        exCode.addClass('sc-modal-code-block');
+        exampleBox.createEl('strong', { text: '💡 Example Usage:' });
+        const exPre = exampleBox.createEl('pre');
+        exPre.setText('> [!note|bg:#1a1a2e,neon:#00f2ff,radius:12,compact] Cyber Note\n> > [!tip] (1:2)\n> > Left Column\n> > [!warning] (2:2)\n> > Right Column');
 
         // Pro tip box
         const tipBox = contentEl.createDiv();
         tipBox.addClass('sc-modal-info-box');
-        tipBox.createEl('strong', { text: 'Pro Tip: ' }).addClass('sc-text-accent');
-        tipBox.appendText('Use ');
-        tipBox.createEl('code', { text: 'Ctrl/Cmd+P' });
-        tipBox.appendText(' to open the command palette and type "Special Callouts" to see all available commands.');
-
-        // Available Modifiers Table
-        this.createTable(contentEl, '🎨 Style & Colors', [
-            ['bg:color', 'Background color (hex or named)'],
-            ['text:color', 'Text color'],
-            ['border:color', 'Border color (or "none")'],
-            ['neon:color', 'Glowing border effect'],
-            ['radius:10', 'Corner radius in pixels'],
-            ['title:color', 'Title color'],
-        ]);
-
-        this.createTable(contentEl, '📐 Layout & Structure', [
-            ['col:2', 'Split content into 2 columns'],
-            ['col:3', 'Split content into 3 columns'],
-            ['center', 'Center align all text'],
-            ['no-icon', 'Hide the callout icon'],
-        ]);
+        tipBox.createEl('strong', { text: '⚡ Pro Tip: ' });
+        tipBox.appendText('You can use metadata inside native pipes ');
+        tipBox.createEl('code', { text: '>[!note|bg:red]' });
+        tipBox.appendText(' or anywhere in parentheses ');
+        tipBox.createEl('code', { text: '>[!note] Title (bg:red)' });
+        tipBox.appendText('.');
     }
 
     onClose(): void {
         this.contentEl.empty();
-        contentEl.addClass('special-callouts-ui');
     }
 
     private createTable(container: HTMLElement, title: string, rows: [string, string][]): void {

@@ -8,14 +8,15 @@
  * @license MIT
  */
 
-import { App, Plugin, Editor, FuzzySuggestModal } from 'obsidian';
+import { App, Plugin, Editor, FuzzySuggestModal, Menu } from 'obsidian';
 import { SpecialCalloutsSettings } from './src/types';
 import { DEFAULT_SETTINGS } from './src/constants';
 import { CalloutProcessor } from './src/processor';
 import { CustomCalloutSuggester } from './src/modals/SuggesterModal';
 import { SpecialCalloutsSettingTab } from './src/settings/SettingsTab';
-import { AdvancedBuilderModal } from './src/modals/AdvancedBuilderModal';
 import { IconPickerModal } from './src/modals/IconPickerModal';
+import { InsertCalloutModal } from './src/modals/InsertCalloutModal';
+import { MultiColumnBuilderModal } from './src/modals/MultiColumnBuilderModal';
 
 class ColumnSuggesterModal extends FuzzySuggestModal<string> {
     items: string[];
@@ -84,7 +85,6 @@ function findMetadataSpan(
 export default class SpecialCallouts extends Plugin {
     settings: SpecialCalloutsSettings;
     private processor: CalloutProcessor;
-    private registeredStyleCommands = new Set<string>();
 
     async onload(): Promise<void> {
         await this.loadSettings();
@@ -106,12 +106,52 @@ export default class SpecialCallouts extends Plugin {
             });
         });
 
+        // Register right-click context menu in editor
+        this.registerEvent(
+            this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor) => {
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Insert Special Callout...')
+                        .setIcon('palette')
+                        .onClick(() => {
+                            new InsertCalloutModal(this.app, this.settings, editor).open();
+                        });
+                });
+
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Multi-Column Dashboard Builder...')
+                        .setIcon('layout-grid')
+                        .onClick(() => {
+                            new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+                        });
+                });
+            })
+        );
     }
 
     /**
      * Registers all plugin commands based on usage scenarios
      */
     private registerCommands(): void {
+        // All-in-One Customizer Modal Command
+        this.addCommand({
+            id: 'insert-and-customize-callout',
+            name: 'Insert & Customize Callout (All-in-One)...',
+            editorCallback: (editor) => {
+                new InsertCalloutModal(this.app, this.settings, editor).open();
+            }
+        });
+
+        // Multi-Column Dashboard Builder (Insert or Edit)
+        this.addCommand({
+            id: 'open-multi-column-builder',
+            name: 'Multi-Column Dashboard Builder (Insert or Edit)...',
+            editorCallback: (editor) => {
+                new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+            }
+        });
+
         // SCENARIO 1: Insert Custom Style (The Quick Access)
         this.addCommand({
             id: 'insert-custom-callout',
@@ -195,40 +235,13 @@ export default class SpecialCallouts extends Plugin {
             }
         });
 
-        // SCENARIO 5: Advanced Builder
+        // SCENARIO 5: Multi-Column Dashboard Builder
         this.addCommand({
-            id: 'advanced-callout-builder',
-            name: 'Advanced Callout Builder...',
+            id: 'multi-column-dashboard-builder',
+            name: 'Insert Multi-Column Dashboard...',
             editorCallback: (editor) => {
-                new AdvancedBuilderModal(this.app, this, editor).open();
+                new MultiColumnBuilderModal(this.app, this.settings, editor).open();
             }
-        });
-
-        this.registerStyleCommands();
-    }
-
-    /**
-     * Registers one insert command per saved custom style.
-     *
-     * Also called from saveSettings, so a style created in settings gets its command straight
-     * away instead of only after Obsidian is reloaded. Already-registered ids are skipped, so
-     * repeated calls do not stack duplicate registrations.
-     *
-     * A command whose style was deleted stays until the next reload — Obsidian offers no
-     * reliable way to withdraw one, and a stale entry is a far smaller annoyance than a
-     * missing one.
-     */
-    private registerStyleCommands(): void {
-        this.settings.customStyles.forEach((style) => {
-            const id = `insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}`;
-            if (this.registeredStyleCommands.has(id)) return;
-            this.registeredStyleCommands.add(id);
-
-            this.addCommand({
-                id,
-                name: `Insert "${style.name}" Callout`,
-                editorCallback: (editor) => this.insertCalloutTemplate(editor, style.name)
-            });
         });
     }
 
@@ -256,7 +269,5 @@ export default class SpecialCallouts extends Plugin {
         if (this.processor) {
             this.processor.updateSettings(this.settings);
         }
-        // Yeni olusturulan preset'in komutu yeniden yukleme beklemeden gorunsun
-        this.registerStyleCommands();
     }
 }

@@ -41,7 +41,8 @@ class HowToModal extends Modal {
         // Section: Manual Usage
         this.createSection(contentEl, '📝 Manual Usage Methods', (section) => {
             this.createMethodBox(section, 'Method 1: Direct callout type', '> [!your-style-name]');
-            this.createMethodBox(section, 'Method 2: With metadata', '> [!note] (style:your-style-name)');
+            this.createMethodBox(section, 'Method 2: Native Obsidian pipe', '> [!note|bg:red,icon:flame]');
+            this.createMethodBox(section, 'Method 3: With metadata parentheses', '> [!note] (style:your-style-name)');
         });
 
         // Section: Layout Systems
@@ -51,16 +52,15 @@ class HowToModal extends Modal {
             p1.appendText(' Quick alignments using ');
             p1.createEl('code', { text: '(position:cols)' });
 
-            const code1 = section.createEl('code');
-            code1.addClass('sc-block');
-            code1.addClass('sc-mb-1');
+            const code1 = section.createEl('pre');
             code1.setText('> [!multi-callout]\n> > [!info] (1:2)\n> > [!tip] (2:2)');
 
             const p2 = section.createEl('p');
             p2.createEl('strong', { text: '2. Visual Layout Builder (Advanced):' });
-            p2.appendText(' Create Excel-like merged grids in settings, then use their name!');
+            p2.appendText(' Create merged grids in settings, then use their name!');
 
-            section.createEl('code', { text: '> [!multi-callout] (my_dashboard)\n> > [!info]\n> > [!tip]' });
+            const code2 = section.createEl('pre');
+            code2.setText('> [!multi-callout] (my_dashboard)\n> > [!info]\n> > [!tip]');
         });
 
         // Section: Pro Tips
@@ -76,7 +76,7 @@ class HowToModal extends Modal {
             tip2.createEl('code', { text: '(no-icon)' });
             tip2.appendText(' for a minimalist look');
 
-            ul.createEl('li', { text: 'Click "Metadata Reference" to see all available parameters' });
+            ul.createEl('li', { text: 'Click "Cheat Sheet" in settings to see all available parameters' });
         });
 
         // Tip banner
@@ -88,7 +88,6 @@ class HowToModal extends Modal {
 
     onClose(): void {
         this.contentEl.empty();
-        contentEl.addClass('special-callouts-ui');
     }
 
     private createSection(container: HTMLElement, title: string, fill: (el: HTMLElement) => void): void {
@@ -99,11 +98,11 @@ class HowToModal extends Modal {
         fill(section);
     }
 
-    private createMethodBox(container: HTMLElement, label: string, code: string): void {
+    private createMethodBox(container: HTMLElement, label: string, codeText: string): void {
         const box = container.createDiv();
         box.addClass('sc-modal-method-box');
         box.createEl('strong', { text: label });
-        box.createEl('br');
-        box.createEl('code', { text: code });
+        const pre = box.createEl('pre');
+        pre.setText(codeText);
     }
 }
