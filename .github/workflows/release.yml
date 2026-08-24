@@ -6,8 +6,9 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+'
 
 permissions:
-  contents: write
-  id-token: write  # Required for artifact attestation
+  contents: write       # create the release and upload its assets
+  id-token: write       # mint the OIDC token the attestation is signed with
+  attestations: write   # write the attestation itself
 
 jobs:
   build-and-release:
@@ -57,7 +58,7 @@ jobs:
 
       # ── Create GitHub Release ───────────────────────────────────────────────
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: actions/attest-build-provenance@v4
         with:
           name: "Special Callouts ${{ github.ref_name }}"
           body: ${{ steps.extract_notes.outputs.notes }}
