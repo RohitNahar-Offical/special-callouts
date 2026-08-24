@@ -23,3 +23,6 @@ desktop.ini
 .cache/
 tmp/
 temp/
+
+# Obsidian Vault Runtime Data
+data.json
