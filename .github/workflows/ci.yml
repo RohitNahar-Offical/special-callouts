@@ -8,14 +8,30 @@ on:
     branches: [main]
   pull_request:
 
+# Nothing in this workflow writes anything. Saying so is better than inheriting whatever
+# the repository default happens to be, and a pull request from a fork gets a read-only
+# token either way.
+permissions:
+  contents: read
+
+# A second push while the first is still running makes the first result irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      # 22 rather than 20: the runners now warn that Node 20 is deprecated. The suite
+      # itself needs nothing newer than Node 18 — `npm test` is a bare `node --test`, whose
+      # behaviour has been stable since then. It was a glob pattern until 1.0.9, and glob
+      # support only arrived in Node 21, so CI failed on a suite that passed everywhere it
+      # was actually run.
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -34,6 +50,12 @@ jobs:
 
       # main.js is committed so BRAT and manual installs work straight from the repo.
       # If a rebuild changes it, someone edited the source without rebuilding.
+      #
+      # --ignore-cr-at-eol because the repository is maintained on Windows and published by
+      # uploading files through the GitHub web UI, which sends the bytes exactly as they sit
+      # on disk — CRLF and all. esbuild on this runner writes LF, so without it every line
+      # of the file reads as changed and the check fails on a difference that is not one.
+      # Real edits to the source still produce real content differences.
       - name: Verify the committed build matches source
         run: |
           if ! git diff --quiet --ignore-cr-at-eol -- main.js; then
