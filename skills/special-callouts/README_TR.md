@@ -3,7 +3,7 @@
 [English](README.md) · [Eklenti README](../../README_TR.md)
 
 Bir yapay zekâ asistanına Obsidian
-[Special Callouts](https://github.com/ahseyg/special-callouts) eklentisinin (v1.0.8) tüm
+[Special Callouts](https://github.com/ahseyg/special-callouts) eklentisinin (v1.0.9) tüm
 sözdizimini ve gerçek render davranışını öğreten bir
 [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview).
 
@@ -24,7 +24,7 @@ kalmaz.
 
 Referans dosyaları yalnızca görev gerektirdiğinde yüklenir; sıradan istekler bu sayede hafif kalır.
 
-İçerik, eklentinin dokümantasyonundan değil **v1.0.8 kaynak kodundan** (parser, processor ve
+İçerik, eklentinin dokümantasyonundan değil **v1.0.9 kaynak kodundan** (parser, processor ve
 stylesheet) çıkarıldı. İkisinin çeliştiği yerlerde skill, kodun gerçekte ne yaptığını yazar ve
 çelişkiyi ayrıca işaretler.
 
@@ -60,7 +60,7 @@ callout'larıyla ilgili isteklerde devreye girer:
 
 ## Uyumluluk
 
-Special Callouts **v1.0.8** için yazıldı. Parametre sözdizimi 1.0.3'ten beri kararlı;
+Special Callouts **v1.0.9** için yazıldı. Parametre sözdizimi 1.0.3'ten beri kararlı;
 `internals.md` en hızlı eskiyecek bölüm, çünkü uygulama detaylarını ve açık hataları belgeliyor.
 
 ## Lisans

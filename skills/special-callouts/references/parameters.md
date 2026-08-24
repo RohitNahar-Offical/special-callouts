@@ -1,7 +1,7 @@
 # Parameter reference
 
 Complete, behaviour-accurate reference for every metadata parameter in Special Callouts
-v1.0.8. Where the plugin's own docs and its code disagree, the code wins and the
+v1.0.9. Where the plugin's own docs and its code disagree, the code wins and the
 disagreement is called out.
 
 ## Contents
@@ -143,7 +143,8 @@ Three things to know:
    explicit `border:<color>` after the gradient if needed.
 3. **It splits the value on `-`.** Exactly two parts must result, so hyphenated custom
    color names break it. `gradient:blue-purple` works because those are single words;
-   `gradient:brand-blue-brand-red` does not.
+   `gradient:brand-blue-brand-red` does not. This applies to the inline shorthand only —
+   a saved preset stores the finished `linear-gradient(...)` and is used verbatim.
 
 Set `text:` explicitly with a gradient — the plugin forces `color: var(--text-normal)` on
 gradient callouts, which can be unreadable against a saturated gradient.
@@ -176,12 +177,22 @@ Two spellings:
 > [!note] (bg:#e74c3c, text:(white, dark-border)) Color and stroke together
 ```
 
-The grouped form `key:(value, value)` is supported for `text:`, `title:` and `link:` only —
-no other parameter accepts it, and groups cannot nest further.
+The grouped form `key:(value, value)` is shorthand for writing the key once per value, so
+since v1.0.9 **every** parameter accepts it. `text:(white, dark-border)` is read as
+`text:white, text:dark-border`, and each value is then classified exactly as it would be on
+its own: `dark-border`/`light-border` become the stroke, `center` becomes title-centering
+(in a `title:` group only), and anything else is treated as a color. So
+`title:(center, cyan, dark-border)` sets all three at once.
 
-Inside a group, each value is classified independently: `dark-border`/`light-border` become
-the stroke, `center` becomes title-centering (in a `title:` group only), and anything else
-is treated as a color. So `title:(center, cyan, dark-border)` sets all three at once.
+Where repeating a key makes no sense the last value simply wins — `radius:(10, 20)` is a
+20px radius, not an error. Groups still cannot nest.
+
+Up to v1.0.8 only `text:`, `title:` and `link:` understood the form; on any other parameter
+the parentheses were passed through as part of the value, so `bg:(red)` set the background
+to the literal string `(red)` and CSS dropped it.
+
+A value that carries parentheses of its own is left alone, because the group form has to
+wrap the whole value: `bg:rgba(0,0,0,0.5)` is one colour, not a group.
 
 Implementation note: strokes use `-webkit-text-stroke` plus a matching `text-shadow`. They
 apply to the content element for `text:`, the title element for `title:`, and the anchor
@@ -201,7 +212,7 @@ A color, or the keyword `none`.
 Obsidian's default callout has a colored left stripe; `border:` replaces it with a border
 on all four sides.
 
-### `border-width:`
+### `border-width:` (alias `bw:`)
 
 A number, interpreted as pixels. An explicit unit is accepted too.
 
@@ -212,10 +223,11 @@ A number, interpreted as pixels. An explicit unit is accepted too.
 `border-width:4` and `border-width:4px` are equivalent; the same holds for `radius:`. In
 v1.0.7 and earlier the unit-carrying form produced `4pxpx` and was silently dropped.
 
-### `border-style:`
+### `border-style:` (alias `bs:`)
 
 `solid` (default), `dashed`, `dotted`, `double` — and in practice any CSS border-style
-keyword, since the value is passed through untouched.
+keyword, since the value is passed through untouched. `groove`, `ridge`, `inset` and
+`outset` all work; they are simply not worth a table row of their own.
 
 Behaviour differs depending on whether `border:` is present. With a color, the style is
 folded into the border shorthand. Without one, only the style is overridden, so the theme's
@@ -368,7 +380,10 @@ a normal comma-separated parameter.
 ### Custom layout name
 
 A bare word matching a layout saved in the Visual Layout Builder applies that CSS-grid
-layout. Names are normalised on save to lowercase with spaces replaced by underscores, so
+layout. The built-in bare words — `compact`, `dense`, `center`, `no-icon`, `noicon` — are
+reserved and win over a layout of the same name; since v1.0.9 the builder will not save
+one. Up to v1.0.8 layout names were matched first, so such a layout silently disabled that
+flag in every note in the vault. Names are normalised on save to lowercase with spaces replaced by underscores, so
 reference them exactly as they appear in the saved-layouts list. See
 [layouts.md](layouts.md#custom-visual-layouts).
 
@@ -399,8 +414,8 @@ the same style without needing `style:` at all. Both routes end in the same code
 | `gradient:` | — | `c1-c2` | full opacity; removes border |
 | `neon:` | — | color | needs 6-digit hex or palette name for the glow |
 | `border:` | — | color · `none` | all four sides |
-| `border-width:` | — | number or length | unitless is treated as px |
-| `border-style:` | — | `solid` `dashed` `dotted` `double` | |
+| `border-width:` | `bw:` | number or length | unitless is treated as px |
+| `border-style:` | `bs:` | `solid` `dashed` `dotted` `double` … | any CSS keyword passes through |
 | `radius:` | — | number or length | unitless is treated as px |
 | `font:` | — | `mono` `serif` `sans` `hand` `marker` | others ignored |
 | `font-size:` | — | `1`–`5` | 3 is default |
@@ -428,7 +443,11 @@ Nothing in the plugin reports an error. These all render as if you had written l
 - a `style:` or layout name with no saved match
 - a `padding:` value other than `0`
 - an unknown key of any kind
+- a key with nothing after the colon, such as `bg:`
 - a hex code with a missing `#` (it resolves to itself and CSS drops it)
+
+A preset name containing a colon is no longer among them either: `style:Note: Important`
+keeps the whole name. Up to v1.0.8 it was cut at the first colon and matched nothing.
 
 Units are no longer among them: `border-width:4` and `border-width:4px` both work, as do
 `radius:20` and `radius:20px`. Up to v1.0.7 the second form of each produced `4pxpx` and was

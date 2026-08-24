@@ -7,6 +7,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+---
+
+## [1.0.9] - 2026-08-24
+
+A stabilisation release. Nothing here changes how a callout is written; a good deal of it
+changes whether what you wrote, or what you set in settings, actually took effect. Most of
+these failed silently — no error, no warning, just a result that quietly wasn't what you
+asked for.
+
+### Fixed — rendering
+
+- **A parenthesised value could be cut in half.** The bare `N:M` grid token is the one entry
+  written without a key, so it is looked for across the whole metadata block before it is
+  split into parameters — and digits with separators inside a value look exactly like it.
+  `bg:rgba(0,0,0,0.5)` had `0,0` taken out of it and rendered from `rgba(0,,0.5)`. The scan
+  now runs over a copy with the contents of every parenthesised group masked out, so it can
+  only ever match at the top level.
+- **A saved style with an empty colour blanked the callout.** Presets applied background,
+  text and link without checking they were set, so an unset field produced
+  `color-mix(in srgb,  15%, transparent)`. That is invalid at computed-value time, which
+  drops the property to its initial value rather than leaving the theme's alone — a
+  border-only preset lost the callout's tint entirely.
+- **A preset with a gradient rendered with no background.** The style editor composes a
+  gradient into the style's `bg` field rather than giving it a field of its own, so it
+  reached the colour path and came out as
+  `color-mix(in srgb, linear-gradient(…) 15%, transparent)` — invalid, and the background
+  was dropped entirely. A `bg` that is already a CSS gradient function is now recognised and
+  applied as one.
+- **Presets and inline metadata were two copies of the same apply logic, and they had
+  drifted.** The preset path folded the border width into the `--sc-border` shorthand while
+  the inline path wrote `1px` and left the width to a later rule; the two only agreed
+  because of the order the rules appear in the stylesheet. Both now go through one
+  `applyConfig`, so `(border:red, border-width:4)` and the equivalent preset produce the
+  same declaration.
+- **A saved layout named after a built-in flag disabled that flag everywhere.** A layout is
+  applied by writing its name as a bare word, which is the same shape a flag has, and layout
+  names were matched first — so a layout called `compact` meant every `(compact)` in the
+  vault stopped reducing padding and quietly applied a grid instead. Built-in words now win,
+  which also repairs any vault already in that state, and the layout builder refuses to
+  create the clash.
+- **`style:` could not select a preset whose name contains a colon.** The value was cut at
+  the second colon, so `style:Note: Important` looked for a preset called `note` and found
+  nothing.
+- **Obsidian's own type aliases ignored your palette.** `[!tldr]` renders as `[!abstract]`
+  in Obsidian, but the plugin knew only the canonical names, so recolouring `abstract` in
+  settings left `tldr` and `summary` untouched. Aliases now resolve to the type they render
+  as: `summary` `tldr` → `abstract`, `hint` `important` → `tip`, `check` `done` →
+  `success`, `help` `faq` → `question`, `caution` `attention` → `warning`, `fail`
+  `missing` → `failure`, `error` → `danger`, `cite` → `quote`. They are resolved rather
+  than added as separate entries, so the settings list stays thirteen rows and an alias
+  cannot drift away from its type.
+- **Density and alignment flags leaked onto a `multi-callout` wrapper.** `compact` (or
+  `dense`/`center`) written on the wrapper matched the generic padding rules, which are
+  declared after the `multi-callout` ones at equal specificity — so padding came back onto a
+  container whose whole job is to have none, insetting the panel row from its edges. And
+  `center` on the wrapper flipped the row to `flex-direction: column`, stacking every panel.
+  Those flags are now ignored on the wrapper; they still apply to the panels inside, which
+  is where they were always meant to go.
+- **Panels could end up unequal widths.** The wrapper is a flex item and flex items default
+  to `min-width: auto`, which wins over `max-width` — so a long unbroken word (a wiki link
+  like `[[02-kutuphane]]`) held its panel wider than its computed share and pushed the row
+  out of alignment. `min-width: 0` restores the equal split.
+
+### Fixed — settings
+
+- **Cancel did not cancel.** In the standard-style editor the colour inputs wrote straight
+  into the settings object on every keystroke, so by the time you reached the buttons the
+  change was already live — Cancel merely closed the window, and the next save from anywhere
+  else in the tab committed it to disk. The editor now works on a copy.
+- **Editing a preset discarded its icon colour.** The edit button carried its own
+  hand-written copy of the form loader, and that copy had fallen behind the real one: it
+  never restored `iconColor`, so opening a preset that had its own icon colour and saving it
+  again silently dropped it. This is the same shape of bug that cost `center` and
+  `titleCenter` in 1.0.8, so the button now calls the one loader, and a test fails the build
+  if the two halves of the round-trip ever disagree again.
+- **Editing a preset invented a title colour.** Loading a style into the form fell back to
+  the background colour when no title colour was set, and saving then wrote that background
+  in as an explicit title colour — locking the title to a colour you never chose. Same slip
+  on the import path.
+- **Renaming a preset onto another's name produced two styles answering to it**, of which
+  only the first was ever reachable. The uniqueness check ran only when creating, and
+  compared names case-sensitively while every lookup — `style:`, callout type, command id —
+  is case-insensitive.
+- **Importing a callout with a grouped value imported half of it.** The importer found the
+  metadata with a pattern that stops at the first closing parenthesis, so pasting
+  `> [!note] (text:(white, dark-border)) Title` read `text:(white` and dropped the rest. It
+  now uses the same balanced scan as the renderer.
+- **Importing layouts accepted anything that parsed as JSON.** A stray array replaced every
+  saved layout with entries the settings tab then tried to read a name and a grid off, and
+  valid JSON that was not an array closed nothing and said nothing at all. Entries are now
+  checked for shape, and the result reports how many were taken.
+- **Adding a custom colour failed silently.** An empty name or a malformed hex simply did
+  nothing, with no message, which reads as a broken button. It now says which of the two is
+  wrong, refuses a duplicate name, and refuses a name that matches the standard palette —
+  those could never resolve, because standard names are checked first, so the colour would
+  have sat in the list looking usable.
+- **Four generated classes were applied but never defined**, so the elements using them
+  rendered unstyled with nothing to indicate why: the labels in the standard-style editor,
+  the name on each saved-layout card, the "Editing:" banner text, and the labels on the
+  layout toggles.
+- **The multi-column command spoke Turkish.** Its options and the text it inserted into the
+  note were `2 Sütun` / `Sütun 1 içeriği`, in a plugin that is otherwise entirely English.
+  The inserted panels also now carry a title, so the result is readable before you edit it.
+
+### Added
+
+- **Grouped values work on every parameter.** `key:(a, b)` was only ever shorthand for
+  writing the key once per value, so it is now expanded into repeated pairs before parsing
+  instead of being handled by a branch that knew about `text:`, `title:` and `link:` alone.
+  `bg:(red)` used to set the background to the literal string `(red)`; where repeating a key
+  makes no sense the last value simply wins.
+- **`bw:` and `bs:`** as shorthands for `border-width:` and `border-style:`.
+- **42 more tests**, 111 in total. Beyond the parser cases, three of them are structural
+  guards over the things that keep breaking: that the style form's save and load halves
+  agree, that every generated CSS class the code applies actually exists in the stylesheet,
+  and that no styling is assigned from JavaScript.
+
+### Changed
+
+- **One definition each of the things that were duplicated.** The balanced-parenthesis scan
+  lived in three places, each slightly different and two of them wrong; the alias table in
+  two; the 15% background tint in three. Each is now written once and imported. This is not
+  tidiness for its own sake — every bug in the settings section of this release was a copy
+  that had drifted from its original.
+- **`no-icon` no longer adds an unused `no-icon` class** to the callout element. Nothing in
+  the stylesheet has ever read it; icons are hidden through `sc-hidden` as before.
+- **Removed `throttle` and `applyCssText`**, neither of which was called from anywhere.
+  `applyCssText` in particular was a helper for applying a block of CSS text from
+  JavaScript — the exact pattern v1.0.6 was spent removing.
+
+### Credit
+
+Several of the parser fixes here were found by [Rohit
+Nahar](https://github.com/RohitNahar-Offical) in
+[#9](https://github.com/ahseyg/special-callouts/pull/9) and adapted rather than merged —
+see that thread for what was taken and why.
+
+---
+
 ## [1.0.8] - 2026-08-18
 
 ### Added

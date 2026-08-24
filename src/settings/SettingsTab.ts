@@ -12,10 +12,10 @@
  */
 
 import { App, PluginSettingTab, Plugin, Setting, setIcon, Notice, Modal, TextAreaComponent, ButtonComponent, DropdownComponent, SliderComponent, ToggleComponent } from 'obsidian';
-import { SpecialCalloutsSettings, CalloutStyle } from '../types';
-import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS } from '../constants';
-import { isValidHex, normalizeHex } from '../utils';
-import { parseMetadata } from '../parser';
+import { SpecialCalloutsSettings, CalloutStyle, CustomLayout } from '../types';
+import { BG_TINT_OPACITY, DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS, RESERVED_FLAG_NAMES, resolveCalloutType } from '../constants';
+import { createTransparentBg, isValidHex, normalizeHex } from '../utils';
+import { findMetadataSpan, parseMetadata } from '../parser';
 import { IconPickerModal } from '../modals/IconPickerModal';
 
 // Reference to plugin type (will be set as generic to avoid circular deps)
@@ -388,14 +388,38 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             btn.addClass('sc-style-7724b6b4');
             btn.onclick = () => { void (async () => {
                 try {
-                    const data = JSON.parse(area.getValue());
-                    if (Array.isArray(data)) {
-                        this.plugin.settings.customLayouts = data;
-                        await this.plugin.saveSettings();
-                        new Notice('Layouts imported!');
-                        modal.close();
-                        this.renderSettings();
+                    const data: unknown = JSON.parse(area.getValue());
+                    if (!Array.isArray(data)) {
+                        new Notice('Expected a JSON array of layouts.');
+                        return;
                     }
+
+                    // Anything that parses used to be written straight into settings, so a
+                    // stray array replaced every saved layout with entries the settings tab
+                    // then tried to read a name and a grid off. Keep only well-formed ones.
+                    const layouts = data.filter((entry): entry is CustomLayout =>
+                        !!entry && typeof entry === 'object' &&
+                        typeof (entry as CustomLayout).name === 'string' &&
+                        !!(entry as CustomLayout).name.trim() &&
+                        typeof (entry as CustomLayout).gridAreas === 'string' &&
+                        Number.isFinite((entry as CustomLayout).cols) &&
+                        Number.isFinite((entry as CustomLayout).rows)
+                    );
+
+                    if (layouts.length === 0) {
+                        new Notice('No usable layouts in that JSON.');
+                        return;
+                    }
+
+                    this.plugin.settings.customLayouts = layouts;
+                    await this.plugin.saveSettings();
+                    new Notice(
+                        layouts.length === data.length
+                            ? `Imported ${layouts.length} layout(s).`
+                            : `Imported ${layouts.length} of ${data.length} layout(s); the rest were malformed.`
+                    );
+                    modal.close();
+                    this.renderSettings();
                 } catch(e) {
                     new Notice('Invalid JSON');
                 }
@@ -415,6 +439,15 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             }
             
             const cleanName = this.builderLayoutName.toLowerCase().replace(/\s+/g, '_');
+
+            // A layout is applied by writing its name as a bare word, the same form the
+            // built-in flags take. Naming one after a flag would make that flag unusable
+            // everywhere in the vault.
+            if (RESERVED_FLAG_NAMES.includes(cleanName)) {
+                new Notice(`"${cleanName}" is a built-in parameter name. Choose a different layout name.`);
+                return;
+            }
+
             const existingIdx = this.plugin.settings.customLayouts.findIndex(l => l.name === cleanName);
             
             // Read matrix
@@ -650,8 +683,14 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     }
 
     openStandardStyleEditor(styleName: string): void {
-        const style = this.plugin.settings.standardStyles[styleName];
-        if (!style) return;
+        const saved = this.plugin.settings.standardStyles[styleName];
+        if (!saved) return;
+
+        // Edit a copy. The colour inputs fire on every keystroke, and while they wrote
+        // straight into the settings object Cancel could not undo anything — the edit was
+        // already live in memory, the renderer already saw it, and the next save from
+        // anywhere else in the tab committed it to disk.
+        const style: CalloutStyle = { ...saved };
 
         const editorModal = new Modal(this.app);
         editorModal.titleEl.setText(`Edit "${styleName}" Style`);
@@ -1256,7 +1295,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.tempBorder = importedStyle.border || this.tempBorder;
                 this.tempText = importedStyle.text || this.tempText;
                 this.tempLink = importedStyle.link || this.tempLink;
-                this.tempTitleColor = importedStyle.titleColor || this.tempBg;
+                this.tempTitleColor = importedStyle.titleColor || this.tempTitleColor;
                 this.tempIcon = importedStyle.icon || this.tempIcon;
                 this.tempBoldBorder = importedStyle.boldBorder || false;
 
@@ -1398,24 +1437,12 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         setIcon(editBtn, 'pencil');
         editBtn.onclick = () => {
             this.editingIndex = i;
-            this.tempName = s.name;
-            this.tempIcon = s.icon;
-            this.tempBg = s.bg;
-            this.tempBorder = s.border;
-            this.tempText = s.text;
-            this.tempLink = s.link;
-            this.tempTitleColor = s.titleColor || s.bg;
-            this.tempBoldBorder = s.boldBorder || false;
-            this.tempFont = s.font || '';
-            this.tempFontSize = s.fontSize || 3;
-            this.tempBorderWidth = s.borderWidth || '';
-            this.tempBorderStyle = s.borderStyle || 'solid';
-            this.tempBorderRadius = s.borderRadius || '';
-            this.tempNeon = s.neon || '';
-            this.tempNoIcon = s.noIcon || false;
-            this.tempCompact = s.compact || false;
-            this.tempCenter = s.center || false;
-            this.tempTitleCenter = s.titleCenter || false;
+            // This used to be a hand-written second copy of loadStyleToForm, and it had
+            // already fallen behind: it never restored iconColor, so editing a preset with
+            // its own icon colour and saving discarded it. The same shape of bug cost
+            // center and titleCenter in 1.0.8. One loader now, so it cannot happen a third
+            // time.
+            this.loadStyleToForm(s);
             this.renderSettings();
             container.scrollIntoView({ behavior: 'smooth' });
         };
@@ -1558,19 +1585,45 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         const addBtn = addColorRow.createEl('button', { text: 'Add' });
         addBtn.addClass('sc-style-915f964b');
         addBtn.onclick = () => { void (async () => {
-            if (this.newCustomColorName.trim() && isValidHex(this.newCustomColorHex)) {
-                this.plugin.settings.customColors.push({
-                    name: this.newCustomColorName.trim(),
-                    hex: this.newCustomColorHex
-                });
-                await this.plugin.saveSettings();
-                nameInput.value = '';
-                hexInput.value = '#FFFFFF';
-                this.newCustomColorName = '';
-                this.newCustomColorHex = '#FFFFFF';
-                colorPicker.value = '#FFFFFF';
-                this.renderSettings();
+            // Every one of these used to be a silent no-op: the button did nothing and said
+            // nothing, so an invalid hex or a name that could never resolve looked like a
+            // broken button rather than a rejected entry.
+            const name = this.newCustomColorName.trim();
+
+            if (!name) {
+                new Notice('Give the colour a name.');
+                return;
             }
+
+            if (!isValidHex(this.newCustomColorHex)) {
+                new Notice('Enter a valid hex code, for example #1A73E8.');
+                return;
+            }
+
+            // resolveColor checks the standard palette first, so a custom colour sharing one
+            // of those names can never be reached — it would sit in the list looking usable.
+            if (this.plugin.settings.standardColors[name.toLowerCase()]) {
+                new Notice(`"${name}" is a standard colour name. Pick another, or edit the standard one above.`);
+                return;
+            }
+
+            const existing = this.plugin.settings.customColors.find(
+                c => c.name.toLowerCase() === name.toLowerCase()
+            );
+            if (existing) {
+                new Notice(`"${existing.name}" already exists. Delete it first to redefine it.`);
+                return;
+            }
+
+            this.plugin.settings.customColors.push({ name, hex: this.newCustomColorHex });
+            await this.plugin.saveSettings();
+
+            nameInput.value = '';
+            hexInput.value = '#FFFFFF';
+            this.newCustomColorName = '';
+            this.newCustomColorHex = '#FFFFFF';
+            colorPicker.value = '#FFFFFF';
+            this.renderSettings();
         })(); };
 
         this.plugin.settings.customColors.forEach((c, i) => {
@@ -1661,7 +1714,10 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         this.tempText = s.text || '#333333';
         this.tempLink = s.link || '#dfe4ea';
         this.tempIcon = s.icon || '';
-        this.tempTitleColor = s.titleColor || s.bg;
+        // Falling back to the background here meant that opening a preset with no title
+        // colour and saving it again wrote the background in as an explicit one, locking the
+        // title to a colour the user never chose.
+        this.tempTitleColor = s.titleColor || '';
         this.tempIconColor = s.iconColor || '';
         this.tempBoldBorder = s.boldBorder || false;
         this.tempFont = s.font || '';
@@ -1686,14 +1742,22 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
         const newStyle = this.getStyleFromForm();
 
+        // Every lookup for a style — by `style:`, by callout type, by command id — is
+        // case-insensitive, so the uniqueness check has to be too. It also has to run when
+        // renaming, not only when creating: renaming one preset onto another's name left
+        // two entries answering to it, and only the first was ever reachable.
+        const clash = this.plugin.settings.customStyles.findIndex(
+            (s, i) => i !== this.editingIndex && s.name.toLowerCase() === newStyle.name.toLowerCase()
+        );
+        if (clash !== -1) {
+            new Notice(`A style named "${this.plugin.settings.customStyles[clash].name}" already exists.`);
+            return;
+        }
+
         if (this.editingIndex !== null) {
             this.plugin.settings.customStyles[this.editingIndex] = newStyle;
             this.editingIndex = null;
         } else {
-            if (this.plugin.settings.customStyles.some(s => s.name === newStyle.name)) {
-                new Notice('Name already exists!');
-                return;
-            }
             this.plugin.settings.customStyles.push(newStyle);
         }
 
@@ -1710,7 +1774,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         if (this.tempBg && (this.tempBg.includes('gradient') || this.tempBg.startsWith('url'))) {
             el.addClass('sc-var-background'); el.setCssProps({ '--sc-dyn-background': this.tempBg  });
         } else {
-            el.addClass('sc-var-background'); el.setCssProps({ '--sc-dyn-background': `color-mix(in srgb, ${this.tempBg} 15%, transparent)` });
+            el.addClass('sc-var-background'); el.setCssProps({ '--sc-dyn-background': createTransparentBg(this.tempBg, BG_TINT_OPACITY) });
         }
 
         // Borders
@@ -1992,17 +2056,6 @@ class ImportStyleModal extends Modal {
                 let detectedType = '';
                 let detectedMetadata = '';
 
-                const ALIAS_MAP: Record<string, string> = {
-                    'summary': 'abstract', 'tldr': 'abstract',
-                    'hint': 'tip', 'important': 'tip',
-                    'check': 'success', 'done': 'success',
-                    'help': 'question', 'faq': 'question',
-                    'caution': 'warning', 'attention': 'warning',
-                    'fail': 'failure', 'missing': 'failure',
-                    'error': 'danger',
-                    'cite': 'quote'
-                };
-
                 const lines = text.split('\n');
                 const calloutLine = lines.find(l => l.match(/^\s*>?\s*\[!.*?\]/)) || text;
 
@@ -2012,10 +2065,14 @@ class ImportStyleModal extends Modal {
                 }
 
                 let metadataStr = '';
-                const parenMatch = calloutLine.match(/\((.*?)\)/);
+                // The same balanced scan the renderer uses. A /\((.*?)\)/ here stopped at
+                // the first ')', so pasting a callout with a grouped value such as
+                // text:(white, dark-border) imported only half of it.
+                const bracketEnd = calloutLine.indexOf(']');
+                const parenMatch = findMetadataSpan(calloutLine, bracketEnd === -1 ? 0 : bracketEnd + 1);
 
                 if (parenMatch) {
-                    metadataStr = parenMatch[1];
+                    metadataStr = parenMatch.content;
                 } else if (calloutLine.includes('|')) {
                     const parts = calloutLine.split('|');
                     if (parts.length > 1) metadataStr = parts.slice(1).join('|').trim();
@@ -2040,10 +2097,8 @@ class ImportStyleModal extends Modal {
 
                 let inherited = false;
                 if (detectedType) {
-                    let lookupType = detectedType;
-                    if (ALIAS_MAP[detectedType]) {
-                        lookupType = ALIAS_MAP[detectedType];
-                    }
+                    // Same table the renderer uses, so the importer cannot fall behind it.
+                    const lookupType = resolveCalloutType(detectedType);
 
                     const existingCustom = this.settings.customStyles.find(
                         s => s.name.toLowerCase() === detectedType

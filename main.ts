@@ -12,6 +12,7 @@ import { App, Plugin, Editor, FuzzySuggestModal } from 'obsidian';
 import { SpecialCalloutsSettings } from './src/types';
 import { DEFAULT_SETTINGS } from './src/constants';
 import { CalloutProcessor } from './src/processor';
+import { findMetadataSpan } from './src/parser';
 import { CustomCalloutSuggester } from './src/modals/SuggesterModal';
 import { SpecialCalloutsSettingTab } from './src/settings/SettingsTab';
 import { AdvancedBuilderModal } from './src/modals/AdvancedBuilderModal';
@@ -51,31 +52,6 @@ function formatMetadata(raw: string | undefined): string {
     if (!meta) return '';
     const inner = meta.startsWith('(') && meta.endsWith(')') ? meta.slice(1, -1).trim() : meta;
     return inner ? ` (${inner})` : '';
-}
-
-/**
- * Locates the metadata block following `]` on a callout line.
- *
- * Counts parenthesis depth the same way parser.ts extractMetadata does, so grouped values
- * like text:(white, dark-border) are matched in full instead of being cut at the first ')'.
- */
-function findMetadataSpan(
-    line: string,
-    from: number
-): { start: number; end: number; content: string } | null {
-    let i = from;
-    while (i < line.length && line[i] === ' ') i++;
-    if (line[i] !== '(') return null;
-
-    let depth = 0;
-    for (let j = i; j < line.length; j++) {
-        if (line[j] === '(') depth++;
-        else if (line[j] === ')') {
-            depth--;
-            if (depth === 0) return { start: i, end: j, content: line.slice(i + 1, j) };
-        }
-    }
-    return null;
 }
 
 /**
@@ -150,13 +126,15 @@ export default class SpecialCallouts extends Plugin {
             id: 'insert-multi-column-layout',
             name: 'Insert Multi-Column Layout...',
             editorCallback: (editor) => {
-                const options = ['2 Sütun', '3 Sütun', '4 Sütun'];
+                const options = ['2 columns', '3 columns', '4 columns'];
                 new ColumnSuggesterModal(this.app, options, (choice: string) => {
                     if (!choice) return;
-                    const cols = parseInt(choice.split(' ')[0]);
+                    const cols = parseInt(choice);
+                    if (isNaN(cols) || cols < 1) return;
+
                     let template = `> [!multi-callout]\n>\n`;
                     for (let i = 1; i <= cols; i++) {
-                        template += `>> [!note] (${i}:${cols})\n>> Sütun ${i} içeriği\n>\n`;
+                        template += `>> [!note] (${i}:${cols}) Panel ${i}\n>> Content\n>\n`;
                     }
                     editor.replaceRange(template, editor.getCursor());
                 }).open();
@@ -246,8 +224,21 @@ export default class SpecialCallouts extends Plugin {
         this.processor.cleanup();
     }
 
+    /**
+     * Loads settings, filling in defaults the saved file predates.
+     *
+     * Object.assign is shallow: it hands back a saved `standardStyles` or `standardColors`
+     * object whole, so anything added to the defaults after a vault first saved its
+     * settings would never appear there. Merging those two records key by key — defaults
+     * first, the user's own values over the top — means a new standard type or palette
+     * entry reaches existing vaults without touching what they have changed.
+     */
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Partial<SpecialCalloutsSettings>);
+        const saved = ((await this.loadData()) || {}) as Partial<SpecialCalloutsSettings>;
+
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        this.settings.standardStyles = Object.assign({}, DEFAULT_SETTINGS.standardStyles, saved.standardStyles);
+        this.settings.standardColors = Object.assign({}, DEFAULT_SETTINGS.standardColors, saved.standardColors);
     }
 
     async saveSettings(): Promise<void> {

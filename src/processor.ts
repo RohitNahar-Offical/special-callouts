@@ -6,8 +6,8 @@
  */
 
 import { CalloutStyle, CalloutConfig, SpecialCalloutsSettings } from './types';
-import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES } from './constants';
-import { resolveColor, applyTextBorder, debounce, toPx, neonStyles } from './utils';
+import { BG_TINT_OPACITY, DEFAULT_CALLOUT_CONFIG, DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES, resolveCalloutType } from './constants';
+import { resolveColor, applyTextBorder, createTransparentBg, debounce, toPx, neonStyles, isCssGradient } from './utils';
 import { parseMetadata, parseGridLayout, extractMetadata } from './parser';
 import { setIcon } from 'obsidian';
 
@@ -71,8 +71,11 @@ export class CalloutProcessor {
     private applyStandardStyleIfModified(calloutEl: HTMLElement, calloutType: string | null): void {
         if (!calloutType) return;
 
-        const standardStyle = this.settings.standardStyles[calloutType.toLowerCase()];
-        const defaultStyle = DEFAULT_STANDARD_STYLES[calloutType.toLowerCase()];
+        // [!tldr] is Obsidian's own alias for [!abstract] and renders identically, so a
+        // recoloured abstract has to reach it too.
+        const resolvedType = resolveCalloutType(calloutType);
+        const standardStyle = this.settings.standardStyles[resolvedType];
+        const defaultStyle = DEFAULT_STANDARD_STYLES[resolvedType];
 
         if (standardStyle && defaultStyle) {
             const isModified = standardStyle.bg !== defaultStyle.bg ||
@@ -232,8 +235,13 @@ export class CalloutProcessor {
             if (config.border === 'none') {
                 calloutEl.setAttribute('data-sc-no-border', '');
             } else {
+                // The width belongs in the shorthand. Writing 1px here and leaving
+                // border-width to the later data-sc-bw rule worked only because that rule
+                // is declared afterwards in styles.css — the two paths disagreed and CSS
+                // order was hiding it.
                 const style = config.borderStyle || 'solid';
-                calloutEl.setCssProps({ '--sc-border': `1px ${style} ${config.border}` });
+                const width = config.borderWidth ? toPx(config.borderWidth) : '1px';
+                calloutEl.setCssProps({ '--sc-border': `${width} ${style} ${config.border}` });
                 calloutEl.setAttribute('data-sc-border', '');
             }
         }
@@ -300,15 +308,27 @@ export class CalloutProcessor {
      * Applies gradient background
      */
     private applyGradient(calloutEl: HTMLElement, gradient: string): void {
-        const colors = gradient.split('-');
-        if (colors.length === 2) {
-            const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
-            const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
-            // Use CSS var + data attribute; .callout[data-sc-gradient] rule in styles.css applies it
-            calloutEl.setCssProps({ '--sc-gradient': `linear-gradient(90deg, ${c1}, ${c2})` });
-            calloutEl.setAttribute('data-sc-gradient', '');
-            calloutEl.setAttribute('data-sc-no-border', '');
+        let value: string | null = null;
+
+        if (isCssGradient(gradient)) {
+            // A saved style holds the finished function; splitting it on '-' would cut
+            // `linear-gradient` in two and leave the callout with no background at all.
+            value = gradient.trim();
+        } else {
+            const colors = gradient.split('-');
+            if (colors.length === 2) {
+                const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
+                const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
+                value = `linear-gradient(90deg, ${c1}, ${c2})`;
+            }
         }
+
+        if (!value) return;
+
+        // Use CSS var + data attribute; .callout[data-sc-gradient] rule in styles.css applies it
+        calloutEl.setCssProps({ '--sc-gradient': value });
+        calloutEl.setAttribute('data-sc-gradient', '');
+        calloutEl.setAttribute('data-sc-no-border', '');
     }
 
     /**
@@ -384,17 +404,37 @@ export class CalloutProcessor {
     private setupCustomLayoutObserver(calloutEl: HTMLElement): void {
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
-        
+
         const observer = new MutationObserver(() => {
+            if (!calloutEl.isConnected) return;
             this.applyAreasToChildren(contentEl as HTMLElement);
         });
-        
+
         observer.observe(contentEl, { childList: true });
-        
-        // Clean up previous observer if exists
-        if (this.observers.has(calloutEl)) {
-            this.observers.get(calloutEl)?.disconnect();
-        }
+        this.registerObserver(calloutEl, observer);
+    }
+
+    /**
+     * Stores an observer against its callout, replacing any previous one, and drops
+     * entries whose element has left the document.
+     *
+     * The map has to stay strong so onunload can disconnect everything. That means a
+     * callout the user has scrolled or navigated away from would otherwise sit in it for
+     * as long as the plugin is loaded, holding its observer and the closure over its
+     * content element. Sweeping on insert bounds the map by the callouts actually on
+     * screen. A WeakMap would collect on its own but leaves nothing to disconnect at
+     * unload, and observers that outlive the plugin keep calling back into it.
+     */
+    private registerObserver(calloutEl: HTMLElement, observer: MutationObserver): void {
+        this.observers.get(calloutEl)?.disconnect();
+
+        this.observers.forEach((existing, el) => {
+            if (!el.isConnected) {
+                existing.disconnect();
+                this.observers.delete(el);
+            }
+        });
+
         this.observers.set(calloutEl, observer);
     }
     
@@ -428,101 +468,57 @@ export class CalloutProcessor {
     }
 
     /**
-     * Applies a style object to callout
+     * Applies a saved style object to a callout.
+     *
+     * A saved style is inline metadata that happens to be stored rather than typed, so it
+     * goes through the same applyConfig as everything else. Keeping a second copy of the
+     * apply logic here is what let the two drift: this path folded the border width into
+     * the --sc-border shorthand while the inline path hardcoded 1px, and it applied the
+     * three colours unguarded, so a style with an empty bg wrote
+     * `color-mix(in srgb,  15%, transparent)` — invalid at computed-value time, which drops
+     * the background to transparent instead of leaving Obsidian's default alone.
+     *
+     * Fields CalloutStyle does not carry (gradient, dense, the readability strokes) simply
+     * stay at their defaults; there is no separate behaviour to maintain for them.
      */
     applyStyleObject(calloutEl: HTMLElement, style: CalloutStyle): void {
-        this.applyColor(calloutEl, style.bg);
-        this.applyTextColor(calloutEl, style.text);
-        this.applyLinkColor(calloutEl, style.link);
+        // The style editor composes a gradient into the bg field rather than a field of its
+        // own, so a gradient preset used to reach applyColor and be wrapped in color-mix() —
+        // invalid, and the callout rendered with no background.
+        const bgIsGradient = !!style.bg && isCssGradient(style.bg);
 
-        if (style.border) {
-            const width = style.borderWidth ? toPx(style.borderWidth) : (style.boldBorder ? '4px' : '1px');
-
-            const bStyle = style.borderStyle || 'solid';
-            // CSS var + data attr; .callout[data-sc-border] in styles.css applies with !important
-            calloutEl.setCssProps({ '--sc-border': `${width} ${bStyle} ${style.border}` });
-            calloutEl.setAttribute('data-sc-border', '');
-        }
-
-        if (style.titleColor) {
-            calloutEl.setCssProps({ '--sc-title-color': style.titleColor });
-            calloutEl.setAttribute('data-sc-title-color', '');
-        }
-
-        if (style.iconColor) {
-            calloutEl.setCssProps({ '--sc-icon-color': style.iconColor });
-            calloutEl.setAttribute('data-sc-icon-color', '');
-        }
-
-        if (style.font && FONT_FAMILIES[style.font]) {
-            calloutEl.setCssProps({ '--font-interface': FONT_FAMILIES[style.font], '--sc-font-family': FONT_FAMILIES[style.font] });
-            calloutEl.setAttribute('data-sc-font', '');
-        }
-
-        if (style.fontSize && FONT_SIZES[style.fontSize]) {
-            calloutEl.setCssProps({ '--sc-font-size': FONT_SIZES[style.fontSize] });
-            calloutEl.setAttribute('data-sc-fontsize', '');
-        }
-
-        // Advanced Borders
-        // AI_CONTEXT: Uses the plugin's own --sc-border-width, not Obsidian's
-        // --callout-border-width, so it goes through the same styles.css rule as inline
-        // metadata. The old variable was also written unitless, which was invalid CSS.
-        if (style.borderWidth) {
-            calloutEl.setCssProps({ '--sc-border-width': toPx(style.borderWidth) });
-            calloutEl.setAttribute('data-sc-bw', '');
-        }
-        if (style.borderStyle) {
-            calloutEl.setCssProps({ '--sc-border-style': style.borderStyle });
-            calloutEl.setAttribute('data-sc-bs', '');
-        }
-        if (style.borderRadius) {
-            calloutEl.setCssProps({ '--sc-radius': toPx(style.borderRadius) });
-            calloutEl.setAttribute('data-sc-radius', '');
-        }
-
-        // Layout & Effects
-        if (style.noIcon) {
-            calloutEl.classList.add('no-icon');
-            const icon = calloutEl.querySelector('.callout-icon');
-            if (icon) (icon as HTMLElement).addClass('sc-hidden');
-        } else if (style.icon) {
-            let iconEl = calloutEl.querySelector('.callout-icon');
-            if (!iconEl) {
-                const titleEl = calloutEl.querySelector('.callout-title');
-                if (titleEl) {
-                    iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-                    titleEl.prepend(iconEl);
-                }
-            }
-            if (iconEl) {
-                this.forceApplyIcon(iconEl as HTMLElement, style.icon);
-            }
-        }
-
-        if (style.compact) {
-            // CSS .callout[data-compact="true"] in styles.css handles all padding overrides
-            calloutEl.setAttribute('data-compact', 'true');
-        }
-
-        if (style.center) {
-            calloutEl.setAttribute('data-center', 'true');
-        } else if (style.titleCenter) {
-            calloutEl.setAttribute('data-title-center', 'true');
-        }
-
-        if (style.neon) {
-            calloutEl.setCssProps(neonStyles(style.neon));
-            calloutEl.setAttribute('data-sc-neon', '');
-        }
+        this.applyConfig(calloutEl, {
+            ...DEFAULT_CALLOUT_CONFIG,
+            bg: bgIsGradient ? '' : (style.bg || ''),
+            gradient: bgIsGradient ? style.bg : '',
+            text: style.text || '',
+            link: style.link || '',
+            titleColor: style.titleColor || '',
+            iconColor: style.iconColor || '',
+            border: style.border || '',
+            // boldBorder predates border-width and means the same thing; an explicit width wins.
+            borderWidth: style.borderWidth || (style.boldBorder ? '4px' : ''),
+            borderStyle: style.borderStyle || '',
+            radius: style.borderRadius || '',
+            neon: style.neon || '',
+            font: style.font || '',
+            fontSize: style.fontSize ?? null,
+            icon: style.icon || null,
+            noIcon: !!style.noIcon,
+            compact: !!style.compact,
+            center: !!style.center,
+            titleCenter: !!style.titleCenter
+        });
     }
 
     /**
      * Applies background color
      */
     applyColor(callout: HTMLElement, color: string): void {
-        // CSS var + data attr; .callout[data-sc-bg] rule in styles.css applies !important
-        callout.setCssProps({ '--sc-bg-color': `color-mix(in srgb, ${color} 15%, transparent)` });
+        // CSS var + data attr; .callout[data-sc-bg] rule in styles.css applies !important.
+        // The 15% is the single most surprising thing about bg:, so it is expressed once in
+        // createTransparentBg rather than spelled out at each call site.
+        callout.setCssProps({ '--sc-bg-color': createTransparentBg(color, BG_TINT_OPACITY) });
         callout.setAttribute('data-sc-bg', '');
     }
 
@@ -558,6 +554,9 @@ export class CalloutProcessor {
      */
     applyColumnsToContainer(container: HTMLElement, colCount: number): void {
         window.requestAnimationFrame(() => {
+            // A frame is long enough for the note to have been closed underneath us.
+            if (!container.isConnected) return;
+
             const contentEl = container.querySelector('.callout-content');
             if (!contentEl) return;
 
@@ -607,6 +606,12 @@ export class CalloutProcessor {
 
         retryDelays.forEach(delay => {
             window.setTimeout(() => {
+                // The last retry lands two seconds out; by then the note may be closed.
+                // Every delay still runs while the callout is on screen — a Dataview list
+                // can be in the DOM at 100ms and not finished, which is what the later
+                // attempts are for.
+                if (!calloutEl.isConnected) return;
+
                 const contentEl = calloutEl.querySelector('.callout-content');
                 if (!contentEl) return;
 
@@ -622,14 +627,11 @@ export class CalloutProcessor {
      * Sets up mutation observer for dynamic content
      */
     setupObserver(calloutEl: HTMLElement, colCount: number): void {
-        if (this.observers.has(calloutEl)) {
-            this.observers.get(calloutEl)?.disconnect();
-        }
-
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
 
         const observer = new MutationObserver((mutations) => {
+            if (!calloutEl.isConnected) return;
             let update = false;
             mutations.forEach(m => {
                 if (m.addedNodes.length > 0) {
@@ -649,7 +651,7 @@ export class CalloutProcessor {
         });
 
         observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
-        this.observers.set(calloutEl, observer);
+        this.registerObserver(calloutEl, observer);
     }
 
     /**

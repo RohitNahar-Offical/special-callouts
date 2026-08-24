@@ -30,6 +30,8 @@ module.exports = __toCommonJS(main_exports);
 var import_obsidian6 = require("obsidian");
 
 // src/constants.ts
+var RESERVED_FLAG_NAMES = ["no-icon", "noicon", "center", "compact", "dense"];
+var BG_TINT_OPACITY = 15;
 var DEFAULT_STANDARD_COLORS = {
   red: "#e74c3c",
   blue: "#3498db",
@@ -57,6 +59,26 @@ var DEFAULT_STANDARD_STYLES = {
   example: { name: "example", bg: "#7c4dff", border: "#7c4dff", text: "", link: "", icon: "list", titleColor: "" },
   quote: { name: "quote", bg: "#9e9e9e", border: "#9e9e9e", text: "", link: "", icon: "quote", titleColor: "" }
 };
+var CALLOUT_TYPE_ALIASES = {
+  summary: "abstract",
+  tldr: "abstract",
+  hint: "tip",
+  important: "tip",
+  check: "success",
+  done: "success",
+  help: "question",
+  faq: "question",
+  caution: "warning",
+  attention: "warning",
+  fail: "failure",
+  missing: "failure",
+  error: "danger",
+  cite: "quote"
+};
+function resolveCalloutType(calloutType) {
+  const lowered = calloutType.toLowerCase();
+  return CALLOUT_TYPE_ALIASES[lowered] || lowered;
+}
 var DEFAULT_SETTINGS = {
   customColors: [],
   standardColors: { ...DEFAULT_STANDARD_COLORS },
@@ -137,6 +159,12 @@ function resolveColor(value, standardColors, customColors) {
   if (custom) return custom.hex;
   return value;
 }
+function createTransparentBg(color, opacity = 10) {
+  return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+function isCssGradient(value) {
+  return /^(repeating-)?(linear|radial|conic)-gradient\(/i.test(value.trim());
+}
 function toPx(value) {
   const raw = String(value).trim();
   if (!raw) return "";
@@ -176,30 +204,64 @@ function applyTextBorder(element, borderType) {
 // src/parser.ts
 var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
 var GROUP_REGEX = /^\(([^)]+)\)$/;
+var MASK_CHAR = "\0";
+function maskGroups(content) {
+  let depth = 0;
+  let masked = "";
+  for (const char of content) {
+    if (char === "(") {
+      depth++;
+      masked += char;
+    } else if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      masked += char;
+    } else {
+      masked += depth > 0 ? MASK_CHAR : char;
+    }
+  }
+  return masked;
+}
+function expandGroups(params) {
+  const expanded = [];
+  params.forEach((pair) => {
+    const colon = pair.indexOf(":");
+    if (colon === -1) {
+      expanded.push(pair);
+      return;
+    }
+    const key = pair.slice(0, colon).trim();
+    const groupMatch = pair.slice(colon + 1).trim().match(GROUP_REGEX);
+    if (!key || !groupMatch) {
+      expanded.push(pair);
+      return;
+    }
+    groupMatch[1].split(",").map((value) => value.trim()).filter((value) => value).forEach((value) => expanded.push(`${key}:${value}`));
+  });
+  return expanded;
+}
 function parseMetadata(content, standardColors, customColors, customLayoutNames = []) {
   const config = { ...DEFAULT_CALLOUT_CONFIG };
   let layoutParam = null;
   let styleParam = null;
-  const layoutMatch = content.match(LAYOUT_REGEX);
+  const layoutMatch = maskGroups(content).match(LAYOUT_REGEX);
   let remainingContent = content;
-  if (layoutMatch) {
+  if (layoutMatch && layoutMatch.index !== void 0) {
     layoutParam = layoutMatch[1];
-    remainingContent = remainingContent.replace(layoutParam, "").replace(/,,/g, ",");
+    const tokenStart = layoutMatch.index + layoutMatch[0].indexOf(layoutParam);
+    remainingContent = remainingContent.slice(0, tokenStart) + remainingContent.slice(tokenStart + layoutParam.length);
   }
-  const params = smartSplit(remainingContent);
+  const params = expandGroups(smartSplit(remainingContent));
   if (layoutParam) params.push(layoutParam.trim());
   const styleParamValue = params.find((p) => p.toLowerCase().startsWith("style:"));
   if (styleParamValue) {
-    styleParam = styleParamValue.split(":")[1].trim().toLowerCase();
+    styleParam = styleParamValue.slice("style:".length).trim().toLowerCase();
+    if (!styleParam) styleParam = null;
   }
   const resolve = (val) => resolveColor(val, standardColors, customColors);
   params.forEach((pair) => {
     let key = "", rawValue = "";
     const loweredPair = pair.trim().toLowerCase();
-    if (customLayoutNames.includes(loweredPair)) {
-      config.customLayout = loweredPair;
-      return;
-    }
+    if (!loweredPair) return;
     if (loweredPair === "no-icon" || loweredPair === "noicon") {
       config.noIcon = true;
       return;
@@ -213,6 +275,10 @@ function parseMetadata(content, standardColors, customColors, customLayoutNames 
       if (loweredPair === "dense") config.dense = true;
       return;
     }
+    if (customLayoutNames.includes(loweredPair)) {
+      config.customLayout = loweredPair;
+      return;
+    }
     if (pair.includes(":")) {
       const parts = pair.split(":");
       key = parts[0].trim().toLowerCase();
@@ -220,25 +286,7 @@ function parseMetadata(content, standardColors, customColors, customLayoutNames 
     } else {
       return;
     }
-    const groupMatch = rawValue.match(GROUP_REGEX);
-    if (groupMatch && ["text", "title", "link"].includes(key)) {
-      const groupValues = groupMatch[1].split(",").map((v) => v.trim().toLowerCase());
-      groupValues.forEach((val) => {
-        if (["dark-border", "light-border"].includes(val)) {
-          if (key === "text") config.textBorder = val;
-          else if (key === "title") config.titleBorder = val;
-          else if (key === "link") config.linkBorder = val;
-        } else if (val === "center" && key === "title") {
-          config.titleCenter = true;
-        } else {
-          const color = resolve(val);
-          if (key === "text") config.text = color;
-          else if (key === "title") config.titleColor = color;
-          else if (key === "link") config.link = color;
-        }
-      });
-      return;
-    }
+    if (!key || !rawValue) return;
     const isBorderValue = ["dark-border", "light-border"].includes(rawValue.toLowerCase());
     switch (key) {
       case "col":
@@ -277,9 +325,11 @@ function parseMetadata(content, standardColors, customColors, customLayoutNames 
       case "border":
         config.border = resolve(rawValue);
         break;
+      case "bw":
       case "border-width":
         config.borderWidth = rawValue;
         break;
+      case "bs":
       case "border-style":
         config.borderStyle = rawValue;
         break;
@@ -341,24 +391,28 @@ function parseGridLayout(param) {
 }
 function extractMetadata(fullText) {
   const trimmedText = fullText.replace(/^\s+/, "");
-  if (!trimmedText.startsWith("(")) return null;
+  const span = findMetadataSpan(trimmedText, 0);
+  if (!span) return null;
+  return {
+    content: span.content,
+    title: trimmedText.substring(span.end + 1).trim()
+  };
+}
+function findMetadataSpan(line, from = 0) {
+  let i = from;
+  while (i < line.length && line[i] === " ") i++;
+  if (line[i] !== "(") return null;
   let depth = 0;
-  let endIndex = -1;
-  for (let i = 0; i < trimmedText.length; i++) {
-    if (trimmedText[i] === "(") depth++;
-    else if (trimmedText[i] === ")") {
+  for (let j = i; j < line.length; j++) {
+    if (line[j] === "(") depth++;
+    else if (line[j] === ")") {
       depth--;
       if (depth === 0) {
-        endIndex = i;
-        break;
+        return { start: i, end: j, content: line.slice(i + 1, j) };
       }
     }
   }
-  if (endIndex === -1) return null;
-  return {
-    content: trimmedText.substring(1, endIndex),
-    title: trimmedText.substring(endIndex + 1).trim()
-  };
+  return null;
 }
 
 // src/processor.ts
@@ -403,8 +457,9 @@ var CalloutProcessor = class {
    */
   applyStandardStyleIfModified(calloutEl, calloutType) {
     if (!calloutType) return;
-    const standardStyle = this.settings.standardStyles[calloutType.toLowerCase()];
-    const defaultStyle = DEFAULT_STANDARD_STYLES[calloutType.toLowerCase()];
+    const resolvedType = resolveCalloutType(calloutType);
+    const standardStyle = this.settings.standardStyles[resolvedType];
+    const defaultStyle = DEFAULT_STANDARD_STYLES[resolvedType];
     if (standardStyle && defaultStyle) {
       const isModified = standardStyle.bg !== defaultStyle.bg || standardStyle.text !== defaultStyle.text || standardStyle.titleColor !== defaultStyle.titleColor || standardStyle.link !== defaultStyle.link;
       if (isModified) {
@@ -522,7 +577,8 @@ var CalloutProcessor = class {
         calloutEl.setAttribute("data-sc-no-border", "");
       } else {
         const style = config.borderStyle || "solid";
-        calloutEl.setCssProps({ "--sc-border": `1px ${style} ${config.border}` });
+        const width = config.borderWidth ? toPx(config.borderWidth) : "1px";
+        calloutEl.setCssProps({ "--sc-border": `${width} ${style} ${config.border}` });
         calloutEl.setAttribute("data-sc-border", "");
       }
     }
@@ -569,14 +625,21 @@ var CalloutProcessor = class {
    * Applies gradient background
    */
   applyGradient(calloutEl, gradient) {
-    const colors = gradient.split("-");
-    if (colors.length === 2) {
-      const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
-      const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
-      calloutEl.setCssProps({ "--sc-gradient": `linear-gradient(90deg, ${c1}, ${c2})` });
-      calloutEl.setAttribute("data-sc-gradient", "");
-      calloutEl.setAttribute("data-sc-no-border", "");
+    let value = null;
+    if (isCssGradient(gradient)) {
+      value = gradient.trim();
+    } else {
+      const colors = gradient.split("-");
+      if (colors.length === 2) {
+        const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
+        const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
+        value = `linear-gradient(90deg, ${c1}, ${c2})`;
+      }
     }
+    if (!value) return;
+    calloutEl.setCssProps({ "--sc-gradient": value });
+    calloutEl.setAttribute("data-sc-gradient", "");
+    calloutEl.setAttribute("data-sc-no-border", "");
   }
   /**
    * Gets the direct wrapper of the callout under .callout-content,
@@ -634,16 +697,35 @@ var CalloutProcessor = class {
     this.applyAreasToChildren(content);
   }
   setupCustomLayoutObserver(calloutEl) {
-    var _a;
     const contentEl = calloutEl.querySelector(".callout-content");
     if (!contentEl) return;
     const observer = new MutationObserver(() => {
+      if (!calloutEl.isConnected) return;
       this.applyAreasToChildren(contentEl);
     });
     observer.observe(contentEl, { childList: true });
-    if (this.observers.has(calloutEl)) {
-      (_a = this.observers.get(calloutEl)) == null ? void 0 : _a.disconnect();
-    }
+    this.registerObserver(calloutEl, observer);
+  }
+  /**
+   * Stores an observer against its callout, replacing any previous one, and drops
+   * entries whose element has left the document.
+   *
+   * The map has to stay strong so onunload can disconnect everything. That means a
+   * callout the user has scrolled or navigated away from would otherwise sit in it for
+   * as long as the plugin is loaded, holding its observer and the closure over its
+   * content element. Sweeping on insert bounds the map by the callouts actually on
+   * screen. A WeakMap would collect on its own but leaves nothing to disconnect at
+   * unload, and observers that outlive the plugin keep calling back into it.
+   */
+  registerObserver(calloutEl, observer) {
+    var _a;
+    (_a = this.observers.get(calloutEl)) == null ? void 0 : _a.disconnect();
+    this.observers.forEach((existing, el) => {
+      if (!el.isConnected) {
+        existing.disconnect();
+        this.observers.delete(el);
+      }
+    });
     this.observers.set(calloutEl, observer);
   }
   applyAreasToChildren(contentEl) {
@@ -667,81 +749,50 @@ var CalloutProcessor = class {
     });
   }
   /**
-   * Applies a style object to callout
+   * Applies a saved style object to a callout.
+   *
+   * A saved style is inline metadata that happens to be stored rather than typed, so it
+   * goes through the same applyConfig as everything else. Keeping a second copy of the
+   * apply logic here is what let the two drift: this path folded the border width into
+   * the --sc-border shorthand while the inline path hardcoded 1px, and it applied the
+   * three colours unguarded, so a style with an empty bg wrote
+   * `color-mix(in srgb,  15%, transparent)` — invalid at computed-value time, which drops
+   * the background to transparent instead of leaving Obsidian's default alone.
+   *
+   * Fields CalloutStyle does not carry (gradient, dense, the readability strokes) simply
+   * stay at their defaults; there is no separate behaviour to maintain for them.
    */
   applyStyleObject(calloutEl, style) {
-    this.applyColor(calloutEl, style.bg);
-    this.applyTextColor(calloutEl, style.text);
-    this.applyLinkColor(calloutEl, style.link);
-    if (style.border) {
-      const width = style.borderWidth ? toPx(style.borderWidth) : style.boldBorder ? "4px" : "1px";
-      const bStyle = style.borderStyle || "solid";
-      calloutEl.setCssProps({ "--sc-border": `${width} ${bStyle} ${style.border}` });
-      calloutEl.setAttribute("data-sc-border", "");
-    }
-    if (style.titleColor) {
-      calloutEl.setCssProps({ "--sc-title-color": style.titleColor });
-      calloutEl.setAttribute("data-sc-title-color", "");
-    }
-    if (style.iconColor) {
-      calloutEl.setCssProps({ "--sc-icon-color": style.iconColor });
-      calloutEl.setAttribute("data-sc-icon-color", "");
-    }
-    if (style.font && FONT_FAMILIES[style.font]) {
-      calloutEl.setCssProps({ "--font-interface": FONT_FAMILIES[style.font], "--sc-font-family": FONT_FAMILIES[style.font] });
-      calloutEl.setAttribute("data-sc-font", "");
-    }
-    if (style.fontSize && FONT_SIZES[style.fontSize]) {
-      calloutEl.setCssProps({ "--sc-font-size": FONT_SIZES[style.fontSize] });
-      calloutEl.setAttribute("data-sc-fontsize", "");
-    }
-    if (style.borderWidth) {
-      calloutEl.setCssProps({ "--sc-border-width": toPx(style.borderWidth) });
-      calloutEl.setAttribute("data-sc-bw", "");
-    }
-    if (style.borderStyle) {
-      calloutEl.setCssProps({ "--sc-border-style": style.borderStyle });
-      calloutEl.setAttribute("data-sc-bs", "");
-    }
-    if (style.borderRadius) {
-      calloutEl.setCssProps({ "--sc-radius": toPx(style.borderRadius) });
-      calloutEl.setAttribute("data-sc-radius", "");
-    }
-    if (style.noIcon) {
-      calloutEl.classList.add("no-icon");
-      const icon = calloutEl.querySelector(".callout-icon");
-      if (icon) icon.addClass("sc-hidden");
-    } else if (style.icon) {
-      let iconEl = calloutEl.querySelector(".callout-icon");
-      if (!iconEl) {
-        const titleEl = calloutEl.querySelector(".callout-title");
-        if (titleEl) {
-          iconEl = titleEl.createDiv({ cls: "callout-icon" });
-          titleEl.prepend(iconEl);
-        }
-      }
-      if (iconEl) {
-        this.forceApplyIcon(iconEl, style.icon);
-      }
-    }
-    if (style.compact) {
-      calloutEl.setAttribute("data-compact", "true");
-    }
-    if (style.center) {
-      calloutEl.setAttribute("data-center", "true");
-    } else if (style.titleCenter) {
-      calloutEl.setAttribute("data-title-center", "true");
-    }
-    if (style.neon) {
-      calloutEl.setCssProps(neonStyles(style.neon));
-      calloutEl.setAttribute("data-sc-neon", "");
-    }
+    var _a;
+    const bgIsGradient = !!style.bg && isCssGradient(style.bg);
+    this.applyConfig(calloutEl, {
+      ...DEFAULT_CALLOUT_CONFIG,
+      bg: bgIsGradient ? "" : style.bg || "",
+      gradient: bgIsGradient ? style.bg : "",
+      text: style.text || "",
+      link: style.link || "",
+      titleColor: style.titleColor || "",
+      iconColor: style.iconColor || "",
+      border: style.border || "",
+      // boldBorder predates border-width and means the same thing; an explicit width wins.
+      borderWidth: style.borderWidth || (style.boldBorder ? "4px" : ""),
+      borderStyle: style.borderStyle || "",
+      radius: style.borderRadius || "",
+      neon: style.neon || "",
+      font: style.font || "",
+      fontSize: (_a = style.fontSize) != null ? _a : null,
+      icon: style.icon || null,
+      noIcon: !!style.noIcon,
+      compact: !!style.compact,
+      center: !!style.center,
+      titleCenter: !!style.titleCenter
+    });
   }
   /**
    * Applies background color
    */
   applyColor(callout, color) {
-    callout.setCssProps({ "--sc-bg-color": `color-mix(in srgb, ${color} 15%, transparent)` });
+    callout.setCssProps({ "--sc-bg-color": createTransparentBg(color, BG_TINT_OPACITY) });
     callout.setAttribute("data-sc-bg", "");
   }
   /**
@@ -773,6 +824,7 @@ var CalloutProcessor = class {
    */
   applyColumnsToContainer(container, colCount) {
     window.requestAnimationFrame(() => {
+      if (!container.isConnected) return;
       const contentEl = container.querySelector(".callout-content");
       if (!contentEl) return;
       const lists = contentEl.querySelectorAll("ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol");
@@ -812,6 +864,7 @@ var CalloutProcessor = class {
     const retryDelays = [100, 300, 600, 1e3, 2e3];
     retryDelays.forEach((delay) => {
       window.setTimeout(() => {
+        if (!calloutEl.isConnected) return;
         const contentEl = calloutEl.querySelector(".callout-content");
         if (!contentEl) return;
         const lists = contentEl.querySelectorAll("ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol");
@@ -825,13 +878,10 @@ var CalloutProcessor = class {
    * Sets up mutation observer for dynamic content
    */
   setupObserver(calloutEl, colCount) {
-    var _a;
-    if (this.observers.has(calloutEl)) {
-      (_a = this.observers.get(calloutEl)) == null ? void 0 : _a.disconnect();
-    }
     const contentEl = calloutEl.querySelector(".callout-content");
     if (!contentEl) return;
     const observer = new MutationObserver((mutations) => {
+      if (!calloutEl.isConnected) return;
       let update = false;
       mutations.forEach((m) => {
         if (m.addedNodes.length > 0) {
@@ -849,7 +899,7 @@ var CalloutProcessor = class {
       if (update) this.debouncedColumnApply(calloutEl, colCount);
     });
     observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
-    this.observers.set(calloutEl, observer);
+    this.registerObserver(calloutEl, observer);
   }
   /**
    * Safely applies an icon bypassing Obsidian's native override
@@ -1274,13 +1324,24 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         void (async () => {
           try {
             const data = JSON.parse(area.getValue());
-            if (Array.isArray(data)) {
-              this.plugin.settings.customLayouts = data;
-              await this.plugin.saveSettings();
-              new import_obsidian4.Notice("Layouts imported!");
-              modal.close();
-              this.renderSettings();
+            if (!Array.isArray(data)) {
+              new import_obsidian4.Notice("Expected a JSON array of layouts.");
+              return;
             }
+            const layouts = data.filter(
+              (entry) => !!entry && typeof entry === "object" && typeof entry.name === "string" && !!entry.name.trim() && typeof entry.gridAreas === "string" && Number.isFinite(entry.cols) && Number.isFinite(entry.rows)
+            );
+            if (layouts.length === 0) {
+              new import_obsidian4.Notice("No usable layouts in that JSON.");
+              return;
+            }
+            this.plugin.settings.customLayouts = layouts;
+            await this.plugin.saveSettings();
+            new import_obsidian4.Notice(
+              layouts.length === data.length ? `Imported ${layouts.length} layout(s).` : `Imported ${layouts.length} of ${data.length} layout(s); the rest were malformed.`
+            );
+            modal.close();
+            this.renderSettings();
           } catch (e) {
             new import_obsidian4.Notice("Invalid JSON");
           }
@@ -1300,6 +1361,10 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
           this.plugin.settings.customLayouts = [];
         }
         const cleanName = this.builderLayoutName.toLowerCase().replace(/\s+/g, "_");
+        if (RESERVED_FLAG_NAMES.includes(cleanName)) {
+          new import_obsidian4.Notice(`"${cleanName}" is a built-in parameter name. Choose a different layout name.`);
+          return;
+        }
         const existingIdx = this.plugin.settings.customLayouts.findIndex((l) => l.name === cleanName);
         let gridAreasStr = "";
         for (let r = 0; r < this.builderRows; r++) {
@@ -1500,8 +1565,9 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     });
   }
   openStandardStyleEditor(styleName) {
-    const style = this.plugin.settings.standardStyles[styleName];
-    if (!style) return;
+    const saved = this.plugin.settings.standardStyles[styleName];
+    if (!saved) return;
+    const style = { ...saved };
     const editorModal = new import_obsidian4.Modal(this.app);
     editorModal.titleEl.setText(`Edit "${styleName}" Style`);
     const { contentEl } = editorModal;
@@ -2051,7 +2117,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
         this.tempBorder = importedStyle.border || this.tempBorder;
         this.tempText = importedStyle.text || this.tempText;
         this.tempLink = importedStyle.link || this.tempLink;
-        this.tempTitleColor = importedStyle.titleColor || this.tempBg;
+        this.tempTitleColor = importedStyle.titleColor || this.tempTitleColor;
         this.tempIcon = importedStyle.icon || this.tempIcon;
         this.tempBoldBorder = importedStyle.boldBorder || false;
         this.renderSettings();
@@ -2174,24 +2240,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     (0, import_obsidian4.setIcon)(editBtn, "pencil");
     editBtn.onclick = () => {
       this.editingIndex = i;
-      this.tempName = s.name;
-      this.tempIcon = s.icon;
-      this.tempBg = s.bg;
-      this.tempBorder = s.border;
-      this.tempText = s.text;
-      this.tempLink = s.link;
-      this.tempTitleColor = s.titleColor || s.bg;
-      this.tempBoldBorder = s.boldBorder || false;
-      this.tempFont = s.font || "";
-      this.tempFontSize = s.fontSize || 3;
-      this.tempBorderWidth = s.borderWidth || "";
-      this.tempBorderStyle = s.borderStyle || "solid";
-      this.tempBorderRadius = s.borderRadius || "";
-      this.tempNeon = s.neon || "";
-      this.tempNoIcon = s.noIcon || false;
-      this.tempCompact = s.compact || false;
-      this.tempCenter = s.center || false;
-      this.tempTitleCenter = s.titleCenter || false;
+      this.loadStyleToForm(s);
       this.renderSettings();
       container.scrollIntoView({ behavior: "smooth" });
     };
@@ -2310,19 +2359,34 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     addBtn.addClass("sc-style-915f964b");
     addBtn.onclick = () => {
       void (async () => {
-        if (this.newCustomColorName.trim() && isValidHex(this.newCustomColorHex)) {
-          this.plugin.settings.customColors.push({
-            name: this.newCustomColorName.trim(),
-            hex: this.newCustomColorHex
-          });
-          await this.plugin.saveSettings();
-          nameInput.value = "";
-          hexInput.value = "#FFFFFF";
-          this.newCustomColorName = "";
-          this.newCustomColorHex = "#FFFFFF";
-          colorPicker.value = "#FFFFFF";
-          this.renderSettings();
+        const name = this.newCustomColorName.trim();
+        if (!name) {
+          new import_obsidian4.Notice("Give the colour a name.");
+          return;
         }
+        if (!isValidHex(this.newCustomColorHex)) {
+          new import_obsidian4.Notice("Enter a valid hex code, for example #1A73E8.");
+          return;
+        }
+        if (this.plugin.settings.standardColors[name.toLowerCase()]) {
+          new import_obsidian4.Notice(`"${name}" is a standard colour name. Pick another, or edit the standard one above.`);
+          return;
+        }
+        const existing = this.plugin.settings.customColors.find(
+          (c) => c.name.toLowerCase() === name.toLowerCase()
+        );
+        if (existing) {
+          new import_obsidian4.Notice(`"${existing.name}" already exists. Delete it first to redefine it.`);
+          return;
+        }
+        this.plugin.settings.customColors.push({ name, hex: this.newCustomColorHex });
+        await this.plugin.saveSettings();
+        nameInput.value = "";
+        hexInput.value = "#FFFFFF";
+        this.newCustomColorName = "";
+        this.newCustomColorHex = "#FFFFFF";
+        colorPicker.value = "#FFFFFF";
+        this.renderSettings();
       })();
     };
     this.plugin.settings.customColors.forEach((c, i) => {
@@ -2407,7 +2471,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
     this.tempText = s.text || "#333333";
     this.tempLink = s.link || "#dfe4ea";
     this.tempIcon = s.icon || "";
-    this.tempTitleColor = s.titleColor || s.bg;
+    this.tempTitleColor = s.titleColor || "";
     this.tempIconColor = s.iconColor || "";
     this.tempBoldBorder = s.boldBorder || false;
     this.tempFont = s.font || "";
@@ -2427,14 +2491,17 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       return;
     }
     const newStyle = this.getStyleFromForm();
+    const clash = this.plugin.settings.customStyles.findIndex(
+      (s, i) => i !== this.editingIndex && s.name.toLowerCase() === newStyle.name.toLowerCase()
+    );
+    if (clash !== -1) {
+      new import_obsidian4.Notice(`A style named "${this.plugin.settings.customStyles[clash].name}" already exists.`);
+      return;
+    }
     if (this.editingIndex !== null) {
       this.plugin.settings.customStyles[this.editingIndex] = newStyle;
       this.editingIndex = null;
     } else {
-      if (this.plugin.settings.customStyles.some((s) => s.name === newStyle.name)) {
-        new import_obsidian4.Notice("Name already exists!");
-        return;
-      }
       this.plugin.settings.customStyles.push(newStyle);
     }
     await this.plugin.saveSettings();
@@ -2448,7 +2515,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian4.PluginSettingTab 
       el.setCssProps({ "--sc-dyn-background": this.tempBg });
     } else {
       el.addClass("sc-var-background");
-      el.setCssProps({ "--sc-dyn-background": `color-mix(in srgb, ${this.tempBg} 15%, transparent)` });
+      el.setCssProps({ "--sc-dyn-background": createTransparentBg(this.tempBg, BG_TINT_OPACITY) });
     }
     let borderWidth = this.tempBoldBorder ? "5px" : "2px";
     if (this.tempBorderWidth) borderWidth = this.tempBorderWidth;
@@ -2682,22 +2749,6 @@ var ImportStyleModal = class extends import_obsidian4.Modal {
       }
       let detectedType = "";
       let detectedMetadata = "";
-      const ALIAS_MAP = {
-        "summary": "abstract",
-        "tldr": "abstract",
-        "hint": "tip",
-        "important": "tip",
-        "check": "success",
-        "done": "success",
-        "help": "question",
-        "faq": "question",
-        "caution": "warning",
-        "attention": "warning",
-        "fail": "failure",
-        "missing": "failure",
-        "error": "danger",
-        "cite": "quote"
-      };
       const lines = text.split("\n");
       const calloutLine = lines.find((l) => l.match(/^\s*>?\s*\[!.*?\]/)) || text;
       const typeMatch = calloutLine.match(/\[!(.*?)\]/);
@@ -2705,9 +2756,10 @@ var ImportStyleModal = class extends import_obsidian4.Modal {
         detectedType = typeMatch[1].trim().toLowerCase();
       }
       let metadataStr = "";
-      const parenMatch = calloutLine.match(/\((.*?)\)/);
+      const bracketEnd = calloutLine.indexOf("]");
+      const parenMatch = findMetadataSpan(calloutLine, bracketEnd === -1 ? 0 : bracketEnd + 1);
       if (parenMatch) {
-        metadataStr = parenMatch[1];
+        metadataStr = parenMatch.content;
       } else if (calloutLine.includes("|")) {
         const parts = calloutLine.split("|");
         if (parts.length > 1) metadataStr = parts.slice(1).join("|").trim();
@@ -2729,10 +2781,7 @@ var ImportStyleModal = class extends import_obsidian4.Modal {
       };
       let inherited = false;
       if (detectedType) {
-        let lookupType = detectedType;
-        if (ALIAS_MAP[detectedType]) {
-          lookupType = ALIAS_MAP[detectedType];
-        }
+        const lookupType = resolveCalloutType(detectedType);
         const existingCustom = this.settings.customStyles.find(
           (s) => s.name.toLowerCase() === detectedType
         );
@@ -2900,20 +2949,6 @@ function formatMetadata(raw) {
   const inner = meta.startsWith("(") && meta.endsWith(")") ? meta.slice(1, -1).trim() : meta;
   return inner ? ` (${inner})` : "";
 }
-function findMetadataSpan(line, from) {
-  let i = from;
-  while (i < line.length && line[i] === " ") i++;
-  if (line[i] !== "(") return null;
-  let depth = 0;
-  for (let j = i; j < line.length; j++) {
-    if (line[j] === "(") depth++;
-    else if (line[j] === ")") {
-      depth--;
-      if (depth === 0) return { start: i, end: j, content: line.slice(i + 1, j) };
-    }
-  }
-  return null;
-}
 var SpecialCallouts = class extends import_obsidian6.Plugin {
   constructor() {
     super(...arguments);
@@ -2968,16 +3003,17 @@ var SpecialCallouts = class extends import_obsidian6.Plugin {
       id: "insert-multi-column-layout",
       name: "Insert Multi-Column Layout...",
       editorCallback: (editor) => {
-        const options = ["2 S\xFCtun", "3 S\xFCtun", "4 S\xFCtun"];
+        const options = ["2 columns", "3 columns", "4 columns"];
         new ColumnSuggesterModal(this.app, options, (choice) => {
           if (!choice) return;
-          const cols = parseInt(choice.split(" ")[0]);
+          const cols = parseInt(choice);
+          if (isNaN(cols) || cols < 1) return;
           let template = `> [!multi-callout]
 >
 `;
           for (let i = 1; i <= cols; i++) {
-            template += `>> [!note] (${i}:${cols})
->> S\xFCtun ${i} i\xE7eri\u011Fi
+            template += `>> [!note] (${i}:${cols}) Panel ${i}
+>> Content
 >
 `;
           }
@@ -3052,8 +3088,20 @@ var SpecialCallouts = class extends import_obsidian6.Plugin {
   onunload() {
     this.processor.cleanup();
   }
+  /**
+   * Loads settings, filling in defaults the saved file predates.
+   *
+   * Object.assign is shallow: it hands back a saved `standardStyles` or `standardColors`
+   * object whole, so anything added to the defaults after a vault first saved its
+   * settings would never appear there. Merging those two records key by key — defaults
+   * first, the user's own values over the top — means a new standard type or palette
+   * entry reaches existing vaults without touching what they have changed.
+   */
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = await this.loadData() || {};
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+    this.settings.standardStyles = Object.assign({}, DEFAULT_SETTINGS.standardStyles, saved.standardStyles);
+    this.settings.standardColors = Object.assign({}, DEFAULT_SETTINGS.standardColors, saved.standardColors);
   }
   async saveSettings() {
     await this.saveData(this.settings);

@@ -4,7 +4,7 @@
 
 An [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview)
 that teaches an AI assistant the complete syntax and real rendering behaviour of the
-[Special Callouts](https://github.com/ahseyg/special-callouts) plugin for Obsidian (v1.0.8).
+[Special Callouts](https://github.com/ahseyg/special-callouts) plugin for Obsidian (v1.0.9).
 
 With this skill loaded, an agent can write correct Special Callouts markdown on the first
 try — styled callouts, multi-column lists, dashboard grids, Dataview panels — and diagnose
@@ -22,7 +22,7 @@ callouts that render wrong, without the user having to explain the plugin.
 
 The reference files load only when the task needs them, so ordinary requests stay cheap.
 
-Content is derived from the v1.0.8 source — parser, processor and stylesheet — rather than
+Content is derived from the v1.0.9 source — parser, processor and stylesheet — rather than
 from the plugin's documentation. Where the two disagree, the skill documents what the code
 actually does and flags the discrepancy.
 
@@ -56,7 +56,7 @@ that never name the plugin:
 
 ## Compatibility
 
-Written against Special Callouts **v1.0.8**. Parameter syntax has been stable since 1.0.3;
+Written against Special Callouts **v1.0.9**. Parameter syntax has been stable since 1.0.3;
 `internals.md` is the part most likely to age, as it documents implementation details and
 open bugs.
 

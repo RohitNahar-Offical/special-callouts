@@ -107,8 +107,8 @@ Use the visual builder or inline grid syntax to create multi-panel layouts. Call
 | Parameter | Example | Description |
 | :--- | :--- | :--- |
 | `border` | `border:red` | Border color |
-| `border-width` | `border-width:4` | Thickness (px) |
-| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double` |
+| `border-width` | `border-width:4` | Thickness (px) — `bw:` for short |
+| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double` — `bs:` for short |
 | `radius` | `radius:20` | Corner roundness (px) |
 
 ### Typography
@@ -134,7 +134,7 @@ Full reference in the [Usage Guide](USAGE_GUIDE.md).
 
 Let Claude write these callouts for you. **[skills/special-callouts/](skills/special-callouts/)** is an
 [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) covering the
-plugin's complete syntax and real rendering behaviour — derived from the v1.0.8 source rather than
+plugin's complete syntax and real rendering behaviour — derived from the v1.0.9 source rather than
 from the docs.
 
 Install it by copying the folder into your skills directory:

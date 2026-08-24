@@ -1,9 +1,9 @@
 ---
 name: special-callouts
-description: Write and debug Obsidian callouts styled with the Special Callouts plugin (v1.0.8) — inline metadata in parentheses controlling background, text, title and link colors, gradients, neon glow, borders, radius, fonts, font size, Lucide icons, centering, compact mode, multi-column lists, and multi-callout dashboard grids. Use this skill whenever the user is working in Obsidian and mentions callouts, admonitions, `> [!note]` / `> [!tip]` blocks, colored or styled note boxes, dashboards or grid layouts inside a note, splitting a list into columns, putting Dataview output inside a styled box, or asks why a callout is not rendering the way they expected — even if they never say "Special Callouts" by name. Also use it when asked to design a note template, a habit tracker, a home page, or a "pretty" Obsidian layout.
+description: Write and debug Obsidian callouts styled with the Special Callouts plugin (v1.0.9) — inline metadata in parentheses controlling background, text, title and link colors, gradients, neon glow, borders, radius, fonts, font size, Lucide icons, centering, compact mode, multi-column lists, and multi-callout dashboard grids. Use this skill whenever the user is working in Obsidian and mentions callouts, admonitions, `> [!note]` / `> [!tip]` blocks, colored or styled note boxes, dashboards or grid layouts inside a note, splitting a list into columns, putting Dataview output inside a styled box, or asks why a callout is not rendering the way they expected — even if they never say "Special Callouts" by name. Also use it when asked to design a note template, a habit tracker, a home page, or a "pretty" Obsidian layout.
 ---
 
-# Special Callouts (Obsidian plugin, v1.0.8)
+# Special Callouts (Obsidian plugin, v1.0.9)
 
 Special Callouts extends Obsidian's native callouts with a metadata block written
 directly in the callout title line. It is a **markdown-authoring** plugin: everything
@@ -34,18 +34,27 @@ These all fail silently and render as an ordinary callout:
 ```
 
 Parameters are comma-separated, keys are case-insensitive, and parentheses nest correctly,
-which is what makes the grouped form `text:(white, dark-border)` work.
+which is what makes the grouped form `text:(white, dark-border)` work. Since v1.0.9 that
+form is just shorthand for repeating the key, so every parameter accepts it — and a value
+carrying its own parentheses, like `bg:rgba(0,0,0,0.5)`, is left intact.
 
 `type` can be any Obsidian callout type (`note` `tip` `warning` `danger` `success`
 `question` `example` `quote` `todo` `info` `abstract` `failure` `bug`), a saved custom
 preset name, or the special wrapper `multi-callout`.
+
+Obsidian's aliases for those types work too and resolve to the type they render as:
+`summary` `tldr` → `abstract` · `hint` `important` → `tip` · `check` `done` → `success` ·
+`help` `faq` → `question` · `caution` `attention` → `warning` · `fail` `missing` →
+`failure` · `error` → `danger` · `cite` → `quote`. Recolouring `abstract` in settings
+therefore recolours `tldr` with it. Before v1.0.9 an alias was styled by Obsidian but
+invisible to the plugin, so it ignored the user's palette.
 
 ## Parameters at a glance
 
 | Group | Parameters |
 |---|---|
 | Colors | `bg:` `text:` `title:` `link:` `gradient:` `neon:` |
-| Borders | `border:` `border-width:` `border-style:` `radius:` |
+| Borders | `border:` `border-width:`/`bw:` `border-style:`/`bs:` `radius:` |
 | Type | `font:` `font-size:` `icon:` `icon-color:` `no-icon` |
 | Layout | `col:` `center` `compact` / `dense` `title:center` `N:M` grid |
 | Presets | `style:preset-name` · a saved layout name as a bare word |

@@ -165,7 +165,7 @@ Scale from `1` (smallest) to `5` (largest). Default is `3`.
 > Completely removes all borders.
 ```
 
-### Border Width — `border-width:`
+### Border Width — `border-width:` (short: `bw:`)
 
 Value in pixels:
 ```markdown
@@ -173,7 +173,7 @@ Value in pixels:
 > 4px blue border on all sides.
 ```
 
-### Border Style — `border-style:`
+### Border Style — `border-style:` (short: `bs:`)
 
 | Value | Look |
 |-------|------|
@@ -181,6 +181,8 @@ Value in pixels:
 | `dashed` | - - - |
 | `dotted` | · · · |
 | `double` | ═══ |
+
+Any other CSS border-style keyword works too — `groove`, `ridge`, `inset`, `outset`.
 
 ```markdown
 > [!warning] (border:#e74c3c, border-style:dashed, border-width:2) Dashed
@@ -536,6 +538,12 @@ Modify the default appearance of Obsidian's built-in callout types (note, info, 
 - Grid or List view
 - Click to edit background, title, and text colors
 - Reset to defaults anytime
+
+Obsidian's aliases follow the type they render as, so they are not listed separately.
+Recolour `abstract` and `summary` and `tldr` change with it. The full set: `summary`
+`tldr` → `abstract` · `hint` `important` → `tip` · `check` `done` → `success` · `help`
+`faq` → `question` · `caution` `attention` → `warning` · `fail` `missing` → `failure` ·
+`error` → `danger` · `cite` → `quote`.
 
 ### 4. Colors
 - **Standard Colors:** Edit the hex values of named colors (red, blue, green...)

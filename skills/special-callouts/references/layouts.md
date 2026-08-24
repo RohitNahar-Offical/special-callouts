@@ -77,6 +77,16 @@ hidden, and its content becomes a horizontal flex row that panels sit inside.
 > > Content
 ```
 
+### Flags belong on the panels, not the wrapper
+
+`compact`, `dense` and `center` on the `multi-callout` line are ignored — it is a layout
+container, not a visible callout, and the flags exist to shape what is inside it. Put them
+on each panel instead.
+
+Up to v1.0.8 they were not ignored, and the results were confusing rather than merely
+useless: `compact` restored padding to a wrapper designed to have none, so the whole row sat
+inset from its container, and `center` turned the row into a column and stacked every panel.
+
 ### Structure rules
 
 - Panels are **nested** callouts — one extra `>` level.
@@ -113,6 +123,15 @@ every panel.
 
 Nothing is required from the author — but it explains why hand-written CSS targeting
 `.callout .callout` often misses: the width lives on the wrapper, not the callout.
+
+### Long words in narrow panels
+
+A panel is sized to an exact share of the row, but the text inside still has a minimum width.
+A long unbroken word — a wiki link such as `[[02-kutuphane]]`, a URL, a hyphen-free filename —
+used to hold its panel wider than its share and knock the row out of alignment; the panels
+would come out visibly unequal. That is fixed, but the underlying tension remains: at seven
+or eight columns a panel is only a hundred-odd pixels wide, and long labels will wrap to two
+or three lines. Fewer columns, or shorter labels, read better than fighting it.
 
 ### Responsive behaviour
 

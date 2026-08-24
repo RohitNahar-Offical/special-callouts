@@ -258,6 +258,26 @@
     text-align: center;
 }
 
+/* A multi-callout is a layout wrapper, not a visible callout — density and alignment
+   flags on it are meant for the panels inside. Without this, (compact) puts padding back
+   onto a container that exists to have none, insetting the whole row from its edges, and
+   (center) flips the row to a column and stacks every panel vertically. Declared after
+   those rules and one attribute more specific, so it wins either way. */
+.callout[data-callout="multi-callout"][data-compact="true"],
+.callout[data-callout="multi-callout"][data-dense="true"],
+.callout[data-callout="multi-callout"][data-center="true"] {
+    padding: 0;
+    text-align: inherit;
+}
+.callout[data-callout="multi-callout"][data-compact="true"] > .callout-content,
+.callout[data-callout="multi-callout"][data-dense="true"] > .callout-content,
+.callout[data-callout="multi-callout"][data-center="true"] > .callout-content {
+    padding: 0;
+    flex-direction: row;
+    align-items: stretch;
+    text-align: inherit;
+}
+
 /* Text border (link readability) */
 [data-sc-text-border] {
     -webkit-text-stroke: 0.5px var(--sc-text-border-color, transparent);
@@ -299,6 +319,10 @@
 /* Grid item wrappers */
 .sc-grid-item-wrapper {
     flex: 0 0 var(--sc-flex-width);
+    /* Flex items default to min-width:auto, and min wins over max — so a long unbroken
+       word could hold a panel wider than its computed share and knock the row out of
+       alignment. */
+    min-width: 0;
     width: var(--sc-flex-width);
     max-width: var(--sc-flex-width);
     margin: 0;
@@ -515,6 +539,15 @@
 .special-callouts-ui .sc-style-2128f674 { opacity: 1; }
 .special-callouts-ui .sc-style-e2b74ba6 { margin: 0; }
 .special-callouts-ui .sc-style-480cc9a4 { border-top: none; }
+
+/* Four classes the settings UI applied with no rule behind them, so the elements rendered
+   unstyled and nothing reported it. Defined to match the siblings they sit next to. */
+.special-callouts-ui .sc-style-019910d6 { min-width: 110px; font-size: 0.9rem; color: var(--text-normal); }
+.special-callouts-ui .sc-style-07f9c2fc { margin-top: 16px; }
+.special-callouts-ui .sc-style-1188fbba { font-weight: 500; color: var(--text-normal); margin-bottom: 2px; }
+/* Sits on the accent-coloured editing banner as well as on a toggle row, so it sets no
+   colour of its own and inherits whichever container it lands in. */
+.special-callouts-ui .sc-style-647d6e41 { font-size: 0.85rem; font-weight: 500; }
 .special-callouts-ui .sc-style-fbf1b2fc { box-shadow: none; }
 .special-callouts-ui .sc-style-b384338c { font-family: inherit; }
 .special-callouts-ui .sc-style-1adfbb28 { font-size: 1em; }

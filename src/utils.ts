@@ -20,23 +20,6 @@ export function debounce<T extends (...args: unknown[]) => void>(
 }
 
 /**
- * Throttle: Ensures function runs at most once per interval
- */
-export function throttle<T extends (...args: unknown[]) => void>(
-    func: T,
-    limit: number
-): T {
-    let inThrottle = false;
-    return ((...args: Parameters<T>) => {
-        if (!inThrottle) {
-            func(...args);
-            inThrottle = true;
-            window.setTimeout(() => inThrottle = false, limit);
-        }
-    }) as T;
-}
-
-/**
  * Validates hex color code
  * @param hex - Color code to validate
  * @returns true if valid hex code
@@ -89,6 +72,19 @@ export function resolveColor(
  */
 export function createTransparentBg(color: string, opacity: number = 10): string {
     return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+
+/**
+ * True when a value is already a finished CSS gradient function.
+ *
+ * A saved style stores the composed `linear-gradient(90deg, …)` in its `bg` field, while
+ * inline metadata writes the `c1-c2` shorthand. The two have to be told apart before the
+ * value is used: treating the finished form as a colour mixes it into `color-mix()`, which
+ * is invalid and drops the background, and splitting it on '-' tears the function name in
+ * half.
+ */
+export function isCssGradient(value: string): boolean {
+    return /^(repeating-)?(linear|radial|conic)-gradient\(/i.test(value.trim());
 }
 
 /**
@@ -165,23 +161,3 @@ export function applyTextBorder(element: HTMLElement, borderType: string): void 
     element.setAttribute('data-sc-text-border', borderType);
     element.setCssProps({ '--sc-text-border-color': strokeColor });
 }
-
-/**
- * Applies a CSS text string to an element by parsing it into individual
- * property:value pairs and calling setCssStyles (Obsidian approved API).
- */
-export function applyCssText(el: HTMLElement, cssText: string): void {
-    const styleRecord: Record<string, string> = {};
-    cssText.split(';').forEach(declaration => {
-        const colonIdx = declaration.indexOf(':');
-        if (colonIdx === -1) return;
-        const prop = declaration.slice(0, colonIdx).trim();
-        const val = declaration.slice(colonIdx + 1).trim();
-        if (!prop || !val) return;
-        // Convert kebab-case to camelCase
-        const camelProp = prop.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-        styleRecord[camelProp] = val;
-    });
-    el.setCssStyles(styleRecord);
-}
-

@@ -6,6 +6,26 @@
 import { SpecialCalloutsSettings, CalloutStyle, CalloutConfig } from './types';
 
 /**
+ * Bare words the metadata parser already spends on its own flags.
+ *
+ * A saved layout is applied by writing its name as a bare word, which is the same shape a
+ * flag has. A layout may therefore not be named after one: `compact` as a layout name would
+ * mean every `(compact)` in the vault stopped reducing padding and quietly applied a grid
+ * instead. Built-in words win in the parser, and the settings tab refuses to create the
+ * clash in the first place.
+ */
+export const RESERVED_FLAG_NAMES = ['no-icon', 'noicon', 'center', 'compact', 'dense'];
+
+/**
+ * How much of the chosen colour `bg:` actually paints.
+ *
+ * A tint, not a fill — the single most surprising thing about the parameter, and the reason
+ * `gradient:` exists. Defined here so the renderer and the settings preview cannot disagree
+ * about what a background will look like.
+ */
+export const BG_TINT_OPACITY = 15;
+
+/**
  * Default standard color palette
  */
 export const DEFAULT_STANDARD_COLORS: Record<string, string> = {
@@ -39,6 +59,40 @@ export const DEFAULT_STANDARD_STYLES: Record<string, CalloutStyle> = {
     example: { name: 'example', bg: '#7c4dff', border: '#7c4dff', text: '', link: '', icon: 'list', titleColor: '' },
     quote: { name: 'quote', bg: '#9e9e9e', border: '#9e9e9e', text: '', link: '', icon: 'quote', titleColor: '' }
 };
+
+/**
+ * Obsidian's own aliases for the standard callout types.
+ *
+ * Obsidian renders `[!tldr]` exactly as `[!abstract]`, but the plugin only knew the
+ * canonical names, so recolouring abstract in settings left tldr and summary untouched.
+ * These resolve to their canonical type instead of becoming entries of their own: the
+ * settings list stays thirteen rows rather than twenty-seven near-duplicates, and an alias
+ * cannot drift away from the type it is an alias for.
+ */
+export const CALLOUT_TYPE_ALIASES: Record<string, string> = {
+    summary: 'abstract',
+    tldr: 'abstract',
+    hint: 'tip',
+    important: 'tip',
+    check: 'success',
+    done: 'success',
+    help: 'question',
+    faq: 'question',
+    caution: 'warning',
+    attention: 'warning',
+    fail: 'failure',
+    missing: 'failure',
+    error: 'danger',
+    cite: 'quote'
+};
+
+/**
+ * Maps an alias to the standard type it renders as; any other name is returned unchanged.
+ */
+export function resolveCalloutType(calloutType: string): string {
+    const lowered = calloutType.toLowerCase();
+    return CALLOUT_TYPE_ALIASES[lowered] || lowered;
+}
 
 /**
  * Default plugin settings

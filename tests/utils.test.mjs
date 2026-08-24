@@ -6,7 +6,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadModule, PALETTE } from './helpers.mjs';
 
-const { toPx, neonStyles, smartSplit, resolveColor, isValidHex, normalizeHex, createTransparentBg } =
+const { toPx, neonStyles, smartSplit, resolveColor, isValidHex, normalizeHex, createTransparentBg, isCssGradient } =
     await loadModule('src/utils.ts');
 
 describe('toPx', () => {
@@ -97,5 +97,24 @@ describe('hex helpers', () => {
 describe('createTransparentBg', () => {
     test('is the 15%-style tint that surprises people about bg:', () => {
         assert.equal(createTransparentBg('#ff0000', 15), 'color-mix(in srgb, #ff0000 15%, transparent)');
+    });
+});
+
+describe('isCssGradient', () => {
+    test('recognises the finished form a saved style stores', () => {
+        assert.equal(isCssGradient('linear-gradient(90deg, #a1b2c3, #d4e5f6)'), true);
+        assert.equal(isCssGradient('  radial-gradient(circle, red, blue)'), true);
+        assert.equal(isCssGradient('repeating-linear-gradient(45deg, red, blue)'), true);
+    });
+
+    test('the inline c1-c2 shorthand is not one, so it still gets resolved and composed', () => {
+        assert.equal(isCssGradient('blue-purple'), false);
+        assert.equal(isCssGradient('#667eea-#764ba2'), false);
+    });
+
+    test('a plain colour is not one', () => {
+        assert.equal(isCssGradient('#e74c3c'), false);
+        assert.equal(isCssGradient('red'), false);
+        assert.equal(isCssGradient(''), false);
     });
 });

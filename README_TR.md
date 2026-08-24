@@ -108,8 +108,8 @@ Görsel düzenleyiciyi veya satır içi ızgara sözdizimini kullanarak çok pan
 | Parametre | Örnek | Açıklama |
 | :--- | :--- | :--- |
 | `border` | `border:red` | Kenarlık rengi |
-| `border-width` | `border-width:4` | Kalınlık (px) |
-| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double` |
+| `border-width` | `border-width:4` | Kalınlık (px) — kısası `bw:` |
+| `border-style` | `border-style:dashed` | `solid`, `dashed`, `dotted`, `double` — kısası `bs:` |
 | `radius` | `radius:20` | Köşe yuvarlaklığı (px) |
 
 ### Tipografi
@@ -136,7 +136,7 @@ Tam referans için [Kullanım Kılavuzu'na](USAGE_GUIDE_TR.md) göz atın.
 Callout'ları Claude'a yazdırın. **[skills/special-callouts/](skills/special-callouts/)**, eklentinin
 tüm sözdizimini ve gerçek render davranışını anlatan bir
 [Agent Skill](https://docs.claude.com/en/docs/agents-and-tools/agent-skills/overview) — dokümantasyondan
-değil, doğrudan v1.0.8 kaynak kodundan çıkarıldı.
+değil, doğrudan v1.0.9 kaynak kodundan çıkarıldı.
 
 Klasörü skill dizininize kopyalamanız yeterli:
 

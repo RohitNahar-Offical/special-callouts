@@ -165,7 +165,7 @@ Iki rengi tire `-` ile ayirin:
 > Tum kenarliklari tamamen kaldirir.
 ```
 
-### Kenarlik Kalinligi — `border-width:`
+### Kenarlik Kalinligi — `border-width:` (kisasi: `bw:`)
 
 Piksel cinsinden deger:
 ```markdown
@@ -173,7 +173,7 @@ Piksel cinsinden deger:
 > Tum kenarlarda 4px mavi kenarlik.
 ```
 
-### Kenarlik Stili — `border-style:`
+### Kenarlik Stili — `border-style:` (kisasi: `bs:`)
 
 | Deger | Gorunum |
 |-------|---------|
@@ -181,6 +181,8 @@ Piksel cinsinden deger:
 | `dashed` | - - - |
 | `dotted` | · · · |
 | `double` | === |
+
+Diger CSS border-style anahtar kelimeleri de calisir: `groove`, `ridge`, `inset`, `outset`.
 
 ```markdown
 > [!warning] (border:#e74c3c, border-style:dashed, border-width:2) Kesikli
@@ -537,6 +539,12 @@ Obsidian->in yerlesik callout tiplerinin (note, info, warning vb.) varsayilan go
 - Grid veya Liste gorunumu
 - Arka plan, baslik ve metin renklerini duzenlemek icin tiklayin
 - Istediginiz zaman varsayilanlara sifirlayin
+
+Obsidian->in takma adlari, karsilik geldikleri tipi izler; ayri satir olarak listelenmezler.
+`abstract` rengini degistirdiginizde `summary` ve `tldr` de degisir. Tam liste: `summary`
+`tldr` → `abstract` · `hint` `important` → `tip` · `check` `done` → `success` · `help`
+`faq` → `question` · `caution` `attention` → `warning` · `fail` `missing` → `failure` ·
+`error` → `danger` · `cite` → `quote`.
 
 ### 4. Renkler
 - **Standart Renkler:** Adlandirilmis renklerin hex degerlerini duzenleyin (red, blue, green...)

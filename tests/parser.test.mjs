@@ -10,7 +10,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadModule, PALETTE } from './helpers.mjs';
 
-const { parseMetadata, parseGridLayout, extractMetadata } = await loadModule('src/parser.ts');
+const { parseMetadata, parseGridLayout, extractMetadata, findMetadataSpan } = await loadModule('src/parser.ts');
 
 /** Parses metadata content with the default palette and no custom colours. */
 const parse = (content, layouts = []) => parseMetadata(content, PALETTE, [], layouts);
@@ -294,5 +294,152 @@ describe('icon colour', () => {
 
     test('defaults to empty so the title colour governs the icon', () => {
         assert.equal(parse('title:red').config.iconColor, '');
+    });
+});
+
+describe('grouped values', () => {
+    test('a group is shorthand for repeating the key, so every parameter accepts one', () => {
+        assert.equal(parse('bg:(red)').config.bg, '#e74c3c');
+        assert.equal(parse('border:(blue)').config.border, '#3498db');
+        assert.equal(parse('radius:(12)').config.radius, '12');
+    });
+
+    test('the last value wins where repeating the key makes no sense', () => {
+        assert.equal(parse('radius:(10, 20)').config.radius, '20');
+    });
+
+    test('a value carrying its own parentheses is left alone', () => {
+        assert.equal(parse('bg:rgba(0,0,0,0.5)').config.bg, 'rgba(0,0,0,0.5)');
+    });
+
+    test('empty members are dropped rather than parsed as blanks', () => {
+        const { config } = parse('text:(white, , dark-border)');
+        assert.equal(config.text, 'white');
+        assert.equal(config.textBorder, 'dark-border');
+    });
+});
+
+describe('malformed input', () => {
+    test('a key with nothing after the colon is skipped, not applied as empty', () => {
+        assert.equal(parse('bg:').config.bg, '');
+        assert.equal(parse('title:').config.titleColor, '');
+    });
+
+    test('stray separators do not disturb the parameters around them', () => {
+        const { config } = parse('bg:red, , compact');
+        assert.equal(config.bg, '#e74c3c');
+        assert.equal(config.compact, true);
+    });
+
+    test('a colon with no key in front of it is ignored', () => {
+        assert.doesNotThrow(() => parse(':red'));
+        assert.equal(parse(':red').config.bg, '');
+    });
+});
+
+describe('style parameter', () => {
+    test('a style name may contain a colon', () => {
+        assert.equal(parse('style:Note: Important').styleParam, 'note: important');
+    });
+
+    test('style with no name resolves to null rather than an empty lookup', () => {
+        assert.equal(parse('style:').styleParam, null);
+    });
+});
+
+describe('border shorthands', () => {
+    test('bw is border-width', () => {
+        assert.equal(parse('bw:4').config.borderWidth, '4');
+        assert.equal(parse('border-width:4').config.borderWidth, '4');
+    });
+
+    test('bs is border-style', () => {
+        assert.equal(parse('bs:dashed').config.borderStyle, 'dashed');
+        assert.equal(parse('border-style:dashed').config.borderStyle, 'dashed');
+    });
+});
+
+describe('layout token removal', () => {
+    test('pulling the layout out leaves the other parameters intact', () => {
+        const { config, layoutParam } = parse('bg:red, 2:3, compact');
+        assert.equal(layoutParam, '2:3');
+        assert.equal(config.bg, '#e74c3c');
+        assert.equal(config.compact, true);
+    });
+
+    test('a parameter that merely looks like the token is not the one removed', () => {
+        const { config, layoutParam } = parse('radius:8, 1:2');
+        assert.equal(layoutParam, '1:2');
+        assert.equal(config.radius, '8');
+    });
+});
+
+describe('layout scan and parenthesised values', () => {
+    test('digits inside a value are not mistaken for the layout token', () => {
+        const { config, layoutParam } = parse('bg:rgba(0,0,0,0.5)');
+        assert.equal(layoutParam, null);
+        assert.equal(config.bg, 'rgba(0,0,0,0.5)');
+    });
+
+    test('a real layout token is still found alongside such a value', () => {
+        const { config, layoutParam } = parse('bg:rgba(0,0,0,0.5), 2:3');
+        assert.equal(layoutParam, '2:3');
+        assert.equal(config.bg, 'rgba(0,0,0,0.5)');
+    });
+
+    test('the token may still be written with commas', () => {
+        assert.equal(parse('1,3').layoutParam, '1,3');
+    });
+});
+
+describe('findMetadataSpan', () => {
+    test('locates the block after the callout header', () => {
+        const line = '> [!note] (bg:red) Title';
+        const span = findMetadataSpan(line, line.indexOf(']') + 1);
+        assert.equal(span.content, 'bg:red');
+        assert.equal(line.slice(span.start, span.end + 1), '(bg:red)');
+    });
+
+    test('counts depth, so a grouped value is captured whole', () => {
+        const line = '> [!note] (text:(white, dark-border), bg:red) Title';
+        const span = findMetadataSpan(line, line.indexOf(']') + 1);
+        assert.equal(span.content, 'text:(white, dark-border), bg:red');
+    });
+
+    test('skips the spaces between the header and the block', () => {
+        const line = '> [!note]    (bg:red)';
+        assert.equal(findMetadataSpan(line, line.indexOf(']') + 1).content, 'bg:red');
+    });
+
+    test('null when the block never closes, rather than a guess', () => {
+        assert.equal(findMetadataSpan('> [!note] (bg:red', 9), null);
+    });
+
+    test('null when the next thing is the title rather than a block', () => {
+        assert.equal(findMetadataSpan('> [!note] Title (bg:red)', 9), null);
+    });
+
+    test('extractMetadata is built on it, so the two cannot disagree', () => {
+        const text = '(text:(white, dark-border)) T';
+        assert.equal(extractMetadata(text).content, findMetadataSpan(text, 0).content);
+    });
+});
+
+describe('layout names versus built-in flags', () => {
+    test('a built-in flag wins over a saved layout of the same name', () => {
+        const { config } = parse('compact', ['compact']);
+        assert.equal(config.compact, true);
+        assert.equal(config.customLayout, null);
+    });
+
+    test('the same holds for the other bare-word flags', () => {
+        assert.equal(parse('center', ['center']).config.center, true);
+        assert.equal(parse('no-icon', ['no-icon']).config.noIcon, true);
+        assert.equal(parse('dense', ['dense']).config.dense, true);
+    });
+
+    test('a layout whose name is not a flag still applies', () => {
+        const { config } = parse('my_dashboard', ['my_dashboard']);
+        assert.equal(config.customLayout, 'my_dashboard');
     });
 });
