@@ -33,10 +33,11 @@ export class CalloutProcessor {
     }
 
     /**
-     * Updates the settings reference
+     * Updates the settings reference and clears element cache
      */
     updateSettings(settings: SpecialCalloutsSettings): void {
         this.settings = settings;
+        this.processedElements = new WeakMap();
     }
 
     /**

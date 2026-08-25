@@ -293,9 +293,12 @@ export default class SpecialCallouts extends Plugin {
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
         this.registerStyleCommands();
-        // Update processor with new settings
+        // Clear metadata cache and update processor with new settings
+        const { clearMetadataCache } = await import('./src/parser');
+        clearMetadataCache();
         if (this.processor) {
             this.processor.updateSettings(this.settings);
         }
     }
 }
+

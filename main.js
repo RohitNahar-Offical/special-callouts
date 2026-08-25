@@ -7,6 +7,9 @@ var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -21,118 +24,115 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-// main.ts
-var main_exports = {};
-__export(main_exports, {
-  default: () => SpecialCallouts
-});
-module.exports = __toCommonJS(main_exports);
-var import_obsidian10 = require("obsidian");
-
 // src/constants.ts
-var BG_TINT_OPACITY = 15;
-var DEFAULT_STANDARD_COLORS = {
-  red: "#e74c3c",
-  blue: "#3498db",
-  green: "#2ecc71",
-  yellow: "#f1c40f",
-  orange: "#e67e22",
-  purple: "#9b59b6",
-  pink: "#e84393",
-  teal: "#1abc9c",
-  grey: "#95a5a6",
-  gray: "#95a5a6"
-};
-var DEFAULT_STANDARD_STYLES = {
-  note: { name: "note", bg: "#448aff", border: "#448aff", text: "", link: "", icon: "pencil", titleColor: "" },
-  abstract: { name: "abstract", bg: "#00b8d4", border: "#00b8d4", text: "", link: "", icon: "clipboard-list", titleColor: "" },
-  info: { name: "info", bg: "#00b8d4", border: "#00b8d4", text: "", link: "", icon: "info", titleColor: "" },
-  todo: { name: "todo", bg: "#0288d1", border: "#0288d1", text: "", link: "", icon: "check-circle-2", titleColor: "" },
-  tip: { name: "tip", bg: "#00bfa5", border: "#00bfa5", text: "", link: "", icon: "flame", titleColor: "" },
-  success: { name: "success", bg: "#00c853", border: "#00c853", text: "", link: "", icon: "check", titleColor: "" },
-  question: { name: "question", bg: "#ffab00", border: "#ffab00", text: "", link: "", icon: "help-circle", titleColor: "" },
-  warning: { name: "warning", bg: "#ff9100", border: "#ff9100", text: "", link: "", icon: "alert-triangle", titleColor: "" },
-  failure: { name: "failure", bg: "#ff5252", border: "#ff5252", text: "", link: "", icon: "x", titleColor: "" },
-  danger: { name: "danger", bg: "#ff1744", border: "#ff1744", text: "", link: "", icon: "zap", titleColor: "" },
-  bug: { name: "bug", bg: "#ff1744", border: "#ff1744", text: "", link: "", icon: "bug", titleColor: "" },
-  example: { name: "example", bg: "#7c4dff", border: "#7c4dff", text: "", link: "", icon: "list", titleColor: "" },
-  quote: { name: "quote", bg: "#9e9e9e", border: "#9e9e9e", text: "", link: "", icon: "quote", titleColor: "" }
-};
-var CALLOUT_TYPE_ALIASES = {
-  summary: "abstract",
-  tldr: "abstract",
-  hint: "tip",
-  important: "tip",
-  check: "success",
-  done: "success",
-  help: "question",
-  faq: "question",
-  caution: "warning",
-  attention: "warning",
-  fail: "failure",
-  missing: "failure",
-  error: "danger",
-  cite: "quote"
-};
 function resolveCalloutType(calloutType) {
   const lowered = calloutType.toLowerCase();
   return CALLOUT_TYPE_ALIASES[lowered] || lowered;
 }
-var DEFAULT_SETTINGS = {
-  customColors: [],
-  standardColors: { ...DEFAULT_STANDARD_COLORS },
-  customStyles: [],
-  standardStyles: { ...DEFAULT_STANDARD_STYLES },
-  customLayouts: [],
-  defaultMetadata: ""
-};
-var DEFAULT_CALLOUT_CONFIG = {
-  bg: "",
-  text: "",
-  textBorder: "",
-  link: "",
-  linkBorder: "",
-  titleColor: "",
-  titleBorder: "",
-  border: "",
-  borderWidth: "",
-  borderStyle: "",
-  neon: "",
-  radius: "",
-  gradient: "",
-  font: "",
-  fontSize: null,
-  col: null,
-  customLayout: null,
-  compact: false,
-  dense: false,
-  noIcon: false,
-  center: false,
-  titleCenter: false,
-  icon: null,
-  iconColor: "",
-  span: null
-};
-var FONT_FAMILIES = {
-  "mono": "var(--font-monospace)",
-  "serif": "var(--font-interface-theme), ui-serif, serif",
-  "sans": "var(--font-interface), ui-sans-serif, sans-serif",
-  "hand": '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive',
-  "marker": '"Permanent Marker", "Segoe Print", "Chalkboard", cursive'
-};
-var FONT_SIZES = {
-  1: "0.85em",
-  2: "0.92em",
-  3: "1em",
-  4: "1.2em",
-  5: "1.5em"
-};
-var QUICK_START_PRESETS = [
-  { name: "Ocean Deep", bg: "#0a192f", border: "#64ffda", title: "#64ffda", text: "#8892b0", icon: "waves" },
-  { name: "Neon Glow", bg: "#0f0e17", border: "#ff6bcb", title: "#ff6bcb", text: "#f9f4da", icon: "zap" },
-  { name: "Forest", bg: "#1b2420", border: "#95d5b2", title: "#95d5b2", text: "#d8f3dc", icon: "leaf" },
-  { name: "Sunset", bg: "#2d1b3d", border: "#ff7b54", title: "#ffcc70", text: "#ffeadb", icon: "sunset" }
-];
+var BG_TINT_OPACITY, DEFAULT_STANDARD_COLORS, DEFAULT_STANDARD_STYLES, CALLOUT_TYPE_ALIASES, DEFAULT_SETTINGS, DEFAULT_CALLOUT_CONFIG, FONT_FAMILIES, FONT_SIZES, QUICK_START_PRESETS;
+var init_constants = __esm({
+  "src/constants.ts"() {
+    BG_TINT_OPACITY = 15;
+    DEFAULT_STANDARD_COLORS = {
+      red: "#e74c3c",
+      blue: "#3498db",
+      green: "#2ecc71",
+      yellow: "#f1c40f",
+      orange: "#e67e22",
+      purple: "#9b59b6",
+      pink: "#e84393",
+      teal: "#1abc9c",
+      grey: "#95a5a6",
+      gray: "#95a5a6"
+    };
+    DEFAULT_STANDARD_STYLES = {
+      note: { name: "note", bg: "#448aff", border: "#448aff", text: "", link: "", icon: "pencil", titleColor: "" },
+      abstract: { name: "abstract", bg: "#00b8d4", border: "#00b8d4", text: "", link: "", icon: "clipboard-list", titleColor: "" },
+      info: { name: "info", bg: "#00b8d4", border: "#00b8d4", text: "", link: "", icon: "info", titleColor: "" },
+      todo: { name: "todo", bg: "#0288d1", border: "#0288d1", text: "", link: "", icon: "check-circle-2", titleColor: "" },
+      tip: { name: "tip", bg: "#00bfa5", border: "#00bfa5", text: "", link: "", icon: "flame", titleColor: "" },
+      success: { name: "success", bg: "#00c853", border: "#00c853", text: "", link: "", icon: "check", titleColor: "" },
+      question: { name: "question", bg: "#ffab00", border: "#ffab00", text: "", link: "", icon: "help-circle", titleColor: "" },
+      warning: { name: "warning", bg: "#ff9100", border: "#ff9100", text: "", link: "", icon: "alert-triangle", titleColor: "" },
+      failure: { name: "failure", bg: "#ff5252", border: "#ff5252", text: "", link: "", icon: "x", titleColor: "" },
+      danger: { name: "danger", bg: "#ff1744", border: "#ff1744", text: "", link: "", icon: "zap", titleColor: "" },
+      bug: { name: "bug", bg: "#ff1744", border: "#ff1744", text: "", link: "", icon: "bug", titleColor: "" },
+      example: { name: "example", bg: "#7c4dff", border: "#7c4dff", text: "", link: "", icon: "list", titleColor: "" },
+      quote: { name: "quote", bg: "#9e9e9e", border: "#9e9e9e", text: "", link: "", icon: "quote", titleColor: "" }
+    };
+    CALLOUT_TYPE_ALIASES = {
+      summary: "abstract",
+      tldr: "abstract",
+      hint: "tip",
+      important: "tip",
+      check: "success",
+      done: "success",
+      help: "question",
+      faq: "question",
+      caution: "warning",
+      attention: "warning",
+      fail: "failure",
+      missing: "failure",
+      error: "danger",
+      cite: "quote"
+    };
+    DEFAULT_SETTINGS = {
+      customColors: [],
+      standardColors: { ...DEFAULT_STANDARD_COLORS },
+      customStyles: [],
+      standardStyles: { ...DEFAULT_STANDARD_STYLES },
+      customLayouts: [],
+      defaultMetadata: ""
+    };
+    DEFAULT_CALLOUT_CONFIG = {
+      bg: "",
+      text: "",
+      textBorder: "",
+      link: "",
+      linkBorder: "",
+      titleColor: "",
+      titleBorder: "",
+      border: "",
+      borderWidth: "",
+      borderStyle: "",
+      neon: "",
+      radius: "",
+      gradient: "",
+      font: "",
+      fontSize: null,
+      col: null,
+      customLayout: null,
+      compact: false,
+      dense: false,
+      noIcon: false,
+      center: false,
+      titleCenter: false,
+      icon: null,
+      iconColor: "",
+      span: null
+    };
+    FONT_FAMILIES = {
+      "mono": "var(--font-monospace)",
+      "serif": "var(--font-interface-theme), ui-serif, serif",
+      "sans": "var(--font-interface), ui-sans-serif, sans-serif",
+      "hand": '"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive',
+      "marker": '"Permanent Marker", "Segoe Print", "Chalkboard", cursive'
+    };
+    FONT_SIZES = {
+      1: "0.85em",
+      2: "0.92em",
+      3: "1em",
+      4: "1.2em",
+      5: "1.5em"
+    };
+    QUICK_START_PRESETS = [
+      { name: "Ocean Deep", bg: "#0a192f", border: "#64ffda", title: "#64ffda", text: "#8892b0", icon: "waves" },
+      { name: "Neon Glow", bg: "#0f0e17", border: "#ff6bcb", title: "#ff6bcb", text: "#f9f4da", icon: "zap" },
+      { name: "Forest", bg: "#1b2420", border: "#95d5b2", title: "#95d5b2", text: "#d8f3dc", icon: "leaf" },
+      { name: "Sunset", bg: "#2d1b3d", border: "#ff7b54", title: "#ffcc70", text: "#ffeadb", icon: "sunset" }
+    ];
+  }
+});
 
 // src/utils.ts
 function debounce(func, wait) {
@@ -142,8 +142,6 @@ function debounce(func, wait) {
     timeout = window.setTimeout(() => func(...args), wait);
   };
 }
-var HEX_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
-var NUMERIC_REGEX = /^-?\d*\.?\d+$/;
 function isValidHex(hex) {
   return HEX_REGEX.test(hex);
 }
@@ -202,51 +200,28 @@ function applyTextBorder(element, borderType) {
   element.setAttribute("data-sc-text-border", borderType);
   element.setCssProps({ "--sc-text-border-color": strokeColor });
 }
+var HEX_REGEX, NUMERIC_REGEX;
+var init_utils = __esm({
+  "src/utils.ts"() {
+    HEX_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+    NUMERIC_REGEX = /^-?\d*\.?\d+$/;
+  }
+});
 
 // src/parser.ts
-var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
-var GROUP_REGEX = /^\(([^)]+)\)$/;
-var GRID_REGEX = /^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?(?:[:,/](\d+))?(?:[:,/](\d+))?$/;
-var MASK_CHAR = "\0";
-var KNOWN_METADATA_KEYS = /* @__PURE__ */ new Set([
-  "bg",
-  "background",
-  "text",
-  "link",
-  "title",
-  "border",
-  "bw",
-  "bs",
-  "border-width",
-  "border-style",
-  "neon",
-  "radius",
-  "gradient",
-  "font",
-  "font-size",
-  "compact",
-  "dense",
-  "padding",
-  "no-icon",
-  "noicon",
-  "center",
-  "icon",
-  "icon-color",
-  "iconcolor",
-  "col",
-  "column",
-  "style",
-  "span"
-]);
-var KNOWN_STANDALONE_FLAGS = /* @__PURE__ */ new Set([
-  "no-icon",
-  "noicon",
-  "center",
-  "compact",
-  "dense"
-]);
-var MAX_CACHE_SIZE = 500;
-var parseCache = /* @__PURE__ */ new Map();
+var parser_exports = {};
+__export(parser_exports, {
+  clearMetadataCache: () => clearMetadataCache,
+  extractMetadata: () => extractMetadata,
+  findMetadataSpan: () => findMetadataSpan,
+  isLikelyMetadata: () => isLikelyMetadata,
+  parseGridLayout: () => parseGridLayout,
+  parseMetadata: () => parseMetadata,
+  serializeMetadata: () => serializeMetadata
+});
+function clearMetadataCache() {
+  parseCache.clear();
+}
 function maskGroups(content) {
   let depth = 0;
   let masked = "";
@@ -635,8 +610,70 @@ function findMetadataSpan(line, from = 0) {
   }
   return null;
 }
+var LAYOUT_REGEX, GROUP_REGEX, GRID_REGEX, MASK_CHAR, KNOWN_METADATA_KEYS, KNOWN_STANDALONE_FLAGS, MAX_CACHE_SIZE, parseCache;
+var init_parser = __esm({
+  "src/parser.ts"() {
+    init_constants();
+    init_utils();
+    LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
+    GROUP_REGEX = /^\(([^)]+)\)$/;
+    GRID_REGEX = /^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?(?:[:,/](\d+))?(?:[:,/](\d+))?$/;
+    MASK_CHAR = "\0";
+    KNOWN_METADATA_KEYS = /* @__PURE__ */ new Set([
+      "bg",
+      "background",
+      "text",
+      "link",
+      "title",
+      "border",
+      "bw",
+      "bs",
+      "border-width",
+      "border-style",
+      "neon",
+      "radius",
+      "gradient",
+      "font",
+      "font-size",
+      "compact",
+      "dense",
+      "padding",
+      "no-icon",
+      "noicon",
+      "center",
+      "icon",
+      "icon-color",
+      "iconcolor",
+      "col",
+      "column",
+      "style",
+      "span"
+    ]);
+    KNOWN_STANDALONE_FLAGS = /* @__PURE__ */ new Set([
+      "no-icon",
+      "noicon",
+      "center",
+      "compact",
+      "dense"
+    ]);
+    MAX_CACHE_SIZE = 500;
+    parseCache = /* @__PURE__ */ new Map();
+  }
+});
+
+// main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => SpecialCallouts
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian10 = require("obsidian");
+init_constants();
 
 // src/processor.ts
+init_constants();
+init_utils();
+init_parser();
 var import_obsidian = require("obsidian");
 var LIST_SELECTOR = "ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol";
 var MUTATION_TARGET_SELECTOR = "ul,ol,.dataview,.cm-embed-block,.markdown-rendered";
@@ -652,10 +689,11 @@ var CalloutProcessor = class {
     }, 50);
   }
   /**
-   * Updates the settings reference
+   * Updates the settings reference and clears element cache
    */
   updateSettings(settings) {
     this.settings = settings;
+    this.processedElements = /* @__PURE__ */ new WeakMap();
   }
   /**
    * Main entry point for processing a callout element with zero-allocation fast paths
@@ -1185,6 +1223,9 @@ var CalloutProcessor = class {
   }
 };
 
+// main.ts
+init_parser();
+
 // src/modals/SuggesterModal.ts
 var import_obsidian2 = require("obsidian");
 var CustomCalloutSuggester = class extends import_obsidian2.SuggestModal {
@@ -1228,6 +1269,8 @@ var CustomCalloutSuggester = class extends import_obsidian2.SuggestModal {
 
 // src/settings/SettingsTab.ts
 var import_obsidian7 = require("obsidian");
+init_constants();
+init_utils();
 
 // src/modals/HowToModal.ts
 var import_obsidian3 = require("obsidian");
@@ -1403,6 +1446,8 @@ var MetadataReferenceModal = class extends import_obsidian4.Modal {
 
 // src/ui/UIComponents.ts
 var import_obsidian6 = require("obsidian");
+init_constants();
+init_utils();
 
 // src/modals/IconPickerModal.ts
 var import_obsidian5 = require("obsidian");
@@ -2280,9 +2325,13 @@ var StandardStyleEditorModal = class extends import_obsidian7.Modal {
 
 // src/modals/InsertCalloutModal.ts
 var import_obsidian9 = require("obsidian");
+init_constants();
+init_parser();
 
 // src/modals/MultiColumnBuilderModal.ts
 var import_obsidian8 = require("obsidian");
+init_constants();
+init_parser();
 var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
   constructor(app, settings, editor) {
     super(app);
@@ -2337,8 +2386,23 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     let endLine = startLine;
     for (let l = startLine + 1; l < totalLines; l++) {
       const line = this.editor.getLine(l);
-      if (line.startsWith(">") || line.trim() === "") {
+      if (line.startsWith(">")) {
         endLine = l;
+      } else if (line.trim() === "") {
+        let continues = false;
+        for (let next = l + 1; next < totalLines; next++) {
+          const nextLine = this.editor.getLine(next);
+          if (nextLine.startsWith(">")) {
+            continues = true;
+            break;
+          }
+          if (nextLine.trim() !== "") break;
+        }
+        if (continues) {
+          endLine = l;
+        } else {
+          break;
+        }
       } else {
         break;
       }
@@ -2385,7 +2449,10 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
             this.settings.standardColors,
             this.settings.customColors
           );
-          let minCol = 1, maxColPos = 1, minRow = 1, maxRowPos = 1;
+          let minCol = parsedAreas.length + 1;
+          let maxColPos = minCol;
+          let minRow = 1;
+          let maxRowPos = 1;
           if (layoutParam) {
             const gridCfg = parseGridLayout(layoutParam);
             if (gridCfg) {
@@ -2396,6 +2463,8 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
               if (gridCfg.columns > maxCol) maxCol = gridCfg.columns;
               if (maxRowPos > maxRow) maxRow = maxRowPos;
             }
+          } else {
+            if (minCol > maxCol) maxCol = minCol;
           }
           const areaId = `area${parsedAreas.length + 1}`;
           currentBlock = {
@@ -3708,6 +3777,8 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
   async saveSettings() {
     await this.saveData(this.settings);
     this.registerStyleCommands();
+    const { clearMetadataCache: clearMetadataCache2 } = await Promise.resolve().then(() => (init_parser(), parser_exports));
+    clearMetadataCache2();
     if (this.processor) {
       this.processor.updateSettings(this.settings);
     }

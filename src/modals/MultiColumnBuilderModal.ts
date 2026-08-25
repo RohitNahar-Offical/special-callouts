@@ -115,8 +115,24 @@ export class MultiColumnBuilderModal extends Modal {
         let endLine = startLine;
         for (let l = startLine + 1; l < totalLines; l++) {
             const line = this.editor.getLine(l);
-            if (line.startsWith('>') || line.trim() === '') {
+            if (line.startsWith('>')) {
                 endLine = l;
+            } else if (line.trim() === '') {
+                // Peek ahead: check if next non-empty line continues the blockquote
+                let continues = false;
+                for (let next = l + 1; next < totalLines; next++) {
+                    const nextLine = this.editor.getLine(next);
+                    if (nextLine.startsWith('>')) {
+                        continues = true;
+                        break;
+                    }
+                    if (nextLine.trim() !== '') break;
+                }
+                if (continues) {
+                    endLine = l;
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
@@ -172,7 +188,11 @@ export class MultiColumnBuilderModal extends Modal {
                         this.settings.customColors
                     );
 
-                    let minCol = 1, maxColPos = 1, minRow = 1, maxRowPos = 1;
+                    let minCol = parsedAreas.length + 1;
+                    let maxColPos = minCol;
+                    let minRow = 1;
+                    let maxRowPos = 1;
+
                     if (layoutParam) {
                         const gridCfg = parseGridLayout(layoutParam);
                         if (gridCfg) {
@@ -184,6 +204,8 @@ export class MultiColumnBuilderModal extends Modal {
                             if (gridCfg.columns > maxCol) maxCol = gridCfg.columns;
                             if (maxRowPos > maxRow) maxRow = maxRowPos;
                         }
+                    } else {
+                        if (minCol > maxCol) maxCol = minCol;
                     }
 
                     const areaId = `area${parsedAreas.length + 1}`;
