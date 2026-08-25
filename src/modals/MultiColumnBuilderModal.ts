@@ -1,6 +1,7 @@
 /**
  * Special Callouts - MultiColumnBuilderModal
  * Interactive visual drag-and-drop dashboard matrix builder
+ * Fully equipped with Content/Type editing, Orphan-free Area management, Unmerge/Split, and clean Grid tokens
  */
 
 import { App, Modal, Editor, Setting, setIcon, Notice } from 'obsidian';
@@ -43,7 +44,7 @@ export interface GridAreaBlock {
     noIcon?: boolean;
 }
 
-type BuilderTab = 'canvas' | 'colors' | 'icon' | 'layout';
+type BuilderTab = 'canvas' | 'content' | 'colors' | 'icon' | 'layout';
 
 export class MultiColumnBuilderModal extends Modal {
     private settings: SpecialCalloutsSettings;
@@ -56,7 +57,7 @@ export class MultiColumnBuilderModal extends Modal {
     private existingRange: { from: { line: number; ch: number }; to: { line: number; ch: number } } | null = null;
     private isEditingExisting: boolean = false;
 
-    // Grid Dimensions (Default 2x3)
+    // Grid Dimensions (Supports 1x2 up to 6x6)
     private gridRows: number = 2;
     private gridCols: number = 3;
 
@@ -161,9 +162,9 @@ export class MultiColumnBuilderModal extends Modal {
                 if (match) {
                     saveCurrentBlock();
 
-                    const rawType = match[1].toLowerCase();
+                    const rawType = match[1].trim().toLowerCase();
                     const rawMeta = match[2] || '';
-                    const rawTitle = match[3] || rawType.toUpperCase();
+                    const rawTitle = match[3]?.trim() || rawType.toUpperCase();
 
                     const { config, layoutParam } = parseMetadata(
                         rawMeta,
@@ -237,6 +238,7 @@ export class MultiColumnBuilderModal extends Modal {
                 }
             });
 
+            this.syncAreaBoundsFromMatrix();
             this.selectedAreaId = parsedAreas[0].id;
             return true;
         } catch (e) {
@@ -256,11 +258,60 @@ export class MultiColumnBuilderModal extends Modal {
         }
     }
 
+    /**
+     * Recalculates bounding rows/cols for all areas from the gridMatrix and purges orphans
+     */
+    private syncAreaBoundsFromMatrix(): void {
+        const activeIds = new Set<string>();
+        const bounds = new Map<string, { minR: number; maxR: number; minC: number; maxC: number }>();
+
+        for (let r = 0; r < this.gridRows; r++) {
+            for (let c = 0; c < this.gridCols; c++) {
+                const id = this.gridMatrix[r]?.[c];
+                if (id) {
+                    activeIds.add(id);
+                    const b = bounds.get(id);
+                    if (!b) {
+                        bounds.set(id, { minR: r + 1, maxR: r + 1, minC: c + 1, maxC: c + 1 });
+                    } else {
+                        b.minR = Math.min(b.minR, r + 1);
+                        b.maxR = Math.max(b.maxR, r + 1);
+                        b.minC = Math.min(b.minC, c + 1);
+                        b.maxC = Math.max(b.maxC, c + 1);
+                    }
+                }
+            }
+        }
+
+        // Purge orphan areas that are no longer in matrix
+        for (const id of Array.from(this.areas.keys())) {
+            if (!activeIds.has(id)) {
+                this.areas.delete(id);
+            }
+        }
+
+        // Update bounds for remaining active areas
+        bounds.forEach((b, id) => {
+            const area = this.areas.get(id);
+            if (area) {
+                area.minRow = b.minR;
+                area.maxRow = b.maxR;
+                area.minCol = b.minC;
+                area.maxCol = b.maxC;
+            }
+        });
+
+        // Ensure selectedAreaId is valid
+        if (!this.areas.has(this.selectedAreaId)) {
+            this.selectedAreaId = this.areas.keys().next().value || '';
+        }
+    }
+
     public applyPresetLayout(presetKey: string): void {
         this.areas.clear();
 
         switch (presetKey) {
-            case 'hero_2': // 2 Rows, 2 Cols
+            case 'hero_2':
                 this.gridRows = 2;
                 this.gridCols = 2;
                 this.initMatrix();
@@ -281,7 +332,7 @@ export class MultiColumnBuilderModal extends Modal {
                 });
                 break;
 
-            case 'header_sidebar': // 2 Rows, 3 Cols
+            case 'header_sidebar':
                 this.gridRows = 2;
                 this.gridCols = 3;
                 this.initMatrix();
@@ -302,7 +353,7 @@ export class MultiColumnBuilderModal extends Modal {
                 });
                 break;
 
-            case 'cols_3': // 1 Row, 3 Cols
+            case 'cols_3':
                 this.gridRows = 1;
                 this.gridCols = 3;
                 this.initMatrix();
@@ -351,7 +402,7 @@ export class MultiColumnBuilderModal extends Modal {
                 break;
         }
 
-        // Fill grid matrix according to area bounds
+        // Populate matrix from preset definitions
         this.areas.forEach(area => {
             for (let r = area.minRow - 1; r < area.maxRow; r++) {
                 for (let c = area.minCol - 1; c < area.maxCol; c++) {
@@ -362,6 +413,7 @@ export class MultiColumnBuilderModal extends Modal {
             }
         });
 
+        this.syncAreaBoundsFromMatrix();
         this.selectedAreaId = this.areas.keys().next().value || 'area1';
     }
 
@@ -391,10 +443,11 @@ export class MultiColumnBuilderModal extends Modal {
         const nav = contentEl.createDiv({ cls: 'sc-nav-tabs sc-margin-bottom' });
 
         const activeArea = this.areas.get(this.selectedAreaId);
-        const activeLabel = activeArea ? activeArea.title : 'Active Box';
+        const activeLabel = activeArea ? (activeArea.title || activeArea.label) : 'Active Box';
 
         const tabs: { id: BuilderTab; label: string; icon: string }[] = [
-            { id: 'canvas', label: 'Layout Presets & Canvas', icon: 'layout-grid' },
+            { id: 'canvas', label: 'Layout Matrix & Canvas', icon: 'layout-grid' },
+            { id: 'content', label: `Content & Type (${activeLabel})`, icon: 'file-text' },
             { id: 'colors', label: `Colors & Glow (${activeLabel})`, icon: 'palette' },
             { id: 'icon', label: `Icon & Font (${activeLabel})`, icon: 'type' },
             { id: 'layout', label: `Borders & Style (${activeLabel})`, icon: 'layout' }
@@ -441,6 +494,9 @@ export class MultiColumnBuilderModal extends Modal {
             case 'canvas':
                 this.renderGridCanvasSection(container);
                 break;
+            case 'content':
+                this.renderContentSection(container);
+                break;
             case 'colors':
                 this.renderColorsSection(container);
                 break;
@@ -454,7 +510,7 @@ export class MultiColumnBuilderModal extends Modal {
     }
 
     private renderGridCanvasSection(container: HTMLElement): void {
-        // Preset Gallery
+        // Presets Gallery
         const gallerySection = container.createDiv();
         gallerySection.createEl('h4', { text: 'Step 1: Choose Layout Preset' });
 
@@ -481,9 +537,9 @@ export class MultiColumnBuilderModal extends Modal {
             };
         });
 
-        // Dimensions Control
+        // Dimensions Control & Tools
         const ctrlRow = container.createDiv({ cls: 'sc-flex-row sc-margin-top' });
-        ctrlRow.createEl('strong', { text: 'Custom Grid Matrix:' });
+        ctrlRow.createEl('strong', { text: 'Grid Matrix Dimensions:' });
 
         const presetSelect = ctrlRow.createEl('select');
         const presets = [
@@ -491,7 +547,8 @@ export class MultiColumnBuilderModal extends Modal {
             { label: '2×3 Standard', r: 2, c: 3 },
             { label: '3×3 Master', r: 3, c: 3 },
             { label: '2×4 Wide', r: 2, c: 4 },
-            { label: '1×3 Columns', r: 1, c: 3 }
+            { label: '1×3 Columns', r: 1, c: 3 },
+            { label: '1×2 Split', r: 1, c: 2 }
         ];
 
         presets.forEach(pr => {
@@ -507,6 +564,10 @@ export class MultiColumnBuilderModal extends Modal {
         // Merge Button
         const mergeBtn = ctrlRow.createEl('button', { cls: 'mod-cta', text: 'Merge Selected Cells' });
         mergeBtn.onclick = () => this.mergeSelectedCells();
+
+        // Split / Unmerge Button
+        const splitBtn = ctrlRow.createEl('button', { text: 'Split / Unmerge Active Box' });
+        splitBtn.onclick = () => this.splitActiveArea();
 
         // Matrix Canvas Grid
         this.renderVisualCanvas(container);
@@ -570,6 +631,7 @@ export class MultiColumnBuilderModal extends Modal {
                 cell.onmouseenter = () => {
                     if (this.isDragging) {
                         this.dragEnd = { r, c };
+                        this.renderVisualCanvas(container);
                     }
                 };
 
@@ -602,6 +664,11 @@ export class MultiColumnBuilderModal extends Modal {
         const minC = Math.min(this.dragStart.c, this.dragEnd.c);
         const maxC = Math.max(this.dragStart.c, this.dragEnd.c);
 
+        if (minR === maxR && minC === maxC) {
+            new Notice('Please select more than 1 cell to merge!');
+            return;
+        }
+
         const newId = `area_${Date.now()}`;
         const newArea: GridAreaBlock = {
             id: newId,
@@ -622,11 +689,49 @@ export class MultiColumnBuilderModal extends Modal {
         }
 
         this.areas.set(newId, newArea);
+        this.syncAreaBoundsFromMatrix();
         this.selectedAreaId = newId;
         this.dragStart = null;
         this.dragEnd = null;
 
-        new Notice('Merged cells!');
+        new Notice('Merged cells into a single card!');
+        this.renderModal();
+    }
+
+    private splitActiveArea(): void {
+        const area = this.areas.get(this.selectedAreaId);
+        if (!area) return;
+
+        const isSpanned = (area.maxRow > area.minRow) || (area.maxCol > area.minCol);
+        if (!isSpanned) {
+            new Notice('This card is already a single 1×1 cell.');
+            return;
+        }
+
+        let count = 1;
+        for (let r = area.minRow - 1; r < area.maxRow; r++) {
+            for (let c = area.minCol - 1; c < area.maxCol; c++) {
+                const subId = `area_${Date.now()}_${count}`;
+                this.gridMatrix[r][c] = subId;
+                this.areas.set(subId, {
+                    id: subId,
+                    label: `Cell (${r + 1},${c + 1})`,
+                    minRow: r + 1,
+                    maxRow: r + 1,
+                    minCol: c + 1,
+                    maxCol: c + 1,
+                    type: area.type || 'note',
+                    title: `${area.title} (${count})`,
+                    content: 'Card content...',
+                    bgColor: area.bgColor,
+                    borderColor: area.borderColor
+                });
+                count++;
+            }
+        }
+
+        this.syncAreaBoundsFromMatrix();
+        new Notice('Split card into individual cells!');
         this.renderModal();
     }
 
@@ -636,7 +741,10 @@ export class MultiColumnBuilderModal extends Modal {
 
         const select = row.createEl('select');
         this.areas.forEach(a => {
-            const opt = select.createEl('option', { text: `${a.title} (cols ${a.minCol}-${a.maxCol})`, value: a.id });
+            const opt = select.createEl('option', {
+                text: `${a.title || a.label} (cols ${a.minCol}-${a.maxCol}, rows ${a.minRow}-${a.maxRow})`,
+                value: a.id
+            });
             if (a.id === this.selectedAreaId) opt.selected = true;
         });
 
@@ -644,6 +752,58 @@ export class MultiColumnBuilderModal extends Modal {
             this.selectedAreaId = select.value;
             this.renderModal();
         };
+    }
+
+    private renderContentSection(container: HTMLElement): void {
+        const area = this.areas.get(this.selectedAreaId);
+        if (!area) return;
+
+        // Callout Type Chooser
+        new Setting(container)
+            .setName('Callout Type / Preset')
+            .setDesc('Standard type or custom style')
+            .addDropdown(drop => {
+                Object.keys(DEFAULT_STANDARD_STYLES).forEach(type => {
+                    drop.addOption(type, `Standard: ${type.toUpperCase()}`);
+                });
+
+                this.settings.customStyles.forEach(style => {
+                    drop.addOption(style.name, `Custom: ${style.name}`);
+                });
+
+                drop.setValue(area.type || 'note');
+                drop.onChange(val => {
+                    area.type = val;
+                    const std = DEFAULT_STANDARD_STYLES[val];
+                    if (std) {
+                        area.bgColor = std.bg;
+                        area.borderColor = std.border;
+                        area.iconName = std.icon;
+                    }
+                    this.updateLivePreview();
+                });
+            });
+
+        // Title Input
+        new Setting(container)
+            .setName('Card Title')
+            .addText(text => text
+                .setValue(area.title || '')
+                .onChange(val => {
+                    area.title = val;
+                    this.updateLivePreview();
+                }));
+
+        // Content Textarea
+        new Setting(container)
+            .setName('Card Content')
+            .setDesc('Card markdown or bullet items')
+            .addTextArea(text => text
+                .setValue(area.content || '')
+                .onChange(val => {
+                    area.content = val;
+                    this.updateLivePreview();
+                }));
     }
 
     private renderColorsSection(container: HTMLElement): void {
@@ -674,6 +834,15 @@ export class MultiColumnBuilderModal extends Modal {
     private renderIconSection(container: HTMLElement): void {
         const area = this.areas.get(this.selectedAreaId);
         if (!area) return;
+
+        new Setting(container)
+            .setName('Hide Icon (no-icon)')
+            .addToggle(toggle => toggle
+                .setValue(!!area.noIcon)
+                .onChange(val => {
+                    area.noIcon = val;
+                    this.updateLivePreview();
+                }));
 
         createIconSetting(container, this.app, 'Card Icon', 'Lucide icon name', area.iconName || 'pencil', icon => {
             area.iconName = icon;
@@ -738,6 +907,15 @@ export class MultiColumnBuilderModal extends Modal {
                     area.compact = val;
                     this.updateLivePreview();
                 }));
+
+        new Setting(container)
+            .setName('Center Alignment')
+            .addToggle(toggle => toggle
+                .setValue(!!area.center)
+                .onChange(val => {
+                    area.center = val;
+                    this.updateLivePreview();
+                }));
     }
 
     private updateLivePreview(): void {
@@ -749,6 +927,9 @@ export class MultiColumnBuilderModal extends Modal {
         content.setCssProps({
             '--sc-multi-cols': this.gridCols.toString()
         });
+
+        // Ensure bounds are accurate before previewing
+        this.syncAreaBoundsFromMatrix();
 
         this.areas.forEach(area => {
             const cardWrapper = content.createDiv({ cls: 'sc-grid-item-wrapper' });
@@ -783,20 +964,36 @@ export class MultiColumnBuilderModal extends Modal {
                 borderWidth: area.borderWidth,
                 borderStyle: area.borderStyle,
                 borderRadius: area.borderRadius,
-                compact: area.compact
+                compact: area.compact,
+                center: area.center,
+                noIcon: area.noIcon
             });
         });
     }
 
     private insertCalloutIntoEditor(): void {
+        this.syncAreaBoundsFromMatrix();
+
         let result = `> [!multi-callout]\n>\n`;
 
         this.areas.forEach(area => {
             const colSpan = area.maxCol - area.minCol + 1;
             const rowSpan = area.maxRow - area.minRow + 1;
 
-            // Ranged format: (minCol-maxCol:gridCols:minRow-maxRow)
-            const gridToken = `${area.minCol}-${area.maxCol}:${this.gridCols}:${area.minRow}-${area.maxRow}`;
+            // Generate clean canonical grid tokens
+            let gridToken = '';
+            if (rowSpan > 1 || area.minRow > 1) {
+                // Multi-row: (colStart-colEnd:gridCols:rowStart-rowEnd)
+                const colPart = colSpan > 1 ? `${area.minCol}-${area.maxCol}` : `${area.minCol}`;
+                const rowPart = rowSpan > 1 ? `${area.minRow}-${area.maxRow}` : `${area.minRow}`;
+                gridToken = `${colPart}:${this.gridCols}:${rowPart}`;
+            } else if (colSpan > 1) {
+                // Single row multi-col: (colStart-colEnd:gridCols)
+                gridToken = `${area.minCol}-${area.maxCol}:${this.gridCols}`;
+            } else {
+                // Single cell: (pos:gridCols)
+                gridToken = `${area.minCol}:${this.gridCols}`;
+            }
 
             const metaParts: string[] = [gridToken];
             if (area.bgColor) metaParts.push(`bg:${area.bgColor}`);

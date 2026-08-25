@@ -2271,7 +2271,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     // Editing State
     this.existingRange = null;
     this.isEditingExisting = false;
-    // Grid Dimensions (Default 2x3)
+    // Grid Dimensions (Supports 1x2 up to 6x6)
     this.gridRows = 2;
     this.gridCols = 3;
     // Selection & Area Blocks state
@@ -2334,6 +2334,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     };
   }
   parseExistingMultiCallout(text) {
+    var _a;
     try {
       const lines = text.split("\n");
       const subCalloutRegex = /^\s*>+\s*\[!([^\]]+)\](?:\s*\(([^)]+)\))?\s*(.*)$/;
@@ -2356,9 +2357,9 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
         const match = line.match(subCalloutRegex);
         if (match) {
           saveCurrentBlock();
-          const rawType = match[1].toLowerCase();
+          const rawType = match[1].trim().toLowerCase();
           const rawMeta = match[2] || "";
-          const rawTitle = match[3] || rawType.toUpperCase();
+          const rawTitle = ((_a = match[3]) == null ? void 0 : _a.trim()) || rawType.toUpperCase();
           const { config, layoutParam } = parseMetadata(
             rawMeta,
             this.settings.standardColors,
@@ -2424,6 +2425,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
           }
         }
       });
+      this.syncAreaBoundsFromMatrix();
       this.selectedAreaId = parsedAreas[0].id;
       return true;
     } catch (e) {
@@ -2439,6 +2441,48 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
         row.push("");
       }
       this.gridMatrix.push(row);
+    }
+  }
+  /**
+   * Recalculates bounding rows/cols for all areas from the gridMatrix and purges orphans
+   */
+  syncAreaBoundsFromMatrix() {
+    var _a;
+    const activeIds = /* @__PURE__ */ new Set();
+    const bounds = /* @__PURE__ */ new Map();
+    for (let r = 0; r < this.gridRows; r++) {
+      for (let c = 0; c < this.gridCols; c++) {
+        const id = (_a = this.gridMatrix[r]) == null ? void 0 : _a[c];
+        if (id) {
+          activeIds.add(id);
+          const b = bounds.get(id);
+          if (!b) {
+            bounds.set(id, { minR: r + 1, maxR: r + 1, minC: c + 1, maxC: c + 1 });
+          } else {
+            b.minR = Math.min(b.minR, r + 1);
+            b.maxR = Math.max(b.maxR, r + 1);
+            b.minC = Math.min(b.minC, c + 1);
+            b.maxC = Math.max(b.maxC, c + 1);
+          }
+        }
+      }
+    }
+    for (const id of Array.from(this.areas.keys())) {
+      if (!activeIds.has(id)) {
+        this.areas.delete(id);
+      }
+    }
+    bounds.forEach((b, id) => {
+      const area = this.areas.get(id);
+      if (area) {
+        area.minRow = b.minR;
+        area.maxRow = b.maxR;
+        area.minCol = b.minC;
+        area.maxCol = b.maxC;
+      }
+    });
+    if (!this.areas.has(this.selectedAreaId)) {
+      this.selectedAreaId = this.areas.keys().next().value || "";
     }
   }
   applyPresetLayout(presetKey) {
@@ -2644,6 +2688,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
         }
       }
     });
+    this.syncAreaBoundsFromMatrix();
     this.selectedAreaId = this.areas.keys().next().value || "area1";
   }
   onOpen() {
@@ -2664,9 +2709,10 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     this.updateLivePreview();
     const nav = contentEl.createDiv({ cls: "sc-nav-tabs sc-margin-bottom" });
     const activeArea = this.areas.get(this.selectedAreaId);
-    const activeLabel = activeArea ? activeArea.title : "Active Box";
+    const activeLabel = activeArea ? activeArea.title || activeArea.label : "Active Box";
     const tabs = [
-      { id: "canvas", label: "Layout Presets & Canvas", icon: "layout-grid" },
+      { id: "canvas", label: "Layout Matrix & Canvas", icon: "layout-grid" },
+      { id: "content", label: `Content & Type (${activeLabel})`, icon: "file-text" },
       { id: "colors", label: `Colors & Glow (${activeLabel})`, icon: "palette" },
       { id: "icon", label: `Icon & Font (${activeLabel})`, icon: "type" },
       { id: "layout", label: `Borders & Style (${activeLabel})`, icon: "layout" }
@@ -2697,6 +2743,9 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     switch (this.activeTab) {
       case "canvas":
         this.renderGridCanvasSection(container);
+        break;
+      case "content":
+        this.renderContentSection(container);
         break;
       case "colors":
         this.renderColorsSection(container);
@@ -2731,14 +2780,15 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
       };
     });
     const ctrlRow = container.createDiv({ cls: "sc-flex-row sc-margin-top" });
-    ctrlRow.createEl("strong", { text: "Custom Grid Matrix:" });
+    ctrlRow.createEl("strong", { text: "Grid Matrix Dimensions:" });
     const presetSelect = ctrlRow.createEl("select");
     const presets = [
       { label: "2\xD72 Quad", r: 2, c: 2 },
       { label: "2\xD73 Standard", r: 2, c: 3 },
       { label: "3\xD73 Master", r: 3, c: 3 },
       { label: "2\xD74 Wide", r: 2, c: 4 },
-      { label: "1\xD73 Columns", r: 1, c: 3 }
+      { label: "1\xD73 Columns", r: 1, c: 3 },
+      { label: "1\xD72 Split", r: 1, c: 2 }
     ];
     presets.forEach((pr) => {
       const opt = presetSelect.createEl("option", { text: pr.label, value: `${pr.r}x${pr.c}` });
@@ -2750,6 +2800,8 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     };
     const mergeBtn = ctrlRow.createEl("button", { cls: "mod-cta", text: "Merge Selected Cells" });
     mergeBtn.onclick = () => this.mergeSelectedCells();
+    const splitBtn = ctrlRow.createEl("button", { text: "Split / Unmerge Active Box" });
+    splitBtn.onclick = () => this.splitActiveArea();
     this.renderVisualCanvas(container);
     this.renderBoxSwitcher(container);
   }
@@ -2808,6 +2860,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
         cell.onmouseenter = () => {
           if (this.isDragging) {
             this.dragEnd = { r, c };
+            this.renderVisualCanvas(container);
           }
         };
         cell.onmouseup = () => {
@@ -2836,6 +2889,10 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     const maxR = Math.max(this.dragStart.r, this.dragEnd.r);
     const minC = Math.min(this.dragStart.c, this.dragEnd.c);
     const maxC = Math.max(this.dragStart.c, this.dragEnd.c);
+    if (minR === maxR && minC === maxC) {
+      new import_obsidian8.Notice("Please select more than 1 cell to merge!");
+      return;
+    }
     const newId = `area_${Date.now()}`;
     const newArea = {
       id: newId,
@@ -2854,10 +2911,44 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
       }
     }
     this.areas.set(newId, newArea);
+    this.syncAreaBoundsFromMatrix();
     this.selectedAreaId = newId;
     this.dragStart = null;
     this.dragEnd = null;
-    new import_obsidian8.Notice("Merged cells!");
+    new import_obsidian8.Notice("Merged cells into a single card!");
+    this.renderModal();
+  }
+  splitActiveArea() {
+    const area = this.areas.get(this.selectedAreaId);
+    if (!area) return;
+    const isSpanned = area.maxRow > area.minRow || area.maxCol > area.minCol;
+    if (!isSpanned) {
+      new import_obsidian8.Notice("This card is already a single 1\xD71 cell.");
+      return;
+    }
+    let count = 1;
+    for (let r = area.minRow - 1; r < area.maxRow; r++) {
+      for (let c = area.minCol - 1; c < area.maxCol; c++) {
+        const subId = `area_${Date.now()}_${count}`;
+        this.gridMatrix[r][c] = subId;
+        this.areas.set(subId, {
+          id: subId,
+          label: `Cell (${r + 1},${c + 1})`,
+          minRow: r + 1,
+          maxRow: r + 1,
+          minCol: c + 1,
+          maxCol: c + 1,
+          type: area.type || "note",
+          title: `${area.title} (${count})`,
+          content: "Card content...",
+          bgColor: area.bgColor,
+          borderColor: area.borderColor
+        });
+        count++;
+      }
+    }
+    this.syncAreaBoundsFromMatrix();
+    new import_obsidian8.Notice("Split card into individual cells!");
     this.renderModal();
   }
   renderBoxSwitcher(container) {
@@ -2865,13 +2956,47 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     row.createEl("strong", { text: "Edit Active Box:" });
     const select = row.createEl("select");
     this.areas.forEach((a) => {
-      const opt = select.createEl("option", { text: `${a.title} (cols ${a.minCol}-${a.maxCol})`, value: a.id });
+      const opt = select.createEl("option", {
+        text: `${a.title || a.label} (cols ${a.minCol}-${a.maxCol}, rows ${a.minRow}-${a.maxRow})`,
+        value: a.id
+      });
       if (a.id === this.selectedAreaId) opt.selected = true;
     });
     select.onchange = () => {
       this.selectedAreaId = select.value;
       this.renderModal();
     };
+  }
+  renderContentSection(container) {
+    const area = this.areas.get(this.selectedAreaId);
+    if (!area) return;
+    new import_obsidian8.Setting(container).setName("Callout Type / Preset").setDesc("Standard type or custom style").addDropdown((drop) => {
+      Object.keys(DEFAULT_STANDARD_STYLES).forEach((type) => {
+        drop.addOption(type, `Standard: ${type.toUpperCase()}`);
+      });
+      this.settings.customStyles.forEach((style) => {
+        drop.addOption(style.name, `Custom: ${style.name}`);
+      });
+      drop.setValue(area.type || "note");
+      drop.onChange((val) => {
+        area.type = val;
+        const std = DEFAULT_STANDARD_STYLES[val];
+        if (std) {
+          area.bgColor = std.bg;
+          area.borderColor = std.border;
+          area.iconName = std.icon;
+        }
+        this.updateLivePreview();
+      });
+    });
+    new import_obsidian8.Setting(container).setName("Card Title").addText((text) => text.setValue(area.title || "").onChange((val) => {
+      area.title = val;
+      this.updateLivePreview();
+    }));
+    new import_obsidian8.Setting(container).setName("Card Content").setDesc("Card markdown or bullet items").addTextArea((text) => text.setValue(area.content || "").onChange((val) => {
+      area.content = val;
+      this.updateLivePreview();
+    }));
   }
   renderColorsSection(container) {
     const area = this.areas.get(this.selectedAreaId);
@@ -2896,6 +3021,10 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
   renderIconSection(container) {
     const area = this.areas.get(this.selectedAreaId);
     if (!area) return;
+    new import_obsidian8.Setting(container).setName("Hide Icon (no-icon)").addToggle((toggle) => toggle.setValue(!!area.noIcon).onChange((val) => {
+      area.noIcon = val;
+      this.updateLivePreview();
+    }));
     createIconSetting(container, this.app, "Card Icon", "Lucide icon name", area.iconName || "pencil", (icon) => {
       area.iconName = icon;
       this.updateLivePreview();
@@ -2939,6 +3068,10 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
       area.compact = val;
       this.updateLivePreview();
     }));
+    new import_obsidian8.Setting(container).setName("Center Alignment").addToggle((toggle) => toggle.setValue(!!area.center).onChange((val) => {
+      area.center = val;
+      this.updateLivePreview();
+    }));
   }
   updateLivePreview() {
     if (!this.liveDashboardEl) return;
@@ -2948,6 +3081,7 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
     content.setCssProps({
       "--sc-multi-cols": this.gridCols.toString()
     });
+    this.syncAreaBoundsFromMatrix();
     this.areas.forEach((area) => {
       const cardWrapper = content.createDiv({ cls: "sc-grid-item-wrapper" });
       const colSpan = area.maxCol - area.minCol + 1;
@@ -2977,18 +3111,30 @@ var MultiColumnBuilderModal = class extends import_obsidian8.Modal {
         borderWidth: area.borderWidth,
         borderStyle: area.borderStyle,
         borderRadius: area.borderRadius,
-        compact: area.compact
+        compact: area.compact,
+        center: area.center,
+        noIcon: area.noIcon
       });
     });
   }
   insertCalloutIntoEditor() {
+    this.syncAreaBoundsFromMatrix();
     let result = `> [!multi-callout]
 >
 `;
     this.areas.forEach((area) => {
       const colSpan = area.maxCol - area.minCol + 1;
       const rowSpan = area.maxRow - area.minRow + 1;
-      const gridToken = `${area.minCol}-${area.maxCol}:${this.gridCols}:${area.minRow}-${area.maxRow}`;
+      let gridToken = "";
+      if (rowSpan > 1 || area.minRow > 1) {
+        const colPart = colSpan > 1 ? `${area.minCol}-${area.maxCol}` : `${area.minCol}`;
+        const rowPart = rowSpan > 1 ? `${area.minRow}-${area.maxRow}` : `${area.minRow}`;
+        gridToken = `${colPart}:${this.gridCols}:${rowPart}`;
+      } else if (colSpan > 1) {
+        gridToken = `${area.minCol}-${area.maxCol}:${this.gridCols}`;
+      } else {
+        gridToken = `${area.minCol}:${this.gridCols}`;
+      }
       const metaParts = [gridToken];
       if (area.bgColor) metaParts.push(`bg:${area.bgColor}`);
       if (area.borderColor) metaParts.push(`border:${area.borderColor}`);
