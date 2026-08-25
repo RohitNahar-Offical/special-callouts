@@ -107,16 +107,16 @@ export class CalloutProcessor {
      * Processes inline metadata from callout title
      */
     private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string): void {
-        const extracted = extractMetadata(fullText);
+        // Extract custom layout names
+        const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
+
+        const extracted = extractMetadata(fullText, layoutNames);
         if (!extracted) return;
 
         // Update title text
         if (innerTitleEl.textContent !== extracted.title) {
             innerTitleEl.textContent = extracted.title;
         }
-
-        // Extract custom layout names
-        const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
 
         // Parse metadata
         const { config, layoutParam, styleParam } = parseMetadata(

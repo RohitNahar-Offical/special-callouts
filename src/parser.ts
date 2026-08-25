@@ -291,20 +291,103 @@ export function parseGridLayout(param: string): GridConfig | null {
     };
 }
 
-/**
- * Extracts metadata content from callout title
- * @param fullText - Full title text
- * @returns Object with metadata content and remaining title
- */
-export function extractMetadata(fullText: string): { content: string; title: string } | null {
-    const trimmedText = fullText.replace(/^\s+/, '');
-    const span = findMetadataSpan(trimmedText, 0);
-    if (!span) return null;
+const KNOWN_METADATA_KEYS = new Set([
+    'bg', 'background', 'text', 'link', 'title', 'border', 'bw', 'bs',
+    'border-width', 'border-style', 'neon', 'radius', 'gradient',
+    'font', 'font-size', 'compact', 'dense', 'padding', 'no-icon', 'noicon',
+    'center', 'icon', 'icon-color', 'iconcolor', 'col', 'column', 'style'
+]);
 
-    return {
-        content: span.content,
-        title: trimmedText.substring(span.end + 1).trim()
-    };
+const KNOWN_STANDALONE_FLAGS = new Set([
+    'no-icon', 'noicon', 'center', 'compact', 'dense'
+]);
+
+/**
+ * Checks whether parenthesized text actually looks like callout metadata.
+ *
+ * Prevents titles ending with parenthetical remarks (e.g. "Standup (Tuesday)"
+ * or "Project Review (Q3)") from being mistakenly consumed as metadata.
+ */
+export function isLikelyMetadata(content: string, customLayoutNames: string[] = []): boolean {
+    const trimmed = content.trim();
+    if (!trimmed) return false;
+
+    // Check if the whole string is or contains a layout token (e.g. 1:3)
+    if (maskGroups(trimmed).match(LAYOUT_REGEX)) return true;
+
+    const tokens = smartSplit(trimmed);
+    if (tokens.length === 0) return false;
+
+    // At least one token must match a known parameter key, flag, or custom layout
+    for (const token of tokens) {
+        const lowered = token.trim().toLowerCase();
+        if (!lowered) continue;
+
+        if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
+        if (customLayoutNames.map(l => l.toLowerCase()).includes(lowered)) return true;
+
+        const colonIndex = lowered.indexOf(':');
+        if (colonIndex > 0) {
+            const key = lowered.slice(0, colonIndex).trim();
+            if (KNOWN_METADATA_KEYS.has(key)) return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Extracts metadata content from callout title, supporting both leading and safe trailing metadata
+ * @param fullText - Full title text
+ * @param customLayoutNames - Optional custom layout names to recognize
+ * @returns Object with metadata content and remaining title, or null
+ */
+export function extractMetadata(
+    fullText: string,
+    customLayoutNames: string[] = []
+): { content: string; title: string } | null {
+    const trimmedText = fullText.replace(/^\s+/, '');
+    
+    // 1. Check for leading metadata block (e.g., "(bg:red) Title")
+    const leadingSpan = findMetadataSpan(trimmedText, 0);
+    if (leadingSpan) {
+        return {
+            content: leadingSpan.content,
+            title: trimmedText.substring(leadingSpan.end + 1).trim()
+        };
+    }
+
+    // 2. Check for safe trailing metadata block (e.g., "Title (bg:red)")
+    const rtrimmed = trimmedText.replace(/\s+$/, '');
+    if (rtrimmed.endsWith(')')) {
+        let depth = 0;
+        let openIndex = -1;
+        const closeIndex = rtrimmed.length - 1;
+
+        for (let i = closeIndex; i >= 0; i--) {
+            if (rtrimmed[i] === ')') {
+                depth++;
+            } else if (rtrimmed[i] === '(') {
+                depth--;
+                if (depth === 0) {
+                    openIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (openIndex !== -1) {
+            const candidate = rtrimmed.slice(openIndex + 1, closeIndex);
+            if (isLikelyMetadata(candidate, customLayoutNames)) {
+                return {
+                    content: candidate,
+                    title: rtrimmed.slice(0, openIndex).trim()
+                };
+            }
+        }
+    }
+
+    return null;
 }
 
 /**

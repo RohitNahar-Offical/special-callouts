@@ -389,14 +389,97 @@ function parseGridLayout(param) {
     row: match[3] ? parseInt(match[3]) : 1
   };
 }
-function extractMetadata(fullText) {
+var KNOWN_METADATA_KEYS = /* @__PURE__ */ new Set([
+  "bg",
+  "background",
+  "text",
+  "link",
+  "title",
+  "border",
+  "bw",
+  "bs",
+  "border-width",
+  "border-style",
+  "neon",
+  "radius",
+  "gradient",
+  "font",
+  "font-size",
+  "compact",
+  "dense",
+  "padding",
+  "no-icon",
+  "noicon",
+  "center",
+  "icon",
+  "icon-color",
+  "iconcolor",
+  "col",
+  "column",
+  "style"
+]);
+var KNOWN_STANDALONE_FLAGS = /* @__PURE__ */ new Set([
+  "no-icon",
+  "noicon",
+  "center",
+  "compact",
+  "dense"
+]);
+function isLikelyMetadata(content, customLayoutNames = []) {
+  const trimmed = content.trim();
+  if (!trimmed) return false;
+  if (maskGroups(trimmed).match(LAYOUT_REGEX)) return true;
+  const tokens = smartSplit(trimmed);
+  if (tokens.length === 0) return false;
+  for (const token of tokens) {
+    const lowered = token.trim().toLowerCase();
+    if (!lowered) continue;
+    if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
+    if (customLayoutNames.map((l) => l.toLowerCase()).includes(lowered)) return true;
+    const colonIndex = lowered.indexOf(":");
+    if (colonIndex > 0) {
+      const key = lowered.slice(0, colonIndex).trim();
+      if (KNOWN_METADATA_KEYS.has(key)) return true;
+    }
+  }
+  return false;
+}
+function extractMetadata(fullText, customLayoutNames = []) {
   const trimmedText = fullText.replace(/^\s+/, "");
-  const span = findMetadataSpan(trimmedText, 0);
-  if (!span) return null;
-  return {
-    content: span.content,
-    title: trimmedText.substring(span.end + 1).trim()
-  };
+  const leadingSpan = findMetadataSpan(trimmedText, 0);
+  if (leadingSpan) {
+    return {
+      content: leadingSpan.content,
+      title: trimmedText.substring(leadingSpan.end + 1).trim()
+    };
+  }
+  const rtrimmed = trimmedText.replace(/\s+$/, "");
+  if (rtrimmed.endsWith(")")) {
+    let depth = 0;
+    let openIndex = -1;
+    const closeIndex = rtrimmed.length - 1;
+    for (let i = closeIndex; i >= 0; i--) {
+      if (rtrimmed[i] === ")") {
+        depth++;
+      } else if (rtrimmed[i] === "(") {
+        depth--;
+        if (depth === 0) {
+          openIndex = i;
+          break;
+        }
+      }
+    }
+    if (openIndex !== -1) {
+      const candidate = rtrimmed.slice(openIndex + 1, closeIndex);
+      if (isLikelyMetadata(candidate, customLayoutNames)) {
+        return {
+          content: candidate,
+          title: rtrimmed.slice(0, openIndex).trim()
+        };
+      }
+    }
+  }
+  return null;
 }
 function findMetadataSpan(line, from = 0) {
   let i = from;
@@ -483,12 +566,12 @@ var CalloutProcessor = class {
    * Processes inline metadata from callout title
    */
   processMetadata(calloutEl, innerTitleEl, fullText) {
-    const extracted = extractMetadata(fullText);
+    const layoutNames = (this.settings.customLayouts || []).map((l) => l.name);
+    const extracted = extractMetadata(fullText, layoutNames);
     if (!extracted) return;
     if (innerTitleEl.textContent !== extracted.title) {
       innerTitleEl.textContent = extracted.title;
     }
-    const layoutNames = (this.settings.customLayouts || []).map((l) => l.name);
     const { config, layoutParam, styleParam } = parseMetadata(
       extracted.content,
       this.settings.standardColors,

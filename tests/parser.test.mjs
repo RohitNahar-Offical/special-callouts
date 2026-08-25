@@ -31,8 +31,17 @@ describe('extractMetadata', () => {
         );
     });
 
-    test('returns null when metadata follows the title instead of preceding it', () => {
-        assert.equal(extractMetadata('My Title (bg:red)'), null);
+    test('safely reads trailing metadata when formatted as metadata', () => {
+        assert.deepEqual(extractMetadata('My Title (bg:red)'), { content: 'bg:red', title: 'My Title' });
+        assert.deepEqual(extractMetadata('Project (1:3, compact)'), { content: '1:3, compact', title: 'Project' });
+        assert.deepEqual(extractMetadata('Custom Note (style:ocean)'), { content: 'style:ocean', title: 'Custom Note' });
+    });
+
+    test('preserves parenthesized titles that are not metadata', () => {
+        assert.equal(extractMetadata('Standup (Tuesday)'), null);
+        assert.equal(extractMetadata('Project Review (Q3)'), null);
+        assert.equal(extractMetadata('Meeting (10am)'), null);
+        assert.equal(extractMetadata('Release (v2.0)'), null);
     });
 
     test('returns null on an unbalanced block, dropping it whole', () => {
