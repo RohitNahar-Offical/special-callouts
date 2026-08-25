@@ -202,7 +202,7 @@ function applyTextBorder(element, borderType) {
 }
 
 // src/parser.ts
-var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
+var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+)(?:[:,/]\d+(?:-\d+)?)?)(?:$|[\s,])/;
 var GROUP_REGEX = /^\(([^)]+)\)$/;
 var MASK_CHAR = "\0";
 function maskGroups(content) {
@@ -381,12 +381,25 @@ function parseMetadata(content, standardColors, customColors, customLayoutNames 
   return { config, layoutParam, styleParam };
 }
 function parseGridLayout(param) {
-  const match = param.match(/^(\d+)[:,/](\d+)(?:[:,/](\d+))?$/);
+  const match = param.match(/^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?$/);
   if (!match) return null;
+  const posStart = parseInt(match[1]);
+  const posEnd = match[2] ? parseInt(match[2]) : posStart;
+  const columns = parseInt(match[3]);
+  const rowStart = match[4] ? parseInt(match[4]) : 1;
+  const rowEnd = match[5] ? parseInt(match[5]) : rowStart;
+  const colSpan = Math.max(1, posEnd - posStart + 1);
+  const rowSpan = Math.max(1, rowEnd - rowStart + 1);
   return {
-    position: parseInt(match[1]),
-    columns: parseInt(match[2]),
-    row: match[3] ? parseInt(match[3]) : 1
+    position: posStart,
+    columns,
+    row: rowStart,
+    colStart: posStart,
+    colEnd: posEnd,
+    colSpan,
+    rowStart,
+    rowEnd,
+    rowSpan
   };
 }
 var KNOWN_METADATA_KEYS = /* @__PURE__ */ new Set([
@@ -752,7 +765,8 @@ var CalloutProcessor = class {
    */
   applyGridLayout(calloutEl, gridConfig) {
     const gap = 10;
-    const widthCalc = `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
+    const colSpan = gridConfig.colSpan || 1;
+    const widthCalc = colSpan > 1 ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${colSpan} + ${(colSpan - 1) * gap}px)` : `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
     const wrapper = this.getDirectWrapper(calloutEl);
     this.neutralizeWrapper(wrapper);
     wrapper.setCssProps({ "--sc-flex-width": widthCalc });
@@ -764,6 +778,12 @@ var CalloutProcessor = class {
     calloutEl.setAttribute("data-grid-pos", gridConfig.position.toString());
     calloutEl.setAttribute("data-grid-cols", gridConfig.columns.toString());
     calloutEl.setAttribute("data-grid-row", gridConfig.row.toString());
+    if (gridConfig.colSpan && gridConfig.colSpan > 1) {
+      calloutEl.setAttribute("data-grid-colspan", gridConfig.colSpan.toString());
+    }
+    if (gridConfig.rowSpan && gridConfig.rowSpan > 1) {
+      calloutEl.setAttribute("data-grid-rowspan", gridConfig.rowSpan.toString());
+    }
   }
   /**
    * Applies visually built custom layouts from settings using grid-template-areas

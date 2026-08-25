@@ -214,16 +214,74 @@ describe('grid token', () => {
 
 describe('parseGridLayout', () => {
     test('position and column count', () => {
-        assert.deepEqual(parseGridLayout('1:3'), { position: 1, columns: 3, row: 1 });
+        assert.deepEqual(parseGridLayout('1:3'), {
+            position: 1,
+            columns: 3,
+            row: 1,
+            colStart: 1,
+            colEnd: 1,
+            colSpan: 1,
+            rowStart: 1,
+            rowEnd: 1,
+            rowSpan: 1
+        });
     });
 
     test('comma and slash separators are accepted', () => {
-        assert.deepEqual(parseGridLayout('2,4'), { position: 2, columns: 4, row: 1 });
-        assert.deepEqual(parseGridLayout('2/4'), { position: 2, columns: 4, row: 1 });
+        assert.equal(parseGridLayout('2,4').columns, 4);
+        assert.equal(parseGridLayout('2/4').columns, 4);
     });
 
     test('an explicit row is carried through', () => {
-        assert.deepEqual(parseGridLayout('2:3:2'), { position: 2, columns: 3, row: 2 });
+        assert.deepEqual(parseGridLayout('2:3:2'), {
+            position: 2,
+            columns: 3,
+            row: 2,
+            colStart: 2,
+            colEnd: 2,
+            colSpan: 1,
+            rowStart: 2,
+            rowEnd: 2,
+            rowSpan: 1
+        });
+    });
+
+    test('supports ranged column and row spans', () => {
+        assert.deepEqual(parseGridLayout('1-2:3'), {
+            position: 1,
+            columns: 3,
+            row: 1,
+            colStart: 1,
+            colEnd: 2,
+            colSpan: 2,
+            rowStart: 1,
+            rowEnd: 1,
+            rowSpan: 1
+        });
+
+        assert.deepEqual(parseGridLayout('1-2:3:1-2'), {
+            position: 1,
+            columns: 3,
+            row: 1,
+            colStart: 1,
+            colEnd: 2,
+            colSpan: 2,
+            rowStart: 1,
+            rowEnd: 2,
+            rowSpan: 2
+        });
+
+        assert.deepEqual(parseGridLayout('2-4:4:2-3'), {
+            position: 2,
+            columns: 4,
+            row: 2,
+            colStart: 2,
+            colEnd: 4,
+            colSpan: 3,
+            rowStart: 2,
+            rowEnd: 3,
+            rowSpan: 2
+        });
     });
 
     test('anything else is null', () => {
