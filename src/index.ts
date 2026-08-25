@@ -20,6 +20,13 @@ export { CalloutProcessor } from './processor';
 
 // Modals
 export { CustomCalloutSuggester } from './modals/SuggesterModal';
+export { InsertCalloutModal } from './modals/InsertCalloutModal';
+export { MultiColumnBuilderModal } from './modals/MultiColumnBuilderModal';
+export { IconPickerModal } from './modals/IconPickerModal';
+
+// UI Components
+export * from './ui/UIComponents';
 
 // Settings
 export { SpecialCalloutsSettingTab } from './settings/SettingsTab';
+

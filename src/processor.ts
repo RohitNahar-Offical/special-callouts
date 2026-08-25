@@ -1,6 +1,6 @@
 /**
  * Special Callouts - Callout Processor
- * Core logic for processing and styling callouts
+ * High-performance batched DOM styling and observer lifecycle engine
  * 
  * IMPORTANT: Before modifying this file, read RULES.md for mandatory protocols.
  */
@@ -40,7 +40,7 @@ export class CalloutProcessor {
     }
 
     /**
-     * Main entry point for processing a callout element
+     * Main entry point for processing a callout element with zero-allocation fast paths
      */
     processCallout(calloutEl: HTMLElement): void {
         try {
@@ -53,15 +53,20 @@ export class CalloutProcessor {
             const calloutType = calloutEl.getAttribute('data-callout');
             const cacheKey = `${calloutType}_${pipeMetadata}_${fullText}`;
 
-            // Skip if already processed with same content
+            // Skip if already processed with identical content
             if (this.processedElements.get(calloutEl) === cacheKey) return;
             this.processedElements.set(calloutEl, cacheKey);
 
             // Apply standard style if modified
-            this.applyStandardStyleIfModified(calloutEl, calloutType);
+            const standardModified = this.applyStandardStyleIfModified(calloutEl, calloutType);
 
             // Apply custom style by type name
-            this.applyCustomStyleByType(calloutEl, calloutType);
+            const customMatched = this.applyCustomStyleByType(calloutEl, calloutType);
+
+            // Fast-path: If there is no pipe metadata and title has no parentheses, skip parsing
+            if (!pipeMetadata && !fullText.includes('(')) {
+                return;
+            }
 
             // Parse and apply metadata (from pipe and/or title)
             this.processMetadata(calloutEl, innerTitleEl, fullText, pipeMetadata);
@@ -73,8 +78,8 @@ export class CalloutProcessor {
     /**
      * Applies standard style if user has modified it
      */
-    private applyStandardStyleIfModified(calloutEl: HTMLElement, calloutType: string | null): void {
-        if (!calloutType) return;
+    private applyStandardStyleIfModified(calloutEl: HTMLElement, calloutType: string | null): boolean {
+        if (!calloutType) return false;
 
         const resolvedType = resolveCalloutType(calloutType);
         const standardStyle = this.settings.standardStyles[resolvedType];
@@ -88,22 +93,26 @@ export class CalloutProcessor {
 
             if (isModified) {
                 this.applyStyleObject(calloutEl, standardStyle);
+                return true;
             }
         }
+        return false;
     }
 
     /**
      * Applies custom style if callout type matches a custom style name
      */
-    private applyCustomStyleByType(calloutEl: HTMLElement, calloutType: string | null): void {
-        if (!calloutType) return;
+    private applyCustomStyleByType(calloutEl: HTMLElement, calloutType: string | null): boolean {
+        if (!calloutType) return false;
 
         const typeStyle = this.settings.customStyles.find(
             s => s.name.toLowerCase() === calloutType.toLowerCase()
         );
         if (typeStyle) {
             this.applyStyleObject(calloutEl, typeStyle);
+            return true;
         }
+        return false;
     }
 
     /**
@@ -131,17 +140,17 @@ export class CalloutProcessor {
             }
         }
 
-        // Combine metadata from pipe (e.g. [!note|bg:red]) and title (e.g. (bg:red))
-        const rawMetadataParts: string[] = [];
-        if (pipeMetadata.trim()) {
-            rawMetadataParts.push(pipeMetadata.trim());
-        }
-        if (extracted && extracted.content.trim()) {
-            rawMetadataParts.push(extracted.content.trim());
+        // Combine metadata from pipe and title
+        let combinedMetadata = '';
+        if (pipeMetadata.trim() && extracted?.content.trim()) {
+            combinedMetadata = `${pipeMetadata.trim()}, ${extracted.content.trim()}`;
+        } else if (pipeMetadata.trim()) {
+            combinedMetadata = pipeMetadata.trim();
+        } else if (extracted?.content.trim()) {
+            combinedMetadata = extracted.content.trim();
         }
 
-        if (rawMetadataParts.length === 0) return;
-        const combinedMetadata = rawMetadataParts.join(', ');
+        if (!combinedMetadata) return;
 
         // Parse metadata
         const { config, layoutParam, styleParam } = parseMetadata(
@@ -151,7 +160,7 @@ export class CalloutProcessor {
             layoutNames
         );
 
-        // Apply style parameter first (or if pipe metadata matches a custom style name)
+        // Apply style parameter first
         let resolvedStyleName = styleParam;
         if (!resolvedStyleName && pipeMetadata) {
             const matchCustom = this.settings.customStyles.find(
@@ -169,7 +178,7 @@ export class CalloutProcessor {
             }
         }
 
-        // Apply parsed configuration
+        // Apply parsed configuration in batched style operations
         this.applyConfig(calloutEl, config);
 
         // Handle grid layout
@@ -199,15 +208,19 @@ export class CalloutProcessor {
     }
 
     /**
-     * Applies configuration to callout element
+     * Applies configuration to callout element with single-pass batched setCssProps
      */
     private applyConfig(calloutEl: HTMLElement, config: CalloutConfig): void {
+        const cssProps: Record<string, string> = {};
+
         if (config.bg) {
-            this.applyColor(calloutEl, config.bg);
+            cssProps['--sc-bg-color'] = createTransparentBg(config.bg, BG_TINT_OPACITY);
+            calloutEl.setAttribute('data-sc-bg', '');
         }
 
         if (config.text) {
-            this.applyTextColor(calloutEl, config.text);
+            cssProps['--sc-text-color'] = config.text;
+            calloutEl.setAttribute('data-sc-text', '');
         }
 
         if (config.textBorder) {
@@ -216,7 +229,8 @@ export class CalloutProcessor {
         }
 
         if (config.link) {
-            this.applyLinkColor(calloutEl, config.link);
+            cssProps['--link-color'] = config.link;
+            calloutEl.setAttribute('data-link-color', config.link);
         }
 
         if (config.linkBorder) {
@@ -224,12 +238,12 @@ export class CalloutProcessor {
         }
 
         if (config.titleColor) {
-            calloutEl.setCssProps({ '--sc-title-color': config.titleColor });
+            cssProps['--sc-title-color'] = config.titleColor;
             calloutEl.setAttribute('data-sc-title-color', '');
         }
 
         if (config.iconColor) {
-            calloutEl.setCssProps({ '--sc-icon-color': config.iconColor });
+            cssProps['--sc-icon-color'] = config.iconColor;
             calloutEl.setAttribute('data-sc-icon-color', '');
         }
 
@@ -261,42 +275,49 @@ export class CalloutProcessor {
             } else {
                 const style = config.borderStyle || 'solid';
                 const width = config.borderWidth ? toPx(config.borderWidth) : '1px';
-                calloutEl.setCssProps({ '--sc-border': `${width} ${style} ${config.border}` });
+                cssProps['--sc-border'] = `${width} ${style} ${config.border}`;
                 calloutEl.setAttribute('data-sc-border', '');
             }
         }
 
         if (config.borderWidth) {
-            calloutEl.setCssProps({ '--sc-border-width': toPx(config.borderWidth) });
+            cssProps['--sc-border-width'] = toPx(config.borderWidth);
             calloutEl.setAttribute('data-sc-bw', '');
         }
 
         if (config.borderStyle) {
-            calloutEl.setCssProps({ '--sc-border-style': config.borderStyle });
+            cssProps['--sc-border-style'] = config.borderStyle;
             calloutEl.setAttribute('data-sc-bs', '');
         }
 
         if (config.radius) {
-            calloutEl.setCssProps({ '--sc-radius': toPx(config.radius) });
+            cssProps['--sc-radius'] = toPx(config.radius);
             calloutEl.setAttribute('data-sc-radius', '');
         }
 
         if (config.neon) {
-            calloutEl.setCssProps(neonStyles(config.neon));
+            Object.assign(cssProps, neonStyles(config.neon));
             calloutEl.setAttribute('data-sc-neon', '');
         }
 
         if (config.gradient) {
-            this.applyGradient(calloutEl, config.gradient);
+            const grad = this.resolveGradientValue(config.gradient);
+            if (grad) {
+                cssProps['--sc-gradient'] = grad;
+                calloutEl.setAttribute('data-sc-gradient', '');
+                calloutEl.setAttribute('data-sc-no-border', '');
+            }
         }
 
         if (config.font && FONT_FAMILIES[config.font]) {
-            calloutEl.setCssProps({ '--font-interface': FONT_FAMILIES[config.font], '--sc-font-family': FONT_FAMILIES[config.font] });
+            const fontVal = FONT_FAMILIES[config.font];
+            cssProps['--font-interface'] = fontVal;
+            cssProps['--sc-font-family'] = fontVal;
             calloutEl.setAttribute('data-sc-font', '');
         }
 
         if (config.fontSize && FONT_SIZES[config.fontSize]) {
-            calloutEl.setCssProps({ '--sc-font-size': FONT_SIZES[config.fontSize] });
+            cssProps['--sc-font-size'] = FONT_SIZES[config.fontSize];
             calloutEl.setAttribute('data-sc-fontsize', '');
         }
 
@@ -313,30 +334,27 @@ export class CalloutProcessor {
         } else if (config.titleCenter) {
             calloutEl.setAttribute('data-title-center', 'true');
         }
+
+        // Apply all gathered CSS properties in one single call
+        if (Object.keys(cssProps).length > 0) {
+            calloutEl.setCssProps(cssProps);
+        }
     }
 
     /**
-     * Applies gradient background
+     * Resolves gradient CSS function value
      */
-    private applyGradient(calloutEl: HTMLElement, gradient: string): void {
-        let value: string | null = null;
-
+    private resolveGradientValue(gradient: string): string | null {
         if (isCssGradient(gradient)) {
-            value = gradient.trim();
-        } else {
-            const colors = gradient.split('-');
-            if (colors.length === 2) {
-                const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
-                const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
-                value = `linear-gradient(90deg, ${c1}, ${c2})`;
-            }
+            return gradient.trim();
         }
-
-        if (!value) return;
-
-        calloutEl.setCssProps({ '--sc-gradient': value });
-        calloutEl.setAttribute('data-sc-gradient', '');
-        calloutEl.setAttribute('data-sc-no-border', '');
+        const colors = gradient.split('-');
+        if (colors.length === 2) {
+            const c1 = resolveColor(colors[0], this.settings.standardColors, this.settings.customColors);
+            const c2 = resolveColor(colors[1], this.settings.standardColors, this.settings.customColors);
+            return `linear-gradient(90deg, ${c1}, ${c2})`;
+        }
+        return null;
     }
 
     /**
@@ -427,7 +445,6 @@ export class CalloutProcessor {
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
         
-        // Clean up previous observer if exists
         const prevObserver = this.observers.get(calloutEl);
         if (prevObserver) {
             prevObserver.disconnect();
@@ -438,6 +455,7 @@ export class CalloutProcessor {
             if (!calloutEl.isConnected) {
                 observer.disconnect();
                 this.activeObservers.delete(observer);
+                this.observers.delete(calloutEl);
                 return;
             }
             this.applyAreasToChildren(contentEl as HTMLElement);
@@ -452,19 +470,19 @@ export class CalloutProcessor {
         const children = Array.from(contentEl.children);
 
         let areaIndex = 1;
-        children.forEach(child => {
-            const el = child as HTMLElement;
+        for (let i = 0; i < children.length; i++) {
+            const el = children[i] as HTMLElement;
 
-            // Hide empty structural nodes inserted by Markdown rendering so they don't break grid areas
+            // Hide empty structural nodes
             if (el.tagName === 'BR' || el.tagName === 'HR') {
                 el.addClass('sc-hidden');
-                return;
+                continue;
             }
             if (el.tagName === 'P') {
                 const text = el.textContent?.trim() || '';
                 if (text === '') {
                     el.addClass('sc-hidden');
-                    return;
+                    continue;
                 }
             }
 
@@ -478,7 +496,7 @@ export class CalloutProcessor {
             }
 
             areaIndex++;
-        });
+        }
     }
 
     /**
@@ -511,30 +529,6 @@ export class CalloutProcessor {
     }
 
     /**
-     * Applies background color
-     */
-    applyColor(callout: HTMLElement, color: string): void {
-        callout.setCssProps({ '--sc-bg-color': createTransparentBg(color, BG_TINT_OPACITY) });
-        callout.setAttribute('data-sc-bg', '');
-    }
-
-    /**
-     * Applies text color
-     */
-    applyTextColor(callout: HTMLElement, color: string): void {
-        callout.setCssProps({ '--sc-text-color': color });
-        callout.setAttribute('data-sc-text', '');
-    }
-
-    /**
-     * Applies link color
-     */
-    applyLinkColor(callout: HTMLElement, color: string): void {
-        callout.setAttribute('data-link-color', color);
-        callout.setCssProps({ '--link-color': color });
-    }
-
-    /**
      * Applies column layout to list containers using CSS Grid
      */
     applyColumnsToContainer(container: HTMLElement, colCount: number): void {
@@ -546,18 +540,18 @@ export class CalloutProcessor {
 
             const lists = contentEl.querySelectorAll(LIST_SELECTOR);
 
-            lists.forEach(list => {
-                const listEl = list as HTMLElement;
+            for (let i = 0; i < lists.length; i++) {
+                const listEl = lists[i] as HTMLElement;
                 const items: HTMLElement[] = [];
-                for (let i = 0; i < listEl.children.length; i++) {
-                    const child = listEl.children[i] as HTMLElement;
+                for (let j = 0; j < listEl.children.length; j++) {
+                    const child = listEl.children[j] as HTMLElement;
                     if (child.tagName === 'LI' || child.classList.contains('list-item')) {
                         items.push(child);
                     }
                 }
 
                 const itemCount = items.length;
-                if (itemCount === 0) return;
+                if (itemCount === 0) continue;
 
                 const rowCount = Math.ceil(itemCount / colCount);
 
@@ -567,19 +561,20 @@ export class CalloutProcessor {
                 });
                 listEl.addClass('sc-multi-col-list');
 
-                items.forEach((liEl, index) => {
-                    const col = Math.floor(index / rowCount) + 1;
-                    const row = (index % rowCount) + 1;
+                for (let k = 0; k < items.length; k++) {
+                    const liEl = items[k];
+                    const col = Math.floor(k / rowCount) + 1;
+                    const row = (k % rowCount) + 1;
 
                     liEl.setCssProps({ '--sc-col': col.toString(), '--sc-row': row.toString() });
                     liEl.addClass('sc-multi-col-item');
-                });
-            });
+                }
+            }
         });
     }
 
     /**
-     * Schedules retry attempts for column layout
+     * Schedules retry attempts for column layout with timeout lifecycle management
      */
     private scheduleColumnRetry(calloutEl: HTMLElement, colCount: number): void {
         const existingTimers = this.activeTimeouts.get(calloutEl);
@@ -615,7 +610,7 @@ export class CalloutProcessor {
     }
 
     /**
-     * Sets up mutation observer for dynamic content
+     * Sets up mutation observer for dynamic content with lifecycle cleanup
      */
     setupObserver(calloutEl: HTMLElement, colCount: number): void {
         const prev = this.observers.get(calloutEl);

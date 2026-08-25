@@ -1,25 +1,23 @@
-import {
-    App,
-    Modal,
-    Editor,
-    Setting,
-    setIcon,
-    Notice
-} from 'obsidian';
-import { SpecialCalloutsSettings } from '../types';
-import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES } from '../constants';
-import { normalizeHex, toPx, neonStyles } from '../utils';
-import { IconPickerModal } from './IconPickerModal';
+/**
+ * Special Callouts - InsertCalloutModal
+ * Unified, tabbed insertion modal with sticky real-time live preview
+ */
 
+import { App, Modal, Editor, Setting, setIcon, Notice } from 'obsidian';
+import { SpecialCalloutsSettings, CalloutStyle } from '../types';
+import { DEFAULT_STANDARD_STYLES } from '../constants';
+import { serializeMetadata } from '../parser';
+import {
+    createColorSetting,
+    createIconSetting,
+    createBorderStyleSetting,
+    createFontSetting,
+    createFontSizeSetting,
+    applyStyleToLivePreview
+} from '../ui/UIComponents';
 import { MultiColumnBuilderModal } from './MultiColumnBuilderModal';
 
 type InserterSection = 'content' | 'colors' | 'icon' | 'layout';
-
-interface ColumnItem {
-    type: string;
-    title: string;
-    content: string;
-}
 
 export class InsertCalloutModal extends Modal {
     private settings: SpecialCalloutsSettings;
@@ -27,8 +25,11 @@ export class InsertCalloutModal extends Modal {
     private selectedText: string;
     private activeSection: InserterSection = 'content';
     private liveCalloutEl: HTMLElement | null = null;
+    private titleInnerEl: HTMLElement | null = null;
+    private iconEl: HTMLElement | null = null;
+    private bodyEl: HTMLElement | null = null;
 
-    // Form State - Single Callout
+    // Form State
     private calloutType: string = 'note';
     private titleText: string = 'Note';
     private contentText: string = '';
@@ -77,11 +78,18 @@ export class InsertCalloutModal extends Modal {
         previewHeader.createSpan({ text: 'Live Callout Preview' });
 
         this.liveCalloutEl = previewContainer.createDiv({ cls: 'callout sc-live-callout' });
-        this.updateLivePreview(this.liveCalloutEl);
+        this.liveCalloutEl.setAttribute('data-callout', this.calloutType);
+
+        const titleEl = this.liveCalloutEl.createDiv({ cls: 'callout-title' });
+        this.iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+        this.titleInnerEl = titleEl.createDiv({ cls: 'callout-title-inner', text: this.titleText });
+        this.bodyEl = this.liveCalloutEl.createDiv({ cls: 'callout-content' });
+        this.bodyEl.createEl('p', { text: this.contentText });
+
+        this.updateLivePreview();
 
         // 2. Section Navigation Tabs
-        const nav = contentEl.createDiv({ cls: 'sc-nav-tabs' });
-        nav.style.marginBottom = '1.25rem';
+        const nav = contentEl.createDiv({ cls: 'sc-nav-tabs sc-margin-bottom' });
 
         const sections: { id: InserterSection; label: string; icon: string }[] = [
             { id: 'content', label: 'Content & Mode', icon: 'file-text' },
@@ -98,7 +106,7 @@ export class InsertCalloutModal extends Modal {
 
             btn.onclick = () => {
                 this.activeSection = sec.id;
-                this.renderSectionContent(sectionContainer, this.liveCalloutEl!);
+                this.renderSectionContent(sectionContainer);
                 nav.querySelectorAll('.sc-nav-tab').forEach((b, i) => {
                     if (sections[i].id === sec.id) b.addClass('is-active');
                     else b.removeClass('is-active');
@@ -108,16 +116,15 @@ export class InsertCalloutModal extends Modal {
 
         // 3. Dynamic Section Container
         const sectionContainer = contentEl.createDiv({ cls: 'sc-section-content' });
-        sectionContainer.style.minHeight = '240px';
-        this.renderSectionContent(sectionContainer, this.liveCalloutEl!);
+        this.renderSectionContent(sectionContainer);
 
-        // 4. Action Footer
+        // 4. Action Buttons
         new Setting(contentEl)
             .addButton(btn => btn
-                .setButtonText('Insert Callout')
+                .setButtonText('Insert Into Note')
                 .setCta()
                 .onClick(() => {
-                    this.insertCalloutIntoEditor();
+                    this.insertCallout();
                     this.close();
                 }))
             .addButton(btn => btn
@@ -125,443 +132,290 @@ export class InsertCalloutModal extends Modal {
                 .onClick(() => this.close()));
     }
 
-    private renderSectionContent(container: HTMLElement, liveCallout: HTMLElement): void {
+    private renderSectionContent(container: HTMLElement): void {
         container.empty();
 
         switch (this.activeSection) {
             case 'content':
-                this.renderContentSection(container, liveCallout);
+                this.renderContentSection(container);
                 break;
             case 'colors':
-                this.renderColorsSection(container, liveCallout);
+                this.renderColorsSection(container);
                 break;
             case 'icon':
-                this.renderIconSection(container, liveCallout);
+                this.renderIconFontSection(container);
                 break;
             case 'layout':
-                this.renderLayoutSection(container, liveCallout);
+                this.renderBordersLayoutSection(container);
                 break;
         }
     }
 
-    // ==========================================
-    // SECTION 1: CONTENT & MULTI-COLUMN MODE
-    // ==========================================
-    private renderContentSection(container: HTMLElement, liveCallout: HTMLElement): void {
-        container.empty();
-
-        // Multi-Column Dashboard Launcher
+    private renderContentSection(container: HTMLElement): void {
+        // Preset / Type Chooser
         new Setting(container)
-            .setName('Multi-Column Dashboard Builder 🚀')
-            .setDesc('Design side-by-side multi-line column cards with full per-column colors, icons, & styles')
-            .addButton(btn => btn
-                .setButtonText('Open Dashboard Builder')
-                .setCta()
-                .onClick(() => {
-                    this.close();
-                    new MultiColumnBuilderModal(this.app, this.settings, this.editor).open();
-                }));
-
-        // Single Callout Form
-        new Setting(container)
-            .setName('Callout Preset / Style')
-            .setDesc('Pick a standard callout or saved custom style')
+            .setName('Callout Preset / Type')
+            .setDesc('Select standard Obsidian type or a saved custom style')
             .addDropdown(drop => {
-                drop.addOption('note', 'Note (Default)');
-                drop.addOption('abstract', 'Abstract / Summary / TLDR');
-                drop.addOption('info', 'Info');
-                drop.addOption('todo', 'Todo');
-                drop.addOption('tip', 'Tip / Hint');
-                drop.addOption('important', 'Important');
-                drop.addOption('success', 'Success / Check / Done');
-                drop.addOption('question', 'Question / Help / FAQ');
-                drop.addOption('warning', 'Warning / Caution / Attention');
-                drop.addOption('failure', 'Failure / Fail / Missing');
-                drop.addOption('danger', 'Danger / Error');
-                drop.addOption('bug', 'Bug');
-                drop.addOption('example', 'Example');
-                drop.addOption('quote', 'Quote / Cite');
-
-                this.settings.customStyles.forEach(s => {
-                    drop.addOption(s.name, `Custom: ${s.name}`);
+                drop.addOption('custom-builder', '⚡ Open Multi-Column Dashboard Builder...');
+                
+                Object.keys(DEFAULT_STANDARD_STYLES).forEach(type => {
+                    drop.addOption(`std:${type}`, `Standard: ${type.toUpperCase()}`);
                 });
 
-                drop.setValue(this.calloutType);
+                if (this.settings.customStyles.length > 0) {
+                    this.settings.customStyles.forEach(style => {
+                        drop.addOption(`custom:${style.name}`, `Custom Style: ${style.name}`);
+                    });
+                }
+
+                drop.setValue(`std:${this.calloutType}`);
                 drop.onChange(val => {
-                    this.calloutType = val;
-                    this.applyPreset(val);
-                    this.updateLivePreview(liveCallout);
+                    if (val === 'custom-builder') {
+                        this.close();
+                        new MultiColumnBuilderModal(this.app, this.settings, this.editor).open();
+                        return;
+                    }
+
+                    if (val.startsWith('std:')) {
+                        const type = val.slice(4);
+                        this.calloutType = type;
+                        this.titleText = type.charAt(0).toUpperCase() + type.slice(1);
+                        const std = DEFAULT_STANDARD_STYLES[type];
+                        if (std) {
+                            this.bgColor = std.bg;
+                            this.borderColor = std.border;
+                            this.iconName = std.icon;
+                        }
+                    } else if (val.startsWith('custom:')) {
+                        const name = val.slice(7);
+                        const custom = this.settings.customStyles.find(s => s.name === name);
+                        if (custom) {
+                            this.calloutType = custom.name;
+                            this.titleText = custom.name;
+                            this.bgColor = custom.bg || '#448aff';
+                            this.borderColor = custom.border || '#448aff';
+                            this.textColor = custom.text || '';
+                            this.titleColor = custom.titleColor || '';
+                            this.iconColor = custom.iconColor || '';
+                            this.iconName = custom.icon || 'pencil';
+                            this.borderWidth = custom.borderWidth || '1px';
+                            this.borderStyle = custom.borderStyle || 'solid';
+                            this.borderRadius = custom.borderRadius || '8px';
+                            this.neon = custom.neon || '';
+                            this.compact = !!custom.compact;
+                            this.center = !!custom.center;
+                            this.titleCenter = !!custom.titleCenter;
+                        }
+                    }
+                    this.updateLivePreview();
                 });
             });
 
+        // Title Input
         new Setting(container)
             .setName('Callout Title')
             .addText(text => text
                 .setValue(this.titleText)
                 .onChange(val => {
                     this.titleText = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Callout Body Text')
-            .setDesc('Content lines to put inside the callout')
-            .addTextArea(ta => {
-                ta.setValue(this.contentText);
-                ta.inputEl.rows = 4;
-                ta.inputEl.style.width = '100%';
-                ta.inputEl.style.fontSize = '0.9rem';
-                ta.onChange(val => {
-                    this.contentText = val;
-                    this.updateLivePreview(liveCallout);
-                });
-            });
-    }
-
-    // ==========================================
-    // SECTION 2: COLORS & GLOW
-    // ==========================================
-    private renderColorsSection(container: HTMLElement, liveCallout: HTMLElement): void {
-        new Setting(container)
-            .setName('Background Color')
-            .addText(text => text
-                .setValue(this.bgColor)
-                .onChange(val => {
-                    this.bgColor = val;
-                    this.updateLivePreview(liveCallout);
-                }))
-            .addColorPicker(picker => picker
-                .setValue(normalizeHex(this.bgColor))
-                .onChange(val => {
-                    this.bgColor = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Border Color')
-            .addText(text => text
-                .setValue(this.borderColor)
-                .onChange(val => {
-                    this.borderColor = val;
-                    this.updateLivePreview(liveCallout);
-                }))
-            .addColorPicker(picker => picker
-                .setValue(normalizeHex(this.borderColor))
-                .onChange(val => {
-                    this.borderColor = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Title Color')
-            .addText(text => text
-                .setPlaceholder('Auto (same as border)')
-                .setValue(this.titleColor)
-                .onChange(val => {
-                    this.titleColor = val;
-                    this.updateLivePreview(liveCallout);
-                }))
-            .addColorPicker(picker => picker
-                .setValue(normalizeHex(this.titleColor || '#ffffff'))
-                .onChange(val => {
-                    this.titleColor = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Icon Color')
-            .addText(text => text
-                .setPlaceholder('Auto (follows title)')
-                .setValue(this.iconColor)
-                .onChange(val => {
-                    this.iconColor = val;
-                    this.updateLivePreview(liveCallout);
-                }))
-            .addColorPicker(picker => picker
-                .setValue(normalizeHex(this.iconColor || '#ffffff'))
-                .onChange(val => {
-                    this.iconColor = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Neon Glow Effect')
-            .setDesc('Color of glowing cyber neon border')
-            .addText(text => text
-                .setPlaceholder('#00f2ff or cyan')
-                .setValue(this.neon)
-                .onChange(val => {
-                    this.neon = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-    }
-
-    // ==========================================
-    // SECTION 3: ICON & FONT
-    // ==========================================
-    private renderIconSection(container: HTMLElement, liveCallout: HTMLElement): void {
-        const iconSetting = new Setting(container)
-            .setName('Callout Icon')
-            .setDesc('Select any Lucide icon');
-
-        const iconSpan = iconSetting.nameEl.createSpan();
-        iconSpan.style.marginLeft = '10px';
-        setIcon(iconSpan, this.iconName);
-
-        iconSetting.addButton(btn => btn
-            .setButtonText('Change Icon')
-            .onClick(() => {
-                new IconPickerModal(this.app, (selected) => {
-                    this.iconName = selected;
-                    iconSpan.empty();
-                    setIcon(iconSpan, selected);
-                    this.updateLivePreview(liveCallout);
-                }).open();
-            }));
-
-        new Setting(container)
-            .setName('Font Family')
-            .addDropdown(drop => drop
-                .addOption('', 'Default (Theme Interface)')
-                .addOption('mono', 'Monospace')
-                .addOption('serif', 'Serif')
-                .addOption('sans', 'Sans-Serif')
-                .addOption('hand', 'Handwritten')
-                .addOption('marker', 'Chalkboard Marker')
-                .setValue(this.font)
-                .onChange(val => {
-                    this.font = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Font Size')
-            .addDropdown(drop => drop
-                .addOption('1', '1 - Smallest (0.85em)')
-                .addOption('2', '2 - Small (0.92em)')
-                .addOption('3', '3 - Default (1.0em)')
-                .addOption('4', '4 - Large (1.2em)')
-                .addOption('5', '5 - Largest (1.5em)')
-                .setValue(this.fontSize.toString())
-                .onChange(val => {
-                    this.fontSize = parseInt(val);
-                    this.updateLivePreview(liveCallout);
-                }));
-    }
-
-    // ==========================================
-    // SECTION 4: BORDERS & LAYOUT
-    // ==========================================
-    private renderLayoutSection(container: HTMLElement, liveCallout: HTMLElement): void {
-        new Setting(container)
-            .setName('Corner Radius')
-            .addSlider(slider => slider
-                .setLimits(0, 30, 1)
-                .setValue(parseInt(this.borderRadius) || 8)
-                .onChange(val => {
-                    this.borderRadius = `${val}px`;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('Border Width & Style')
-            .addDropdown(drop => drop
-                .addOption('', 'Default Width')
-                .addOption('1px', '1px (Thin)')
-                .addOption('2px', '2px (Medium)')
-                .addOption('4px', '4px (Thick)')
-                .setValue(this.borderWidth)
-                .onChange(val => {
-                    this.borderWidth = val;
-                    this.updateLivePreview(liveCallout);
-                }))
-            .addDropdown(drop => drop
-                .addOption('solid', 'Solid')
-                .addOption('dashed', 'Dashed')
-                .addOption('dotted', 'Dotted')
-                .addOption('double', 'Double')
-                .addOption('groove', 'Groove')
-                .addOption('ridge', 'Ridge')
-                .addOption('inset', 'Inset')
-                .addOption('outset', 'Outset')
-                .addOption('none', 'None')
-                .setValue(this.borderStyle)
-                .onChange(val => {
-                    this.borderStyle = val;
-                    this.updateLivePreview(liveCallout);
-                }));
-
-        new Setting(container)
-            .setName('List Columns')
-            .setDesc('Divide lists inside callout into columns')
-            .addDropdown(drop => drop
-                .addOption('', 'Normal (1 Column)')
-                .addOption('2', '2 Columns')
-                .addOption('3', '3 Columns')
-                .addOption('4', '4 Columns')
-                .setValue(this.colCount ? this.colCount.toString() : '')
-                .onChange(val => {
-                    this.colCount = val ? parseInt(val) : null;
                     this.updateLivePreview();
                 }));
 
+        // Content Input
         new Setting(container)
-            .setName('Compact Mode')
-            .setDesc('Tighter padding for dense notes')
-            .addToggle(toggle => toggle
-                .setValue(this.compact)
+            .setName('Content Body')
+            .setDesc('Callout body text or markdown')
+            .addTextArea(text => text
+                .setValue(this.contentText)
                 .onChange(val => {
-                    this.compact = val;
-                    this.updateLivePreview(liveCallout);
+                    this.contentText = val;
+                    this.updateLivePreview();
                 }));
+    }
 
-        new Setting(container)
-            .setName('Center Alignment')
-            .setDesc('Center align both title and text')
-            .addToggle(toggle => toggle
-                .setValue(this.center)
-                .onChange(val => {
-                    this.center = val;
-                    this.updateLivePreview(liveCallout);
-                }));
+    private renderColorsSection(container: HTMLElement): void {
+        createColorSetting(container, 'Background Color', 'Background tint', this.bgColor, '#448aff', val => {
+            this.bgColor = val;
+            this.updateLivePreview();
+        });
 
+        createColorSetting(container, 'Border Color', 'Outline border color', this.borderColor, '#448aff', val => {
+            this.borderColor = val;
+            this.updateLivePreview();
+        });
+
+        createColorSetting(container, 'Title Color', 'Header text color', this.titleColor, '', val => {
+            this.titleColor = val;
+            this.updateLivePreview();
+        });
+
+        createColorSetting(container, 'Body Text Color', 'Callout text color', this.textColor, '', val => {
+            this.textColor = val;
+            this.updateLivePreview();
+        });
+
+        createColorSetting(container, 'Neon Glow', 'Cyberpunk neon border & shadow glow', this.neon, '', val => {
+            this.neon = val;
+            this.updateLivePreview();
+        });
+    }
+
+    private renderIconFontSection(container: HTMLElement): void {
         new Setting(container)
-            .setName('Hide Icon')
+            .setName('Hide Icon (no-icon)')
             .addToggle(toggle => toggle
                 .setValue(this.noIcon)
                 .onChange(val => {
                     this.noIcon = val;
-                    this.updateLivePreview(liveCallout);
+                    this.updateLivePreview();
                 }));
-    }
 
-    private applyPreset(typeName: string): void {
-        const customStyle = this.settings.customStyles.find(s => s.name.toLowerCase() === typeName.toLowerCase());
-        if (customStyle) {
-            this.titleText = customStyle.name.charAt(0).toUpperCase() + customStyle.name.slice(1);
-            this.bgColor = customStyle.bg || '#448aff';
-            this.borderColor = customStyle.border || '#448aff';
-            this.titleColor = customStyle.titleColor || '';
-            this.iconName = customStyle.icon || 'pencil';
-            this.iconColor = customStyle.iconColor || '';
-            this.textColor = customStyle.text || '';
-            this.font = customStyle.font || '';
-            this.fontSize = customStyle.fontSize || 3;
-            this.borderWidth = customStyle.borderWidth || '1px';
-            this.borderStyle = customStyle.borderStyle || 'solid';
-            this.borderRadius = customStyle.borderRadius || '8px';
-            this.neon = customStyle.neon || '';
-            this.compact = customStyle.compact || false;
-            this.center = customStyle.center || false;
-            this.titleCenter = customStyle.titleCenter || false;
-            this.noIcon = customStyle.noIcon || false;
-            return;
-        }
+        createIconSetting(container, this.app, 'Callout Icon', 'Lucide icon name', this.iconName, icon => {
+            this.iconName = icon;
+            this.updateLivePreview();
+        });
 
-        const standardStyle = this.settings.standardStyles[typeName.toLowerCase()] || DEFAULT_STANDARD_STYLES[typeName.toLowerCase()];
-        if (standardStyle) {
-            this.titleText = typeName.charAt(0).toUpperCase() + typeName.slice(1);
-            this.bgColor = standardStyle.bg || '#448aff';
-            this.borderColor = standardStyle.border || standardStyle.bg || '#448aff';
-            this.titleColor = standardStyle.titleColor || '';
-            this.iconName = standardStyle.icon || 'pencil';
-            this.iconColor = '';
-            this.textColor = standardStyle.text || '';
-            this.neon = '';
-            this.compact = false;
-            this.center = false;
-        }
-    }
+        createColorSetting(container, 'Custom Icon Color', 'Dedicated icon color', this.iconColor, '', val => {
+            this.iconColor = val;
+            this.updateLivePreview();
+        });
 
-    private updateLivePreview(targetEl?: HTMLElement): void {
-        const el = targetEl || this.liveCalloutEl;
-        if (!el) return;
-        el.empty();
+        createFontSetting(container, this.font, val => {
+            this.font = val;
+            this.updateLivePreview();
+        });
 
-        // Single Callout Preview
-        const bg = this.bgColor ? `color-mix(in srgb, ${this.bgColor} 15%, transparent)` : 'var(--background-secondary)';
-        const border = this.borderColor ? `${this.borderWidth || '1px'} ${this.borderStyle || 'solid'} ${this.borderColor}` : '1px solid var(--background-modifier-border)';
-
-        el.style.backgroundColor = bg;
-        el.style.border = border;
-        el.style.borderRadius = this.borderRadius ? toPx(this.borderRadius) : '8px';
-        el.style.padding = this.compact ? '0.4em 0.8em' : '0.8em 1.2em';
-        el.style.textAlign = this.center ? 'center' : 'left';
-
-        if (this.font && FONT_FAMILIES[this.font]) {
-            el.style.fontFamily = FONT_FAMILIES[this.font];
-        } else {
-            el.style.fontFamily = 'inherit';
-        }
-
-        if (this.neon) {
-            const neon = neonStyles(this.neon);
-            el.style.border = neon['--sc-neon-border'];
-            el.style.boxShadow = neon['--sc-neon-shadow'];
-        } else {
-            el.style.boxShadow = 'none';
-        }
-
-        // Title
-        const titleEl = el.createDiv({ cls: 'callout-title' });
-        titleEl.style.display = 'flex';
-        titleEl.style.alignItems = 'center';
-        titleEl.style.gap = '8px';
-        titleEl.style.justifyContent = (this.center || this.titleCenter) ? 'center' : 'flex-start';
-        titleEl.style.color = this.titleColor || this.borderColor || 'var(--text-normal)';
-        titleEl.style.fontWeight = '600';
-        titleEl.style.marginBottom = '4px';
-
-        if (!this.noIcon) {
-            const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-            iconEl.style.color = this.iconColor || this.titleColor || this.borderColor || 'inherit';
-            setIcon(iconEl, this.iconName || 'pencil');
-        }
-
-        titleEl.createSpan({ text: this.titleText || 'Title' });
-
-        // Content
-        const contentEl = el.createDiv({ cls: 'callout-content' });
-        contentEl.style.color = this.textColor || 'var(--text-muted)';
-        contentEl.style.fontSize = '0.9em';
-
-        const lines = (this.contentText || 'Content').split('\n');
-        lines.forEach(l => {
-            contentEl.createEl('p', { text: l, attr: { style: 'margin: 2px 0;' } });
+        createFontSizeSetting(container, this.fontSize, val => {
+            this.fontSize = val;
+            this.updateLivePreview();
         });
     }
 
-    private insertCalloutIntoEditor(): void {
-        // Single Callout Markdown Output (parenthesised metadata format: > [!type] (meta) Title)
-        const metaParams: string[] = [];
+    private renderBordersLayoutSection(container: HTMLElement): void {
+        new Setting(container)
+            .setName('Border Width')
+            .addDropdown(drop => {
+                drop.addOption('0px', 'None (0px)');
+                drop.addOption('1px', 'Thin (1px)');
+                drop.addOption('2px', 'Medium (2px)');
+                drop.addOption('4px', 'Thick (4px)');
+                drop.setValue(this.borderWidth);
+                drop.onChange(val => {
+                    this.borderWidth = val;
+                    this.updateLivePreview();
+                });
+            });
 
-        if (this.bgColor) metaParams.push(`bg:${this.bgColor}`);
-        if (this.borderColor && this.borderColor !== this.bgColor) metaParams.push(`border:${this.borderColor}`);
-        if (this.titleColor) metaParams.push(`title:${this.titleColor}`);
-        if (this.iconColor) metaParams.push(`icon-color:${this.iconColor}`);
-        if (this.iconName && this.iconName !== 'pencil') metaParams.push(`icon:${this.iconName}`);
-        if (this.neon) metaParams.push(`neon:${this.neon}`);
-        if (this.font) metaParams.push(`font:${this.font}`);
-        if (this.fontSize && this.fontSize !== 3) metaParams.push(`font-size:${this.fontSize}`);
-        if (this.borderRadius) metaParams.push(`radius:${this.borderRadius}`);
-        if (this.borderWidth && this.borderWidth !== '1px') metaParams.push(`border-width:${this.borderWidth}`);
-        if (this.borderStyle && this.borderStyle !== 'solid') metaParams.push(`border-style:${this.borderStyle}`);
-        if (this.colCount) metaParams.push(`col:${this.colCount}`);
-        if (this.compact) metaParams.push('compact');
-        if (this.center) metaParams.push('center');
-        if (this.noIcon) metaParams.push('no-icon');
+        createBorderStyleSetting(container, this.borderStyle, val => {
+            this.borderStyle = val;
+            this.updateLivePreview();
+        });
 
-        const metadataString = metaParams.length > 0 ? `(${metaParams.join(', ')}) ` : '';
-        const headerLine = `> [!${this.calloutType}] ${metadataString}${this.titleText || 'Title'}`;
+        new Setting(container)
+            .setName('Corner Radius')
+            .addSlider(slider => slider
+                .setLimits(0, 30, 2)
+                .setValue(parseInt(this.borderRadius, 10) || 8)
+                .setDynamicTooltip()
+                .onChange(val => {
+                    this.borderRadius = `${val}px`;
+                    this.updateLivePreview();
+                }));
 
-        const bodyLines = (this.contentText || 'Callout content')
+        new Setting(container)
+            .setName('List Columns')
+            .setDesc('Split bullet/numbered lists into multi-column layout')
+            .addDropdown(drop => {
+                drop.addOption('', 'Default (1 Column)');
+                drop.addOption('2', '2 Columns (col:2)');
+                drop.addOption('3', '3 Columns (col:3)');
+                drop.addOption('4', '4 Columns (col:4)');
+                drop.setValue(this.colCount ? this.colCount.toString() : '');
+                drop.onChange(val => {
+                    this.colCount = val ? parseInt(val, 10) : null;
+                });
+            });
+
+        new Setting(container)
+            .setName('Compact Mode')
+            .setDesc('Reduce internal padding')
+            .addToggle(toggle => toggle
+                .setValue(this.compact)
+                .onChange(val => {
+                    this.compact = val;
+                    this.updateLivePreview();
+                }));
+
+        new Setting(container)
+            .setName('Center Alignment')
+            .addToggle(toggle => toggle
+                .setValue(this.center)
+                .onChange(val => {
+                    this.center = val;
+                    this.updateLivePreview();
+                }));
+    }
+
+    private updateLivePreview(): void {
+        if (!this.liveCalloutEl || !this.iconEl || !this.titleInnerEl || !this.bodyEl) return;
+
+        this.titleInnerEl.textContent = this.titleText || 'Callout';
+        this.bodyEl.empty();
+        this.bodyEl.createEl('p', { text: this.contentText || 'Content...' });
+
+        const styleObj: Partial<CalloutStyle> = {
+            bg: this.bgColor,
+            border: this.borderColor,
+            text: this.textColor,
+            titleColor: this.titleColor,
+            iconColor: this.iconColor,
+            icon: this.iconName,
+            font: this.font,
+            fontSize: this.fontSize,
+            borderWidth: this.borderWidth,
+            borderStyle: this.borderStyle,
+            borderRadius: this.borderRadius,
+            neon: this.neon,
+            compact: this.compact,
+            center: this.center,
+            titleCenter: this.titleCenter,
+            noIcon: this.noIcon
+        };
+
+        applyStyleToLivePreview(this.liveCalloutEl, this.iconEl, this.titleInnerEl, styleObj);
+    }
+
+    private insertCallout(): void {
+        const styleConfig: Partial<CalloutStyle> = {
+            bg: this.bgColor,
+            border: this.borderColor,
+            text: this.textColor,
+            titleColor: this.titleColor,
+            iconColor: this.iconColor,
+            icon: this.iconName,
+            font: this.font,
+            fontSize: this.fontSize !== 3 ? this.fontSize : undefined,
+            borderWidth: this.borderWidth !== '1px' ? this.borderWidth : undefined,
+            borderStyle: this.borderStyle !== 'solid' ? this.borderStyle : undefined,
+            borderRadius: this.borderRadius !== '8px' ? this.borderRadius : undefined,
+            neon: this.neon,
+            compact: this.compact,
+            center: this.center,
+            titleCenter: this.titleCenter,
+            noIcon: this.noIcon
+        };
+
+        const serialized = serializeMetadata(styleConfig as any);
+        const metaStr = serialized ? ` (${serialized})` : '';
+        const header = `> [!${this.calloutType}]${metaStr} ${this.titleText}\n`;
+        const body = this.contentText
             .split('\n')
-            .map(line => `> ${line}`)
+            .map(l => `> ${l}`)
             .join('\n');
 
-        const finalCalloutMarkdown = `${headerLine}\n${bodyLines}\n`;
-
-        this.editor.replaceSelection(finalCalloutMarkdown);
-        new Notice('Callout inserted!');
+        const fullBlock = `${header}${body}\n`;
+        this.editor.replaceSelection(fullBlock);
+        new Notice('Inserted Callout!');
     }
 }

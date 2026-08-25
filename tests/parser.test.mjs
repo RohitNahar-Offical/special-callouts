@@ -505,3 +505,18 @@ describe('serializeMetadata and lossless roundtripping', () => {
     });
 });
 
+describe('performance heuristics and caching', () => {
+    test('extractMetadata skips unadorned titles in O(1)', () => {
+        assert.equal(extractMetadata('Plain Title With No Parens'), null);
+        assert.equal(extractMetadata('Another standard note title'), null);
+    });
+
+    test('repeated parse calls return identical config structure via cache', () => {
+        const res1 = parse('bg:red, col:2, compact');
+        const res2 = parse('bg:red, col:2, compact');
+        assert.deepEqual(res1, res2);
+        assert.notEqual(res1.config, res2.config, 'Cache should return cloned config to prevent mutation leakage');
+    });
+});
+
+
