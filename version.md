@@ -9,8 +9,8 @@ This release unifies the modern UI workflow from `backup-pr9` with the core engi
 ## 📋 Comprehensive List of Changes & Rationale
 
 ### 1. 🔲 Interactive Multi-Column Matrix Dashboard Builder (`MultiColumnBuilderModal.ts`)
-- **What Changed**: Introduced a full visual matrix canvas (supporting 1×3 up to 6×6 grids) with click-and-drag cell selection, cell merging, live interactive dashboard previews, 1-click layout presets (`Hero + 2 Cards`, `Workspace`, `3 Columns`, `2×2 Quad`), and two-way round-trip editing from existing note markdown.
-- **Why**: Building CSS Grid multi-column dashboards manually using complex metadata syntax (`>> [!note] (1-2:3:1-2)`) is error-prone and tedious. The visual builder lets users visually layout cards and preview them in real time before inserting into their notes.
+- **What Changed**: Introduced a full visual matrix canvas (supporting 1×2 up to 6×6 grids) with click-and-drag cell selection, cell merging, automatic orphan area cleanup, split/unmerge functionality, full Card Content & Type editing tab, live interactive dashboard previews, 1-click layout presets (`Hero + 2 Cards`, `Workspace`, `3 Columns`, `2×2 Quad`), and two-way round-trip editing from existing note markdown.
+- **Why**: Building CSS Grid multi-column dashboards manually using complex metadata syntax (`>> [!note] (1-2:3:1-2)`) is error-prone and tedious. The visual builder lets users visually layout cards, customize contents, and preview them in real time with clean canonical grid tokens.
 
 ### 2. 🖱️ All-in-One Callout Inserter & Customizer (`InsertCalloutModal.ts`)
 - **What Changed**: Added a tabbed callout creation modal with a sticky real-time live preview, style preset switcher, custom color inputs, Lucide icon picker, border adjustments, and direct access to the Multi-Column Builder.
