@@ -276,7 +276,6 @@ export function parseMetadata(
 }
 
 /**
-<<<<<<< HEAD
  * Serializes a CalloutConfig (and optional layout/style parameters) back into metadata string syntax.
  *
  * This is the exact mirror of parseMetadata, ensuring provably lossless round-tripping:
@@ -463,13 +462,16 @@ export function isLikelyMetadata(content: string, customLayoutNames: string[] = 
     const tokens = smartSplit(trimmed);
     if (tokens.length === 0) return false;
 
+    const hasLayouts = customLayoutNames.length > 0;
+    const loweredLayouts = hasLayouts ? new Set(customLayoutNames.map(l => l.toLowerCase())) : null;
+
     // At least one token must match a known parameter key, flag, or custom layout
     for (const token of tokens) {
         const lowered = token.trim().toLowerCase();
         if (!lowered) continue;
 
         if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
-        if (customLayoutNames.map(l => l.toLowerCase()).includes(lowered)) return true;
+        if (loweredLayouts && loweredLayouts.has(lowered)) return true;
 
         const colonIndex = lowered.indexOf(':');
         if (colonIndex > 0) {

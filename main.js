@@ -444,11 +444,13 @@ function isLikelyMetadata(content, customLayoutNames = []) {
   if (maskGroups(trimmed).match(LAYOUT_REGEX)) return true;
   const tokens = smartSplit(trimmed);
   if (tokens.length === 0) return false;
+  const hasLayouts = customLayoutNames.length > 0;
+  const loweredLayouts = hasLayouts ? new Set(customLayoutNames.map((l) => l.toLowerCase())) : null;
   for (const token of tokens) {
     const lowered = token.trim().toLowerCase();
     if (!lowered) continue;
     if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
-    if (customLayoutNames.map((l) => l.toLowerCase()).includes(lowered)) return true;
+    if (loweredLayouts && loweredLayouts.has(lowered)) return true;
     const colonIndex = lowered.indexOf(":");
     if (colonIndex > 0) {
       const key = lowered.slice(0, colonIndex).trim();
