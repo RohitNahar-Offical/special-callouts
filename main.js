@@ -1452,7 +1452,27 @@ var FONT_OPTIONS = [
   { value: "marker", label: "Marker" }
 ];
 function createColorSetting(container, name, desc, currentValue, defaultColor, onChange) {
-  return new import_obsidian6.Setting(container).setName(name).setDesc(desc).addText((text) => text.setPlaceholder(defaultColor).setValue(currentValue).onChange((val) => onChange(val))).addColorPicker((picker) => picker.setValue(normalizeHex(currentValue || defaultColor)).onChange((val) => onChange(val)));
+  let textComp = null;
+  let pickerComp = null;
+  const setting = new import_obsidian6.Setting(container).setName(name).setDesc(desc).addText((text) => {
+    textComp = text;
+    text.setPlaceholder(defaultColor).setValue(currentValue).onChange((val) => {
+      const normalized = normalizeHex(val);
+      if (normalized && pickerComp) {
+        pickerComp.setValue(normalized);
+      }
+      onChange(val);
+    });
+  }).addColorPicker((picker) => {
+    pickerComp = picker;
+    picker.setValue(normalizeHex(currentValue || defaultColor)).onChange((val) => {
+      if (textComp) {
+        textComp.setValue(val);
+      }
+      onChange(val);
+    });
+  });
+  return setting;
 }
 function createIconSetting(container, app, name, desc, currentIcon, onSelect) {
   const setting = new import_obsidian6.Setting(container).setName(name).setDesc(desc);

@@ -30,7 +30,7 @@ export const FONT_OPTIONS = [
 ];
 
 /**
- * Creates a dual Text + Native ColorPicker setting row
+ * Creates a dual Text + Native ColorPicker setting row with 2-way live sync
  */
 export function createColorSetting(
     container: HTMLElement,
@@ -40,16 +40,38 @@ export function createColorSetting(
     defaultColor: string,
     onChange: (color: string) => void
 ): Setting {
-    return new Setting(container)
+    let textComp: any = null;
+    let pickerComp: any = null;
+
+    const setting = new Setting(container)
         .setName(name)
         .setDesc(desc)
-        .addText(text => text
-            .setPlaceholder(defaultColor)
-            .setValue(currentValue)
-            .onChange(val => onChange(val)))
-        .addColorPicker(picker => picker
-            .setValue(normalizeHex(currentValue || defaultColor))
-            .onChange(val => onChange(val)));
+        .addText(text => {
+            textComp = text;
+            text
+                .setPlaceholder(defaultColor)
+                .setValue(currentValue)
+                .onChange(val => {
+                    const normalized = normalizeHex(val);
+                    if (normalized && pickerComp) {
+                        pickerComp.setValue(normalized);
+                    }
+                    onChange(val);
+                });
+        })
+        .addColorPicker(picker => {
+            pickerComp = picker;
+            picker
+                .setValue(normalizeHex(currentValue || defaultColor))
+                .onChange(val => {
+                    if (textComp) {
+                        textComp.setValue(val);
+                    }
+                    onChange(val);
+                });
+        });
+
+    return setting;
 }
 
 /**
