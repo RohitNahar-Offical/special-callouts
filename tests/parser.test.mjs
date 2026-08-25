@@ -31,8 +31,8 @@ describe('extractMetadata', () => {
         );
     });
 
-    test('returns null when metadata follows the title instead of preceding it', () => {
-        assert.equal(extractMetadata('Title (bg:red)'), null);
+    test('reads metadata following the title (trailing metadata)', () => {
+        assert.deepEqual(extractMetadata('My Title (bg:red)'), { content: 'bg:red', title: 'My Title' });
     });
 
     test('returns null on an unbalanced block, dropping it whole', () => {
@@ -215,6 +215,10 @@ describe('parseGridLayout', () => {
 
     test('an explicit row is carried through', () => {
         assert.deepEqual(parseGridLayout('2:3:2'), { position: 2, columns: 3, row: 2 });
+    });
+
+    test('spanned column and row ranges are carried through', () => {
+        assert.deepEqual(parseGridLayout('1-2:3:1-2'), { position: 1, columns: 3, row: 1, colSpan: 2, rowSpan: 2 });
     });
 
     test('anything else is null', () => {

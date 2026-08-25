@@ -11,12 +11,17 @@ import { resolveColor, applyTextBorder, createTransparentBg, debounce, toPx, neo
 import { parseMetadata, parseGridLayout, extractMetadata } from './parser';
 import { setIcon } from 'obsidian';
 
+const LIST_SELECTOR = 'ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol';
+const MUTATION_TARGET_SELECTOR = 'ul,ol,.dataview,.cm-embed-block,.markdown-rendered';
+
 /**
  * CalloutProcessor handles all callout styling operations
  */
 export class CalloutProcessor {
     private settings: SpecialCalloutsSettings;
-    private observers: Map<HTMLElement, MutationObserver> = new Map();
+    private observers: WeakMap<HTMLElement, MutationObserver> = new WeakMap();
+    private activeObservers: Set<MutationObserver> = new Set();
+    private activeTimeouts: WeakMap<HTMLElement, number[]> = new WeakMap();
     private processedElements: WeakMap<HTMLElement, string> = new WeakMap();
     private debouncedColumnApply: (container: HTMLElement, colCount: number) => void;
 
@@ -42,15 +47,15 @@ export class CalloutProcessor {
             const titleEl = calloutEl.querySelector('.callout-title');
             if (!titleEl) return;
 
-            const innerTitleEl = titleEl.querySelector('.callout-title-inner') || titleEl;
+            const innerTitleEl = (titleEl.querySelector('.callout-title-inner') || titleEl) as HTMLElement;
             const fullText = innerTitleEl.textContent || '';
-            const cacheKey = `${calloutEl.getAttribute('data-callout')}_${fullText}`;
+            const pipeMetadata = calloutEl.getAttribute('data-callout-metadata') || '';
+            const calloutType = calloutEl.getAttribute('data-callout');
+            const cacheKey = `${calloutType}_${pipeMetadata}_${fullText}`;
 
             // Skip if already processed with same content
             if (this.processedElements.get(calloutEl) === cacheKey) return;
             this.processedElements.set(calloutEl, cacheKey);
-
-            const calloutType = calloutEl.getAttribute('data-callout');
 
             // Apply standard style if modified
             this.applyStandardStyleIfModified(calloutEl, calloutType);
@@ -58,8 +63,8 @@ export class CalloutProcessor {
             // Apply custom style by type name
             this.applyCustomStyleByType(calloutEl, calloutType);
 
-            // Parse and apply metadata
-            this.processMetadata(calloutEl, innerTitleEl as HTMLElement, fullText);
+            // Parse and apply metadata (from pipe and/or title)
+            this.processMetadata(calloutEl, innerTitleEl, fullText, pipeMetadata);
         } catch (error) {
             console.error('Special Callouts: Error processing callout', error);
         }
@@ -71,8 +76,6 @@ export class CalloutProcessor {
     private applyStandardStyleIfModified(calloutEl: HTMLElement, calloutType: string | null): void {
         if (!calloutType) return;
 
-        // [!tldr] is Obsidian's own alias for [!abstract] and renders identically, so a
-        // recoloured abstract has to reach it too.
         const resolvedType = resolveCalloutType(calloutType);
         const standardStyle = this.settings.standardStyles[resolvedType];
         const defaultStyle = DEFAULT_STANDARD_STYLES[resolvedType];
@@ -104,32 +107,62 @@ export class CalloutProcessor {
     }
 
     /**
-     * Processes inline metadata from callout title
+     * Processes metadata from callout title and pipe attribute
      */
-    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string): void {
-        // Extract custom layout names
+    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string, pipeMetadata: string): void {
         const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
-
-        const extracted = extractMetadata(fullText);
-        if (!extracted) return;
-
-        // Update title text
-        if (innerTitleEl.textContent !== extracted.title) {
-            innerTitleEl.textContent = extracted.title;
+        const extracted = extractMetadata(fullText, layoutNames);
+        
+        // Safely update title text if metadata was inside parentheses in the title
+        if (extracted && innerTitleEl.textContent !== extracted.title) {
+            let updated = false;
+            for (let i = 0; i < innerTitleEl.childNodes.length; i++) {
+                const node = innerTitleEl.childNodes[i];
+                if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
+                    if (node.nodeValue.includes(`(${extracted.content})`)) {
+                        node.nodeValue = node.nodeValue.replace(`(${extracted.content})`, '').trim();
+                        updated = true;
+                        break;
+                    }
+                }
+            }
+            if (!updated) {
+                innerTitleEl.textContent = extracted.title;
+            }
         }
+
+        // Combine metadata from pipe (e.g. [!note|bg:red]) and title (e.g. (bg:red))
+        const rawMetadataParts: string[] = [];
+        if (pipeMetadata.trim()) {
+            rawMetadataParts.push(pipeMetadata.trim());
+        }
+        if (extracted && extracted.content.trim()) {
+            rawMetadataParts.push(extracted.content.trim());
+        }
+
+        if (rawMetadataParts.length === 0) return;
+        const combinedMetadata = rawMetadataParts.join(', ');
 
         // Parse metadata
         const { config, layoutParam, styleParam } = parseMetadata(
-            extracted.content,
+            combinedMetadata,
             this.settings.standardColors,
             this.settings.customColors,
             layoutNames
         );
 
-        // Apply style parameter first
-        if (styleParam) {
+        // Apply style parameter first (or if pipe metadata matches a custom style name)
+        let resolvedStyleName = styleParam;
+        if (!resolvedStyleName && pipeMetadata) {
+            const matchCustom = this.settings.customStyles.find(
+                s => s.name.toLowerCase() === pipeMetadata.trim().toLowerCase()
+            );
+            if (matchCustom) resolvedStyleName = matchCustom.name;
+        }
+
+        if (resolvedStyleName) {
             const manualStyle = this.settings.customStyles.find(
-                s => s.name.toLowerCase() === styleParam
+                s => s.name.toLowerCase() === resolvedStyleName.toLowerCase()
             );
             if (manualStyle) {
                 this.applyStyleObject(calloutEl, manualStyle);
@@ -147,17 +180,12 @@ export class CalloutProcessor {
             }
         }
 
-        // AI_CONTEXT: Removed advanced grid and flex logic (flex, gridCols, gridW, gridH, vertical)
-        // These were undocumented and caused complexity. The visual builder handles complex layouts now.
-
         // Handle column layout for lists
         if (config.col !== null) {
             calloutEl.setAttribute('data-col', config.col.toString());
             calloutEl.setCssProps({ '--smart-list-cols': config.col.toString() });
             this.applyColumnsToContainer(calloutEl, config.col);
             this.setupObserver(calloutEl, config.col);
-            // AI_CONTEXT: Retry mechanism required because Dataview/Homepage plugins load content asynchronously
-            // AI_CONTEXT_WARN: Do NOT remove - columns won't work on initial page load without this
             this.scheduleColumnRetry(calloutEl, config.col);
         }
 
@@ -196,13 +224,10 @@ export class CalloutProcessor {
         }
 
         if (config.titleColor) {
-            // Set CSS custom property; .callout[data-sc-title-color] rule in styles.css applies it
             calloutEl.setCssProps({ '--sc-title-color': config.titleColor });
             calloutEl.setAttribute('data-sc-title-color', '');
         }
 
-        // AI_CONTEXT: Ayri ikon rengi. title: ile birlikte verilirse bu kazanir, cunku
-        // styles.css'te [data-sc-icon-color] kurali [data-sc-title-color]'dan sonra gelir.
         if (config.iconColor) {
             calloutEl.setCssProps({ '--sc-icon-color': config.iconColor });
             calloutEl.setAttribute('data-sc-icon-color', '');
@@ -219,7 +244,6 @@ export class CalloutProcessor {
         } else if (config.icon) {
             let iconEl = calloutEl.querySelector('.callout-icon');
             if (!iconEl) {
-                // AI_CONTEXT: Eger icon elementi yoksa (bazı temalar/ayarlar) baslıgın basına ekliyoruz
                 const titleEl = calloutEl.querySelector('.callout-title');
                 if (titleEl) {
                     iconEl = titleEl.createDiv({ cls: 'callout-icon' });
@@ -235,10 +259,6 @@ export class CalloutProcessor {
             if (config.border === 'none') {
                 calloutEl.setAttribute('data-sc-no-border', '');
             } else {
-                // The width belongs in the shorthand. Writing 1px here and leaving
-                // border-width to the later data-sc-bw rule worked only because that rule
-                // is declared afterwards in styles.css — the two paths disagreed and CSS
-                // order was hiding it.
                 const style = config.borderStyle || 'solid';
                 const width = config.borderWidth ? toPx(config.borderWidth) : '1px';
                 calloutEl.setCssProps({ '--sc-border': `${width} ${style} ${config.border}` });
@@ -251,7 +271,7 @@ export class CalloutProcessor {
             calloutEl.setAttribute('data-sc-bw', '');
         }
 
-        if (config.borderStyle && !config.border) {
+        if (config.borderStyle) {
             calloutEl.setCssProps({ '--sc-border-style': config.borderStyle });
             calloutEl.setAttribute('data-sc-bs', '');
         }
@@ -280,24 +300,15 @@ export class CalloutProcessor {
             calloutEl.setAttribute('data-sc-fontsize', '');
         }
 
-        // AI_CONTEXT: Compact mode reduces padding throughout the callout
-        // AI_CONTEXT_WHY: Users want denser callouts for dashboards/lists
-        // AI_CONTEXT_WARN: Must set padding on callout, title, AND content elements
-        // AI_CONTEXT_WARN: Also sets data-compact attribute for CSS fallback
         if (config.compact) {
-            // CSS class .callout[data-compact="true"] in styles.css handles all padding overrides
             calloutEl.setAttribute('data-compact', 'true');
         }
 
-        // AI_CONTEXT: dense is compact plus a tighter line-height. It sets compact too (see
-        // parser.ts), so writing `dense` alone still reduces padding as it always has.
         if (config.dense) {
             calloutEl.setAttribute('data-dense', 'true');
         }
 
-        // AI_CONTEXT: Center mode aligns everything to the center
         if (config.center) {
-            // CSS .callout[data-center="true"] in styles.css handles all alignment overrides
             calloutEl.setAttribute('data-center', 'true');
         } else if (config.titleCenter) {
             calloutEl.setAttribute('data-title-center', 'true');
@@ -311,8 +322,6 @@ export class CalloutProcessor {
         let value: string | null = null;
 
         if (isCssGradient(gradient)) {
-            // A saved style holds the finished function; splitting it on '-' would cut
-            // `linear-gradient` in two and leave the callout with no background at all.
             value = gradient.trim();
         } else {
             const colors = gradient.split('-');
@@ -325,21 +334,18 @@ export class CalloutProcessor {
 
         if (!value) return;
 
-        // Use CSS var + data attribute; .callout[data-sc-gradient] rule in styles.css applies it
         calloutEl.setCssProps({ '--sc-gradient': value });
         calloutEl.setAttribute('data-sc-gradient', '');
         calloutEl.setAttribute('data-sc-no-border', '');
     }
 
     /**
-     * Gets the direct wrapper of the callout under .callout-content,
-     * which handles the nested blockquote issue.
+     * Gets the direct wrapper of the callout under .callout-content
      */
     private getDirectWrapper(calloutEl: HTMLElement): HTMLElement {
         let current: HTMLElement | null = calloutEl;
         let parent = current.parentElement;
         
-        // Traverse up until the parent is .callout-content
         while (parent && !parent.classList.contains('callout-content')) {
             current = parent;
             parent = parent.parentElement;
@@ -349,7 +355,7 @@ export class CalloutProcessor {
     }
 
     /**
-     * Neutralizes blockquote wrapper styles to fix the "purple line" bug
+     * Neutralizes blockquote wrapper styles
      */
     private neutralizeWrapper(wrapper: HTMLElement): void {
         if (wrapper.tagName === 'BLOCKQUOTE') {
@@ -363,17 +369,19 @@ export class CalloutProcessor {
      * Applies grid layout to callout
      */
     private applyGridLayout(calloutEl: HTMLElement, gridConfig: import('./types').GridConfig, config: import('./types').CalloutConfig): void {
-        const gap = 10;
-        const span = Math.min(config.span ?? 1, gridConfig.columns);
-        const widthCalc = span > 1
-            ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${span} + ${(span - 1) * gap}px)`
-            : `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
-
         const wrapper = this.getDirectWrapper(calloutEl);
         this.neutralizeWrapper(wrapper);
 
-        // Use CSS custom property + class; .sc-grid-item-wrapper rule in styles.css applies flex/width
-        wrapper.setCssProps({ '--sc-flex-width': widthCalc });
+        const span = Math.min(config.span ?? gridConfig.colSpan ?? 1, gridConfig.columns);
+        const colSpan = span > 0 ? span : (gridConfig.colSpan || 1);
+        const rowSpan = gridConfig.rowSpan || 1;
+
+        wrapper.setCssProps({
+            '--sc-grid-col-start': gridConfig.position.toString(),
+            '--sc-grid-col-span': colSpan.toString(),
+            '--sc-grid-row-start': gridConfig.row.toString(),
+            '--sc-grid-row-span': rowSpan.toString()
+        });
         wrapper.addClass('sc-grid-item-wrapper');
 
         if (wrapper !== calloutEl) {
@@ -384,8 +392,17 @@ export class CalloutProcessor {
         calloutEl.setAttribute('data-grid-pos', gridConfig.position.toString());
         calloutEl.setAttribute('data-grid-cols', gridConfig.columns.toString());
         calloutEl.setAttribute('data-grid-row', gridConfig.row.toString());
-        if (span > 1) {
-            calloutEl.setAttribute('data-grid-span', span.toString());
+        if (colSpan > 1) {
+            calloutEl.setAttribute('data-grid-span', colSpan.toString());
+        }
+
+        // Update outer container grid column count
+        const outerMulti = wrapper.closest('.callout[data-callout="multi-callout"]') as HTMLElement;
+        if (outerMulti) {
+            const content = outerMulti.querySelector('.callout-content') as HTMLElement;
+            if (content) {
+                content.setCssProps({ '--sc-multi-cols': gridConfig.columns.toString() });
+            }
         }
     }
 
@@ -396,7 +413,6 @@ export class CalloutProcessor {
         const content = calloutEl.querySelector('.callout-content');
         if (!content) return;
 
-        // Set CSS custom properties; .callout[data-sc-custom-layout] rule in styles.css drives the grid
         calloutEl.setCssProps({
             '--sc-grid-cols': `repeat(${layout.cols}, 1fr)`,
             '--sc-grid-areas': layout.gridAreas
@@ -410,40 +426,28 @@ export class CalloutProcessor {
     private setupCustomLayoutObserver(calloutEl: HTMLElement): void {
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
+        
+        // Clean up previous observer if exists
+        const prevObserver = this.observers.get(calloutEl);
+        if (prevObserver) {
+            prevObserver.disconnect();
+            this.activeObservers.delete(prevObserver);
+        }
 
         const observer = new MutationObserver(() => {
-            if (!calloutEl.isConnected) return;
+            if (!calloutEl.isConnected) {
+                observer.disconnect();
+                this.activeObservers.delete(observer);
+                return;
+            }
             this.applyAreasToChildren(contentEl as HTMLElement);
         });
 
         observer.observe(contentEl, { childList: true });
-        this.registerObserver(calloutEl, observer);
-    }
-
-    /**
-     * Stores an observer against its callout, replacing any previous one, and drops
-     * entries whose element has left the document.
-     *
-     * The map has to stay strong so onunload can disconnect everything. That means a
-     * callout the user has scrolled or navigated away from would otherwise sit in it for
-     * as long as the plugin is loaded, holding its observer and the closure over its
-     * content element. Sweeping on insert bounds the map by the callouts actually on
-     * screen. A WeakMap would collect on its own but leaves nothing to disconnect at
-     * unload, and observers that outlive the plugin keep calling back into it.
-     */
-    private registerObserver(calloutEl: HTMLElement, observer: MutationObserver): void {
-        this.observers.get(calloutEl)?.disconnect();
-
-        this.observers.forEach((existing, el) => {
-            if (!el.isConnected) {
-                existing.disconnect();
-                this.observers.delete(el);
-            }
-        });
-
         this.observers.set(calloutEl, observer);
+        this.activeObservers.add(observer);
     }
-    
+
     private applyAreasToChildren(contentEl: HTMLElement): void {
         const children = Array.from(contentEl.children);
 
@@ -451,21 +455,25 @@ export class CalloutProcessor {
         children.forEach(child => {
             const el = child as HTMLElement;
 
-            // Skip structural/empty nodes inserted by Markdown rendering
-            if (el.tagName === 'BR' || el.tagName === 'HR') return;
+            // Hide empty structural nodes inserted by Markdown rendering so they don't break grid areas
+            if (el.tagName === 'BR' || el.tagName === 'HR') {
+                el.addClass('sc-hidden');
+                return;
+            }
             if (el.tagName === 'P') {
-                const html = el.innerHTML.trim();
-                if (html === '' || html === '<br>') return;
+                const text = el.textContent?.trim() || '';
+                if (text === '') {
+                    el.addClass('sc-hidden');
+                    return;
+                }
             }
 
             this.neutralizeWrapper(el);
-            // CSS var + class; .sc-area-child rule in styles.css sets grid-area, flex, etc.
             el.setCssProps({ '--sc-grid-area': `area${areaIndex}` });
             el.addClass('sc-area-child');
 
             const innerCallout = el.classList.contains('callout') ? el : el.querySelector('.callout');
             if (innerCallout) {
-                // .sc-area-inner in styles.css sets flex:1, width:100%, etc.
                 (innerCallout as HTMLElement).addClass('sc-area-inner');
             }
 
@@ -475,22 +483,8 @@ export class CalloutProcessor {
 
     /**
      * Applies a saved style object to a callout.
-     *
-     * A saved style is inline metadata that happens to be stored rather than typed, so it
-     * goes through the same applyConfig as everything else. Keeping a second copy of the
-     * apply logic here is what let the two drift: this path folded the border width into
-     * the --sc-border shorthand while the inline path hardcoded 1px, and it applied the
-     * three colours unguarded, so a style with an empty bg wrote
-     * `color-mix(in srgb,  15%, transparent)` — invalid at computed-value time, which drops
-     * the background to transparent instead of leaving Obsidian's default alone.
-     *
-     * Fields CalloutStyle does not carry (gradient, dense, the readability strokes) simply
-     * stay at their defaults; there is no separate behaviour to maintain for them.
      */
     applyStyleObject(calloutEl: HTMLElement, style: CalloutStyle): void {
-        // The style editor composes a gradient into the bg field rather than a field of its
-        // own, so a gradient preset used to reach applyColor and be wrapped in color-mix() —
-        // invalid, and the callout rendered with no background.
         const bgIsGradient = !!style.bg && isCssGradient(style.bg);
 
         this.applyConfig(calloutEl, {
@@ -502,7 +496,6 @@ export class CalloutProcessor {
             titleColor: style.titleColor || '',
             iconColor: style.iconColor || '',
             border: style.border || '',
-            // boldBorder predates border-width and means the same thing; an explicit width wins.
             borderWidth: style.borderWidth || (style.boldBorder ? '4px' : ''),
             borderStyle: style.borderStyle || '',
             radius: style.borderRadius || '',
@@ -521,9 +514,6 @@ export class CalloutProcessor {
      * Applies background color
      */
     applyColor(callout: HTMLElement, color: string): void {
-        // CSS var + data attr; .callout[data-sc-bg] rule in styles.css applies !important.
-        // The 15% is the single most surprising thing about bg:, so it is expressed once in
-        // createTransparentBg rather than spelled out at each call site.
         callout.setCssProps({ '--sc-bg-color': createTransparentBg(color, BG_TINT_OPACITY) });
         callout.setAttribute('data-sc-bg', '');
     }
@@ -532,7 +522,6 @@ export class CalloutProcessor {
      * Applies text color
      */
     applyTextColor(callout: HTMLElement, color: string): void {
-        // CSS var + data attr; .callout[data-sc-text] > .callout-content rule in styles.css applies it
         callout.setCssProps({ '--sc-text-color': color });
         callout.setAttribute('data-sc-text', '');
     }
@@ -547,45 +536,38 @@ export class CalloutProcessor {
 
     /**
      * Applies column layout to list containers using CSS Grid
-     * 
-     * AI_CONTEXT: Uses CSS Grid instead of CSS Columns for reliable distribution.
-     * AI_CONTEXT_WHY: CSS Columns with column-fill has unpredictable behavior.
-     *                 Grid with manual row calculation gives exact control.
-     * AI_CONTEXT_WARN: Do NOT switch back to CSS columns - they don't work reliably.
-     * AI_CONTEXT_SIDE_EFFECT: Changes list display to grid, sets grid-row on each li.
-     * 
-     * Distribution: Items flow top-to-bottom, then left-to-right (newspaper style)
-     * Formula: rowCount = Math.ceil(itemCount / colCount)
-     * Example: 7 items, 2 cols -> 4 rows -> Col1: 1,2,3,4  Col2: 5,6,7
      */
     applyColumnsToContainer(container: HTMLElement, colCount: number): void {
         window.requestAnimationFrame(() => {
-            // A frame is long enough for the note to have been closed underneath us.
             if (!container.isConnected) return;
 
             const contentEl = container.querySelector('.callout-content');
             if (!contentEl) return;
 
-            const lists = contentEl.querySelectorAll('ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol');
+            const lists = contentEl.querySelectorAll(LIST_SELECTOR);
 
             lists.forEach(list => {
                 const listEl = list as HTMLElement;
-                const items = listEl.querySelectorAll(':scope > li, :scope > .list-item');
-                const itemCount = items.length;
+                const items: HTMLElement[] = [];
+                for (let i = 0; i < listEl.children.length; i++) {
+                    const child = listEl.children[i] as HTMLElement;
+                    if (child.tagName === 'LI' || child.classList.contains('list-item')) {
+                        items.push(child);
+                    }
+                }
 
+                const itemCount = items.length;
                 if (itemCount === 0) return;
 
                 const rowCount = Math.ceil(itemCount / colCount);
 
-                // CSS class + vars; .sc-multi-col-list rule in styles.css sets display:grid etc.
                 listEl.setCssProps({
                     '--sc-list-cols': colCount.toString(),
                     '--sc-list-rows': rowCount.toString()
                 });
                 listEl.addClass('sc-multi-col-list');
 
-                items.forEach((li, index) => {
-                    const liEl = li as HTMLElement;
+                items.forEach((liEl, index) => {
                     const col = Math.floor(index / rowCount) + 1;
                     const row = (index % rowCount) + 1;
 
@@ -597,104 +579,103 @@ export class CalloutProcessor {
     }
 
     /**
-     * Schedules retry attempts for column layout (handles Dataview/Homepage delayed rendering)
-     * 
-     * AI_CONTEXT: Dataview and Homepage plugins render content asynchronously after initial page load.
-     *             Without retry, columns won't apply when page first opens.
-     * AI_CONTEXT_WHY: MutationObserver alone isn't enough - sometimes content is already there but
-     *                 not fully rendered. Multiple retries at increasing intervals ensure we catch it.
-     * AI_CONTEXT_WARN: Do NOT remove retry delays or reduce them significantly.
-     *                  2000ms final delay is intentional for slow Dataview queries.
-     * AI_CONTEXT_SIDE_EFFECT: Creates 5 setTimeout calls per col:X callout. Minimal performance impact.
+     * Schedules retry attempts for column layout
      */
     private scheduleColumnRetry(calloutEl: HTMLElement, colCount: number): void {
+        const existingTimers = this.activeTimeouts.get(calloutEl);
+        if (existingTimers) {
+            existingTimers.forEach(id => window.clearTimeout(id));
+        }
+
         const retryDelays = [100, 300, 600, 1000, 2000];
+        const timerIds: number[] = [];
 
         retryDelays.forEach(delay => {
-            window.setTimeout(() => {
-                // The last retry lands two seconds out; by then the note may be closed.
-                // Every delay still runs while the callout is on screen — a Dataview list
-                // can be in the DOM at 100ms and not finished, which is what the later
-                // attempts are for.
-                if (!calloutEl.isConnected) return;
+            const id = window.setTimeout(() => {
+                if (!calloutEl.isConnected) {
+                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    this.activeTimeouts.delete(calloutEl);
+                    return;
+                }
 
                 const contentEl = calloutEl.querySelector('.callout-content');
                 if (!contentEl) return;
 
-                const lists = contentEl.querySelectorAll('ul, ol, .dataview.list-view-ul, .dataview-result-list-ul, .dataview ul, .block-language-dataview ul, .cm-embed-block ul, .cm-embed-block ol, .markdown-rendered ul, .markdown-rendered ol');
+                const lists = contentEl.querySelectorAll(LIST_SELECTOR);
                 if (lists.length > 0) {
                     this.applyColumnsToContainer(calloutEl, colCount);
+                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    this.activeTimeouts.delete(calloutEl);
                 }
             }, delay);
+            timerIds.push(id);
         });
+
+        this.activeTimeouts.set(calloutEl, timerIds);
     }
 
     /**
      * Sets up mutation observer for dynamic content
      */
     setupObserver(calloutEl: HTMLElement, colCount: number): void {
+        const prev = this.observers.get(calloutEl);
+        if (prev) {
+            prev.disconnect();
+            this.activeObservers.delete(prev);
+        }
+
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
 
         const observer = new MutationObserver((mutations) => {
-            if (!calloutEl.isConnected) return;
+            if (!calloutEl.isConnected) {
+                observer.disconnect();
+                this.activeObservers.delete(observer);
+                this.observers.delete(calloutEl);
+                return;
+            }
             let update = false;
-            mutations.forEach(m => {
+            for (let i = 0; i < mutations.length; i++) {
+                const m = mutations[i];
                 if (m.addedNodes.length > 0) {
-                    m.addedNodes.forEach(n => {
+                    for (let j = 0; j < m.addedNodes.length; j++) {
+                        const n = m.addedNodes[j];
                         if (n.nodeType === 1) {
                             const el = n as Element;
-                            if (el.matches('ul,ol,.dataview,.cm-embed-block,.markdown-rendered') || el.querySelector('ul,ol,.dataview,.cm-embed-block,.markdown-rendered')) {
+                            if (el.matches(MUTATION_TARGET_SELECTOR) || el.querySelector(MUTATION_TARGET_SELECTOR)) {
                                 update = true;
+                                break;
                             }
                         }
-                    });
+                    }
                 }
-                // Text change inside could mean dataview re-rendered
-                if (m.type === 'characterData') update = true;
-            });
+                if (m.type === 'characterData') {
+                    update = true;
+                }
+                if (update) break;
+            }
             if (update) this.debouncedColumnApply(calloutEl, colCount);
         });
 
         observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
-        this.registerObserver(calloutEl, observer);
+        this.observers.set(calloutEl, observer);
+        this.activeObservers.add(observer);
     }
 
     /**
      * Safely applies an icon bypassing Obsidian's native override
      */
     private forceApplyIcon(iconEl: HTMLElement, iconName: string): void {
-        const apply = () => {
-            iconEl.empty();
-            setIcon(iconEl, iconName);
-            iconEl.removeClass('sc-hidden');
-        };
-
-        // Apply immediately
-        apply();
-
-        // Obsidian often overwrites the custom type's icon with the default 'pencil'
-        // shortly after the element is rendered. We wait for the next tick to override it back.
-        window.setTimeout(() => {
-            apply();
-        }, 0);
-
-        // Fallback: If Obsidian takes longer, observe the element temporarily
-        const observer = new MutationObserver(() => {
-            observer.disconnect();
-            apply();
-        });
-        observer.observe(iconEl, { childList: true });
-        
-        // Clean up observer after a short window to prevent memory leaks
-        window.setTimeout(() => observer.disconnect(), 150);
+        iconEl.empty();
+        setIcon(iconEl, iconName);
+        iconEl.removeClass('sc-hidden');
     }
 
     /**
-     * Cleans up all observers
+     * Cleans up all observers and active timeouts
      */
     cleanup(): void {
-        this.observers.forEach(o => o.disconnect());
-        this.observers.clear();
+        this.activeObservers.forEach(o => o.disconnect());
+        this.activeObservers.clear();
     }
 }

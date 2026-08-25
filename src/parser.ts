@@ -14,11 +14,13 @@ import { resolveColor, smartSplit } from './utils';
  * @param content - Content inside the parentheses
  * @param standardColors - Standard color palette
  * @param customColors - Custom user colors
+ * @param customLayoutNames - Custom visual layout names
  * @returns Parsed configuration object
  */
 // Module-level constants for performance
-const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
+const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
 const GROUP_REGEX = /^\(([^)]+)\)$/;
+const GRID_REGEX = /^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?(?:[:,/](\d+))?(?:[:,/](\d+))?$/;
 
 // Neither whitespace, separator nor digit, so a masked character can be neither part
 // of a layout token nor the boundary the pattern looks for.
@@ -26,12 +28,6 @@ const MASK_CHAR = '\u0000';
 
 /**
  * Blanks the contents of every parenthesised group, keeping the string the same length.
- *
- * The layout token is looked for across the whole metadata string, before it is split into
- * parameters, because it is the one entry written without a key. Digits and separators
- * inside a value look exactly like that token: in `bg:rgba(0,0,0,0.5)` the scan matched
- * `0,0` and cut it out, leaving `rgba(0,,0.5)`. Masking the groups first confines the scan
- * to the top level, and preserving the length means a match still maps onto the original.
  */
 function maskGroups(content: string): string {
     let depth = 0;
@@ -54,15 +50,6 @@ function maskGroups(content: string): string {
 
 /**
  * Expands the grouped form `key:(v1, v2)` into one `key:v1` pair per value.
- *
- * A group is only ever shorthand for writing the same key twice — `text:(white,
- * dark-border)` means `text:white, text:dark-border`. Expanding it before the switch runs
- * means every parameter supports the form for free, and one place decides what a value
- * means instead of two. The branch this replaced knew only text/title/link, and handed the
- * literal string '(red)' to every other key as though it were a colour.
- *
- * Values carrying their own parentheses, such as bg:rgba(0,0,0,.5), are untouched: the
- * group form has to wrap the whole value, and rgba(...) does not start with '('.
  */
 function expandGroups(params: string[]): string[] {
     const expanded: string[] = [];
@@ -101,15 +88,11 @@ export function parseMetadata(
     let layoutParam: string | null = null;
     let styleParam: string | null = null;
 
-    // Check for layout parameter (e.g., 1:3 or 1:3:2)
-    const layoutMatch = maskGroups(content).match(LAYOUT_REGEX);
     let remainingContent = content;
+    const layoutMatch = maskGroups(remainingContent).match(LAYOUT_REGEX);
 
     if (layoutMatch && layoutMatch.index !== undefined) {
         layoutParam = layoutMatch[1];
-        // Cut the span the regex actually matched. A plain replace(layoutParam, '') removes
-        // the first substring that happens to look the same, which need not be this token,
-        // and the ,, cleanup that followed only tidied one shape of the leftovers.
         const tokenStart = layoutMatch.index + layoutMatch[0].indexOf(layoutParam);
         remainingContent =
             remainingContent.slice(0, tokenStart) +
@@ -122,7 +105,6 @@ export function parseMetadata(
     // Check for style parameter
     const styleParamValue = params.find(p => p.toLowerCase().startsWith('style:'));
     if (styleParamValue) {
-        // Everything after the first colon: a style may be named "Note: Important".
         styleParam = styleParamValue.slice('style:'.length).trim().toLowerCase();
         if (!styleParam) styleParam = null;
     }
@@ -137,11 +119,7 @@ export function parseMetadata(
         const loweredPair = pair.trim().toLowerCase();
         if (!loweredPair) return;
 
-        // Built-in flags are checked before saved layout names. A layout shares the bare-word
-        // form with a flag, so a layout named `compact` used to shadow the flag everywhere in
-        // the vault — every (compact) silently applied a grid instead of reducing padding.
-        // Settings now refuses to create such a name; this ordering also repairs any vault
-        // that already has one.
+        // Built-in flags are checked before saved layout names
         if (loweredPair === 'no-icon' || loweredPair === 'noicon') {
             config.noIcon = true;
             return;
@@ -151,7 +129,6 @@ export function parseMetadata(
             return;
         }
         if (loweredPair === 'compact' || loweredPair === 'dense') {
-            // dense is compact plus a tighter line-height, so it implies compact
             config.compact = true;
             if (loweredPair === 'dense') config.dense = true;
             return;
@@ -171,16 +148,12 @@ export function parseMetadata(
             return;
         }
 
-        // A key with nothing after the colon, or a stray colon with no key, carries no
-        // instruction. Falling through would hand '' to branches that assume a value.
         if (!key || !rawValue) return;
 
         // Check for special border values
         const isBorderValue = ['dark-border', 'light-border'].includes(rawValue.toLowerCase());
 
         // Parse by key type
-        // AI_CONTEXT: Removed undocumented flex and advanced grid parameters (w:X, h:X, grid-cols:X) 
-        // to simplify inline usage and encourage the Visual Layout Builder.
         switch (key) {
             case 'col':
             case 'column': {
@@ -284,14 +257,6 @@ export function parseMetadata(
 
 /**
  * Serializes a CalloutConfig (and optional layout/style parameters) back into metadata string syntax.
- *
- * This is the exact mirror of parseMetadata, ensuring provably lossless round-tripping:
- * parse(serialize(parse(x))) === parse(x).
- *
- * @param config - Configuration object to serialize
- * @param layoutParam - Optional layout parameter (e.g. "1:3")
- * @param styleParam - Optional style name (e.g. "ocean-deep")
- * @returns Serialized metadata string (without enclosing parentheses)
  */
 export function serializeMetadata(
     config: Partial<CalloutConfig>,
@@ -413,26 +378,43 @@ export function serializeMetadata(
 }
 
 /**
- * Parses grid layout parameter (e.g., "1:3" or "1:3:2")
+ * Parses grid layout parameter (e.g., "1:3", "1-2:3:1-2" or "1:3:2")
  * @param param - Layout parameter string
  * @returns Grid configuration or null
  */
 export function parseGridLayout(param: string): GridConfig | null {
-    const match = param.match(/^(\d+)[:,/](\d+)(?:[:,/](\d+))?$/);
+    const match = param.match(GRID_REGEX);
     if (!match) return null;
 
-    return {
-        position: parseInt(match[1]),
-        columns: parseInt(match[2]),
-        row: match[3] ? parseInt(match[3]) : 1
+    const colStart = parseInt(match[1]);
+    const colEnd = match[2] ? parseInt(match[2]) : colStart;
+    const columns = parseInt(match[3]);
+    const rowStart = match[4] ? parseInt(match[4]) : 1;
+    const rowEnd = match[5] ? parseInt(match[5]) : rowStart;
+
+    let colSpan = match[6] ? parseInt(match[6]) : (colEnd - colStart + 1);
+    let rowSpan = match[7] ? parseInt(match[7]) : (rowEnd - rowStart + 1);
+
+    if (colSpan < 1) colSpan = 1;
+    if (rowSpan < 1) rowSpan = 1;
+
+    const res: GridConfig = {
+        position: colStart,
+        columns: columns,
+        row: rowStart
     };
+
+    if (colSpan > 1) res.colSpan = colSpan;
+    if (rowSpan > 1) res.rowSpan = rowSpan;
+
+    return res;
 }
 
 const KNOWN_METADATA_KEYS = new Set([
     'bg', 'background', 'text', 'link', 'title', 'border', 'bw', 'bs',
     'border-width', 'border-style', 'neon', 'radius', 'gradient',
     'font', 'font-size', 'compact', 'dense', 'padding', 'no-icon', 'noicon',
-    'center', 'icon', 'icon-color', 'iconcolor', 'col', 'column', 'style'
+    'center', 'icon', 'icon-color', 'iconcolor', 'col', 'column', 'style', 'span'
 ]);
 
 const KNOWN_STANDALONE_FLAGS = new Set([
@@ -441,9 +423,6 @@ const KNOWN_STANDALONE_FLAGS = new Set([
 
 /**
  * Checks whether parenthesized text actually looks like callout metadata.
- *
- * Prevents titles ending with parenthetical remarks (e.g. "Standup (Tuesday)"
- * or "Project Review (Q3)") from being mistakenly consumed as metadata.
  */
 export function isLikelyMetadata(content: string, customLayoutNames: string[] = []): boolean {
     const trimmed = content.trim();
@@ -478,36 +457,55 @@ export function isLikelyMetadata(content: string, customLayoutNames: string[] = 
 
 /**
  * Extracts metadata content from callout title
- * @param fullText - Full title text
- * @returns Object with metadata content and remaining title
+ * Supports both leading (metadata) Title and trailing Title (metadata)
  */
-export function extractMetadata(fullText: string): { content: string; title: string } | null {
-    const trimmedText = fullText.replace(/^\s+/, '');
-    const span = findMetadataSpan(trimmedText, 0);
-    if (!span) return null;
+export function extractMetadata(fullText: string, customLayoutNames: string[] = []): { content: string; title: string } | null {
+    const trimmedText = fullText.trim();
+    if (!trimmedText) return null;
 
-    return {
-        content: span.content,
-        title: trimmedText.substring(span.end + 1).trim()
-    };
+    // 1. Leading metadata: (metadata) Title
+    if (trimmedText.startsWith('(')) {
+        const span = findMetadataSpan(trimmedText, 0);
+        if (span) {
+            return {
+                content: span.content,
+                title: trimmedText.substring(span.end + 1).trim()
+            };
+        }
+        return null;
+    }
+
+    // 2. Trailing metadata: Title (metadata)
+    if (trimmedText.endsWith(')')) {
+        let depth = 0;
+        let startIndex = -1;
+        for (let i = trimmedText.length - 1; i >= 0; i--) {
+            if (trimmedText[i] === ')') depth++;
+            else if (trimmedText[i] === '(') {
+                depth--;
+                if (depth === 0) {
+                    startIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (startIndex !== -1) {
+            const candidate = trimmedText.substring(startIndex + 1, trimmedText.length - 1).trim();
+            if (isLikelyMetadata(candidate, customLayoutNames)) {
+                return {
+                    content: candidate,
+                    title: trimmedText.substring(0, startIndex).trim()
+                };
+            }
+        }
+    }
+
+    return null;
 }
 
 /**
  * Locates the metadata block at or after `from`, counting parenthesis depth.
- *
- * This is the single definition of "where does the metadata start and stop". Three places
- * need it — the renderer, the icon command that rewrites a line in the editor, and the
- * settings importer that reads a pasted callout — and each used to carry its own scan. The
- * shortcut versions matched with `/\(([^)]+)\)/` or `/\((.*?)\)/`, which stop at the first
- * closing parenthesis and so cut a grouped value like `text:(white, dark-border)` in half.
- *
- * Leading spaces before the block are skipped. Returns null when the next non-space
- * character is not `(`, or when the block never closes — an unbalanced block is dropped
- * whole rather than guessed at.
- *
- * @param line - the text to scan
- * @param from - index to start at, typically just past the `]` of `[!type]`
- * @returns indices of the opening and closing parenthesis, and the text between them
  */
 export function findMetadataSpan(
     line: string,

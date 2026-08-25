@@ -20,12 +20,32 @@ export function debounce<T extends (...args: unknown[]) => void>(
 }
 
 /**
+ * Throttle: Ensures function runs at most once per interval
+ */
+export function throttle<T extends (...args: unknown[]) => void>(
+    func: T,
+    limit: number
+): T {
+    let inThrottle = false;
+    return ((...args: Parameters<T>) => {
+        if (!inThrottle) {
+            func(...args);
+            inThrottle = true;
+            window.setTimeout(() => inThrottle = false, limit);
+        }
+    }) as T;
+}
+
+const HEX_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+const NUMERIC_REGEX = /^-?\d*\.?\d+$/;
+
+/**
  * Validates hex color code
  * @param hex - Color code to validate
  * @returns true if valid hex code
  */
 export function isValidHex(hex: string): boolean {
-    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(hex);
+    return HEX_REGEX.test(hex);
 }
 
 /**
@@ -101,7 +121,7 @@ export function isCssGradient(value: string): boolean {
 export function toPx(value: string | number): string {
     const raw = String(value).trim();
     if (!raw) return '';
-    return /^-?\d*\.?\d+$/.test(raw) ? `${raw}px` : raw;
+    return NUMERIC_REGEX.test(raw) ? `${raw}px` : raw;
 }
 
 /**

@@ -1,16 +1,32 @@
 # Dependencies
 node_modules/
 
-# Local plugin settings — never commit a personal vault's data
+# Local plugin settings / Obsidian Vault Runtime Data
 data.json
 
-# Build noise
+# Build noise & artifacts
 *.js.map
-
-# OS
-.DS_Store
-Thumbs.db
+*.tsbuildinfo
 
 # Logs and secrets
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 .env
+
+# System & OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary & cache directories
+.cache/
+tmp/
+temp/
