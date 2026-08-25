@@ -534,7 +534,9 @@ describe('serializeMetadata and lossless roundtripping', () => {
             'title:(center, green, light-border), no-icon, radius:8px',
             'gradient:linear-gradient(90deg, #ff0000, #0000ff), font:mono, font-size:4, col:2',
             'neon:purple, icon:zap, icon-color:yellow, compact',
-            'center, bg:grey, border:red, bw:3px'
+            'center, bg:grey, border:red, bw:3px',
+            'center, title:center',
+            'title:(center, red, dark-border)'
         ];
 
         for (const input of sampleInputs) {

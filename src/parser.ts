@@ -327,7 +327,7 @@ export function serializeMetadata(
 
     // 5. Title color, stroke, and center
     const titleParts: string[] = [];
-    if (config.titleCenter && !config.center) {
+    if (config.titleCenter) {
         titleParts.push('center');
     }
     if (config.titleColor) {
