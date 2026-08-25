@@ -31,17 +31,8 @@ describe('extractMetadata', () => {
         );
     });
 
-    test('safely reads trailing metadata when formatted as metadata', () => {
-        assert.deepEqual(extractMetadata('My Title (bg:red)'), { content: 'bg:red', title: 'My Title' });
-        assert.deepEqual(extractMetadata('Project (1:3, compact)'), { content: '1:3, compact', title: 'Project' });
-        assert.deepEqual(extractMetadata('Custom Note (style:ocean)'), { content: 'style:ocean', title: 'Custom Note' });
-    });
-
-    test('preserves parenthesized titles that are not metadata', () => {
-        assert.equal(extractMetadata('Standup (Tuesday)'), null);
-        assert.equal(extractMetadata('Project Review (Q3)'), null);
-        assert.equal(extractMetadata('Meeting (10am)'), null);
-        assert.equal(extractMetadata('Release (v2.0)'), null);
+    test('returns null when metadata follows the title instead of preceding it', () => {
+        assert.equal(extractMetadata('Title (bg:red)'), null);
     });
 
     test('returns null on an unbalanced block, dropping it whole', () => {
@@ -214,17 +205,7 @@ describe('grid token', () => {
 
 describe('parseGridLayout', () => {
     test('position and column count', () => {
-        assert.deepEqual(parseGridLayout('1:3'), {
-            position: 1,
-            columns: 3,
-            row: 1,
-            colStart: 1,
-            colEnd: 1,
-            colSpan: 1,
-            rowStart: 1,
-            rowEnd: 1,
-            rowSpan: 1
-        });
+        assert.deepEqual(parseGridLayout('1:3'), { position: 1, columns: 3, row: 1 });
     });
 
     test('comma and slash separators are accepted', () => {
@@ -233,60 +214,25 @@ describe('parseGridLayout', () => {
     });
 
     test('an explicit row is carried through', () => {
-        assert.deepEqual(parseGridLayout('2:3:2'), {
-            position: 2,
-            columns: 3,
-            row: 2,
-            colStart: 2,
-            colEnd: 2,
-            colSpan: 1,
-            rowStart: 2,
-            rowEnd: 2,
-            rowSpan: 1
-        });
-    });
-
-    test('supports ranged column and row spans', () => {
-        assert.deepEqual(parseGridLayout('1-2:3'), {
-            position: 1,
-            columns: 3,
-            row: 1,
-            colStart: 1,
-            colEnd: 2,
-            colSpan: 2,
-            rowStart: 1,
-            rowEnd: 1,
-            rowSpan: 1
-        });
-
-        assert.deepEqual(parseGridLayout('1-2:3:1-2'), {
-            position: 1,
-            columns: 3,
-            row: 1,
-            colStart: 1,
-            colEnd: 2,
-            colSpan: 2,
-            rowStart: 1,
-            rowEnd: 2,
-            rowSpan: 2
-        });
-
-        assert.deepEqual(parseGridLayout('2-4:4:2-3'), {
-            position: 2,
-            columns: 4,
-            row: 2,
-            colStart: 2,
-            colEnd: 4,
-            colSpan: 3,
-            rowStart: 2,
-            rowEnd: 3,
-            rowSpan: 2
-        });
+        assert.deepEqual(parseGridLayout('2:3:2'), { position: 2, columns: 3, row: 2 });
     });
 
     test('anything else is null', () => {
         assert.equal(parseGridLayout('abc'), null);
         assert.equal(parseGridLayout('1'), null);
+    });
+});
+
+describe('span parameter', () => {
+    test('sets column span count', () => {
+        assert.equal(parse('span:2').config.span, 2);
+        assert.equal(parse('1:3, span:3').config.span, 3);
+    });
+
+    test('ignores invalid or non-positive span values', () => {
+        assert.equal(parse('span:0').config.span, null);
+        assert.equal(parse('span:-1').config.span, null);
+        assert.equal(parse('span:invalid').config.span, null);
     });
 });
 

@@ -110,7 +110,7 @@ export class CalloutProcessor {
         // Extract custom layout names
         const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
 
-        const extracted = extractMetadata(fullText, layoutNames);
+        const extracted = extractMetadata(fullText);
         if (!extracted) return;
 
         // Update title text
@@ -143,7 +143,7 @@ export class CalloutProcessor {
         if (layoutParam) {
             const gridConfig = parseGridLayout(layoutParam);
             if (gridConfig && gridConfig.columns > 0) {
-                this.applyGridLayout(calloutEl, gridConfig);
+                this.applyGridLayout(calloutEl, gridConfig, config);
             }
         }
 
@@ -362,11 +362,11 @@ export class CalloutProcessor {
     /**
      * Applies grid layout to callout
      */
-    private applyGridLayout(calloutEl: HTMLElement, gridConfig: import('./types').GridConfig): void {
+    private applyGridLayout(calloutEl: HTMLElement, gridConfig: import('./types').GridConfig, config: import('./types').CalloutConfig): void {
         const gap = 10;
-        const colSpan = gridConfig.colSpan || 1;
-        const widthCalc = colSpan > 1
-            ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${colSpan} + ${(colSpan - 1) * gap}px)`
+        const span = Math.min(config.span ?? 1, gridConfig.columns);
+        const widthCalc = span > 1
+            ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${span} + ${(span - 1) * gap}px)`
             : `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
 
         const wrapper = this.getDirectWrapper(calloutEl);
@@ -384,11 +384,8 @@ export class CalloutProcessor {
         calloutEl.setAttribute('data-grid-pos', gridConfig.position.toString());
         calloutEl.setAttribute('data-grid-cols', gridConfig.columns.toString());
         calloutEl.setAttribute('data-grid-row', gridConfig.row.toString());
-        if (gridConfig.colSpan && gridConfig.colSpan > 1) {
-            calloutEl.setAttribute('data-grid-colspan', gridConfig.colSpan.toString());
-        }
-        if (gridConfig.rowSpan && gridConfig.rowSpan > 1) {
-            calloutEl.setAttribute('data-grid-rowspan', gridConfig.rowSpan.toString());
+        if (span > 1) {
+            calloutEl.setAttribute('data-grid-span', span.toString());
         }
     }
 

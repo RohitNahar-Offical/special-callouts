@@ -81,6 +81,7 @@ export interface CalloutConfig {
     titleCenter: boolean;
     icon: string | null;
     iconColor: string;
+    span: number | null;
 }
 
 /**
@@ -90,10 +91,4 @@ export interface GridConfig {
     position: number;
     columns: number;
     row: number;
-    colStart?: number;
-    colEnd?: number;
-    colSpan?: number;
-    rowStart?: number;
-    rowEnd?: number;
-    rowSpan?: number;
 }

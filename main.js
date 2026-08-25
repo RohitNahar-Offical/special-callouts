@@ -111,7 +111,8 @@ var DEFAULT_CALLOUT_CONFIG = {
   center: false,
   titleCenter: false,
   icon: null,
-  iconColor: ""
+  iconColor: "",
+  span: null
 };
 var FONT_FAMILIES = {
   "mono": "var(--font-monospace)",
@@ -202,7 +203,7 @@ function applyTextBorder(element, borderType) {
 }
 
 // src/parser.ts
-var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+)(?:[:,/]\d+(?:-\d+)?)?)(?:$|[\s,])/;
+var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
 var GROUP_REGEX = /^\(([^)]+)\)$/;
 var MASK_CHAR = "\0";
 function maskGroups(content) {
@@ -376,125 +377,34 @@ function parseMetadata(content, standardColors, customColors, customLayoutNames 
       case "iconcolor":
         config.iconColor = resolve(rawValue);
         break;
+      case "span": {
+        const span = parseInt(rawValue);
+        if (!isNaN(span) && span >= 1) {
+          config.span = span;
+        }
+        break;
+      }
     }
   });
   return { config, layoutParam, styleParam };
 }
 function parseGridLayout(param) {
-  const match = param.match(/^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?$/);
+  const match = param.match(/^(\d+)[:,/](\d+)(?:[:,/](\d+))?$/);
   if (!match) return null;
-  const posStart = parseInt(match[1]);
-  const posEnd = match[2] ? parseInt(match[2]) : posStart;
-  const columns = parseInt(match[3]);
-  const rowStart = match[4] ? parseInt(match[4]) : 1;
-  const rowEnd = match[5] ? parseInt(match[5]) : rowStart;
-  const colSpan = Math.max(1, posEnd - posStart + 1);
-  const rowSpan = Math.max(1, rowEnd - rowStart + 1);
   return {
-    position: posStart,
-    columns,
-    row: rowStart,
-    colStart: posStart,
-    colEnd: posEnd,
-    colSpan,
-    rowStart,
-    rowEnd,
-    rowSpan
+    position: parseInt(match[1]),
+    columns: parseInt(match[2]),
+    row: match[3] ? parseInt(match[3]) : 1
   };
 }
-var KNOWN_METADATA_KEYS = /* @__PURE__ */ new Set([
-  "bg",
-  "background",
-  "text",
-  "link",
-  "title",
-  "border",
-  "bw",
-  "bs",
-  "border-width",
-  "border-style",
-  "neon",
-  "radius",
-  "gradient",
-  "font",
-  "font-size",
-  "compact",
-  "dense",
-  "padding",
-  "no-icon",
-  "noicon",
-  "center",
-  "icon",
-  "icon-color",
-  "iconcolor",
-  "col",
-  "column",
-  "style"
-]);
-var KNOWN_STANDALONE_FLAGS = /* @__PURE__ */ new Set([
-  "no-icon",
-  "noicon",
-  "center",
-  "compact",
-  "dense"
-]);
-function isLikelyMetadata(content, customLayoutNames = []) {
-  const trimmed = content.trim();
-  if (!trimmed) return false;
-  if (maskGroups(trimmed).match(LAYOUT_REGEX)) return true;
-  const tokens = smartSplit(trimmed);
-  if (tokens.length === 0) return false;
-  const hasLayouts = customLayoutNames.length > 0;
-  const loweredLayouts = hasLayouts ? new Set(customLayoutNames.map((l) => l.toLowerCase())) : null;
-  for (const token of tokens) {
-    const lowered = token.trim().toLowerCase();
-    if (!lowered) continue;
-    if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
-    if (loweredLayouts && loweredLayouts.has(lowered)) return true;
-    const colonIndex = lowered.indexOf(":");
-    if (colonIndex > 0) {
-      const key = lowered.slice(0, colonIndex).trim();
-      if (KNOWN_METADATA_KEYS.has(key)) return true;
-    }
-  }
-  return false;
-}
-function extractMetadata(fullText, customLayoutNames = []) {
+function extractMetadata(fullText) {
   const trimmedText = fullText.replace(/^\s+/, "");
-  const leadingSpan = findMetadataSpan(trimmedText, 0);
-  if (leadingSpan) {
-    return {
-      content: leadingSpan.content,
-      title: trimmedText.substring(leadingSpan.end + 1).trim()
-    };
-  }
-  const rtrimmed = trimmedText.replace(/\s+$/, "");
-  if (rtrimmed.endsWith(")")) {
-    let depth = 0;
-    let openIndex = -1;
-    const closeIndex = rtrimmed.length - 1;
-    for (let i = closeIndex; i >= 0; i--) {
-      if (rtrimmed[i] === ")") {
-        depth++;
-      } else if (rtrimmed[i] === "(") {
-        depth--;
-        if (depth === 0) {
-          openIndex = i;
-          break;
-        }
-      }
-    }
-    if (openIndex !== -1) {
-      const candidate = rtrimmed.slice(openIndex + 1, closeIndex);
-      if (isLikelyMetadata(candidate, customLayoutNames)) {
-        return {
-          content: candidate,
-          title: rtrimmed.slice(0, openIndex).trim()
-        };
-      }
-    }
-  }
-  return null;
+  const span = findMetadataSpan(trimmedText, 0);
+  if (!span) return null;
+  return {
+    content: span.content,
+    title: trimmedText.substring(span.end + 1).trim()
+  };
 }
 function findMetadataSpan(line, from = 0) {
   let i = from;
@@ -582,7 +492,7 @@ var CalloutProcessor = class {
    */
   processMetadata(calloutEl, innerTitleEl, fullText) {
     const layoutNames = (this.settings.customLayouts || []).map((l) => l.name);
-    const extracted = extractMetadata(fullText, layoutNames);
+    const extracted = extractMetadata(fullText);
     if (!extracted) return;
     if (innerTitleEl.textContent !== extracted.title) {
       innerTitleEl.textContent = extracted.title;
@@ -605,7 +515,7 @@ var CalloutProcessor = class {
     if (layoutParam) {
       const gridConfig = parseGridLayout(layoutParam);
       if (gridConfig && gridConfig.columns > 0) {
-        this.applyGridLayout(calloutEl, gridConfig);
+        this.applyGridLayout(calloutEl, gridConfig, config);
       }
     }
     if (config.col !== null) {
@@ -765,10 +675,11 @@ var CalloutProcessor = class {
   /**
    * Applies grid layout to callout
    */
-  applyGridLayout(calloutEl, gridConfig) {
+  applyGridLayout(calloutEl, gridConfig, config) {
+    var _a;
     const gap = 10;
-    const colSpan = gridConfig.colSpan || 1;
-    const widthCalc = colSpan > 1 ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${colSpan} + ${(colSpan - 1) * gap}px)` : `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
+    const span = Math.min((_a = config.span) != null ? _a : 1, gridConfig.columns);
+    const widthCalc = span > 1 ? `calc(((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns}) * ${span} + ${(span - 1) * gap}px)` : `calc((100% - ${(gridConfig.columns - 1) * gap}px) / ${gridConfig.columns})`;
     const wrapper = this.getDirectWrapper(calloutEl);
     this.neutralizeWrapper(wrapper);
     wrapper.setCssProps({ "--sc-flex-width": widthCalc });
@@ -780,11 +691,8 @@ var CalloutProcessor = class {
     calloutEl.setAttribute("data-grid-pos", gridConfig.position.toString());
     calloutEl.setAttribute("data-grid-cols", gridConfig.columns.toString());
     calloutEl.setAttribute("data-grid-row", gridConfig.row.toString());
-    if (gridConfig.colSpan && gridConfig.colSpan > 1) {
-      calloutEl.setAttribute("data-grid-colspan", gridConfig.colSpan.toString());
-    }
-    if (gridConfig.rowSpan && gridConfig.rowSpan > 1) {
-      calloutEl.setAttribute("data-grid-rowspan", gridConfig.rowSpan.toString());
+    if (span > 1) {
+      calloutEl.setAttribute("data-grid-span", span.toString());
     }
   }
   /**
