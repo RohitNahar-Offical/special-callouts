@@ -17,7 +17,7 @@ import { resolveColor, smartSplit } from './utils';
  * @returns Parsed configuration object
  */
 // Module-level constants for performance
-const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+)(?:[:,/]\d+(?:-\d+)?)?)(?:$|[\s,])/;
+const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:[:,/]\d+){1,2})(?:$|[\s,])/;
 const GROUP_REGEX = /^\(([^)]+)\)$/;
 
 // Neither whitespace, separator nor digit, so a masked character can be neither part
@@ -269,6 +269,13 @@ export function parseMetadata(
             case 'iconcolor':
                 config.iconColor = resolve(rawValue);
                 break;
+            case 'span': {
+                const span = parseInt(rawValue);
+                if (!isNaN(span) && span >= 1) {
+                    config.span = span;
+                }
+                break;
+            }
         }
     });
 
@@ -276,32 +283,18 @@ export function parseMetadata(
 }
 
 /**
- * Parses grid layout parameter (e.g., "1:3", "1-2:3", "1:3:2", or "1-2:3:1-2")
+ * Parses grid layout parameter (e.g., "1:3" or "1:3:2")
  * @param param - Layout parameter string
  * @returns Grid configuration or null
  */
 export function parseGridLayout(param: string): GridConfig | null {
-    const match = param.match(/^(\d+)(?:-(\d+))?[:,/](\d+)(?:[:,/](\d+)(?:-(\d+))?)?$/);
+    const match = param.match(/^(\d+)[:,/](\d+)(?:[:,/](\d+))?$/);
     if (!match) return null;
 
-    const posStart = parseInt(match[1]);
-    const posEnd = match[2] ? parseInt(match[2]) : posStart;
-    const columns = parseInt(match[3]);
-    const rowStart = match[4] ? parseInt(match[4]) : 1;
-    const rowEnd = match[5] ? parseInt(match[5]) : rowStart;
-    const colSpan = Math.max(1, posEnd - posStart + 1);
-    const rowSpan = Math.max(1, rowEnd - rowStart + 1);
-
     return {
-        position: posStart,
-        columns,
-        row: rowStart,
-        colStart: posStart,
-        colEnd: posEnd,
-        colSpan,
-        rowStart,
-        rowEnd,
-        rowSpan
+        position: parseInt(match[1]),
+        columns: parseInt(match[2]),
+        row: match[3] ? parseInt(match[3]) : 1
     };
 }
 
