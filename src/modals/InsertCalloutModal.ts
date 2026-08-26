@@ -10,7 +10,8 @@ import {
     createFontSizeSetting,
     createGradientSetting,
     applyStyleToLivePreview,
-    createMarkdownEditorWithToolbar
+    createMarkdownEditorWithToolbar,
+    formatListColumns
 } from '../ui/UIComponents';
 import { MultiColumnBuilderModal } from './MultiColumnBuilderModal';
 
@@ -469,6 +470,11 @@ export class InsertCalloutModal extends Modal {
             this.updateLivePreview();
         });
 
+        createColorSetting(container, 'Icon Color', 'Custom icon tint (leave blank to follow title)', this.iconColor, '#ffffff', val => {
+            this.iconColor = val;
+            this.updateLivePreview();
+        });
+
         createColorSetting(container, 'Body Text Color', 'Callout text color (leave blank for theme default)', this.textColor, '#ffffff', val => {
             this.textColor = val;
             this.updateLivePreview();
@@ -491,11 +497,6 @@ export class InsertCalloutModal extends Modal {
             this.updateLivePreview();
         });
 
-        createColorSetting(container, 'Icon Color', 'Custom icon tint (leave blank to follow title)', this.iconColor, '#ffffff', val => {
-            this.iconColor = val;
-            this.updateLivePreview();
-        });
-
         createFontSetting(container, this.font, val => {
             this.font = val;
             this.updateLivePreview();
@@ -509,23 +510,32 @@ export class InsertCalloutModal extends Modal {
 
     private renderLayoutSection(container: HTMLElement): void {
         new Setting(container)
-            .setName('Border Width')
-            .addDropdown(drop => {
-                drop.addOption('0px', 'None (0px)');
-                drop.addOption('1px', 'Thin (1px)');
-                drop.addOption('2px', 'Medium (2px)');
-                drop.addOption('4px', 'Thick (4px)');
-                drop.setValue(this.borderWidth);
-                drop.onChange(val => {
+            .setName('Border Width & Style')
+            .addDropdown(drop => drop
+                .addOption('', 'Default Width')
+                .addOption('1px', '1px (Thin)')
+                .addOption('2px', '2px (Medium)')
+                .addOption('4px', '4px (Thick)')
+                .setValue(this.borderWidth || '')
+                .onChange(val => {
                     this.borderWidth = val;
                     this.updateLivePreview();
-                });
-            });
-
-        createBorderStyleSetting(container, this.borderStyle, (s: string) => {
-            this.borderStyle = s;
-            this.updateLivePreview();
-        });
+                }))
+            .addDropdown(drop => drop
+                .addOption('solid', 'Solid')
+                .addOption('dashed', 'Dashed')
+                .addOption('dotted', 'Dotted')
+                .addOption('double', 'Double')
+                .addOption('groove', 'Groove')
+                .addOption('ridge', 'Ridge')
+                .addOption('inset', 'Inset')
+                .addOption('outset', 'Outset')
+                .addOption('none', 'None')
+                .setValue(this.borderStyle || 'solid')
+                .onChange(val => {
+                    this.borderStyle = val;
+                    this.updateLivePreview();
+                }));
 
         new Setting(container)
             .setName('Corner Radius')
@@ -597,7 +607,25 @@ export class InsertCalloutModal extends Modal {
 
         this.titleInnerEl.textContent = this.titleText || 'Callout';
         this.bodyEl.empty();
-        void MarkdownRenderer.render(this.app, this.contentText || 'Type callout content...', this.bodyEl, '', this as unknown as any);
+
+        if (this.colCount && this.colCount > 1) {
+            this.liveCalloutEl.setAttribute('data-col', this.colCount.toString());
+            this.liveCalloutEl.setCssProps({ '--smart-list-cols': this.colCount.toString() });
+        } else {
+            this.liveCalloutEl.removeAttribute('data-col');
+            this.liveCalloutEl.setCssProps({ '--smart-list-cols': '' });
+        }
+
+        const defaultListContent = '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6';
+        const rawContent = this.contentText
+            ? this.contentText
+            : (this.colCount && this.colCount > 1 ? defaultListContent : 'Type callout content...');
+
+        void MarkdownRenderer.render(this.app, rawContent, this.bodyEl, '', this as unknown as any).then(() => {
+            if (this.colCount && this.colCount > 1 && this.bodyEl) {
+                formatListColumns(this.bodyEl, this.colCount);
+            }
+        });
 
         const styleObj: Partial<CalloutStyle> = {
             bg: this.bgColor,

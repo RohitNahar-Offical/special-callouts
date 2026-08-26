@@ -708,3 +708,55 @@ export function applyStyleToLivePreview(
 function createTransparentBg(color: string, opacity: number): string {
     return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
 }
+
+/**
+ * Applies multi-column list formatting (CSS Grid) to list elements inside a container
+ */
+export function formatListColumns(container: HTMLElement, colCount?: number | null): void {
+    if (!container) return;
+    const lists = container.querySelectorAll('ul, ol, .dataview.list-view-ul');
+    if (!colCount || colCount <= 1) {
+        lists.forEach(list => {
+            const listEl = list as HTMLElement;
+            listEl.removeClass('sc-multi-col-list');
+            listEl.setCssProps({ '--sc-list-cols': '', '--sc-list-rows': '' });
+            for (let j = 0; j < listEl.children.length; j++) {
+                const child = listEl.children[j] as HTMLElement;
+                child.removeClass('sc-multi-col-item');
+                child.setCssProps({ '--sc-col': '', '--sc-row': '' });
+            }
+        });
+        return;
+    }
+
+    for (let i = 0; i < lists.length; i++) {
+        const listEl = lists[i] as HTMLElement;
+        const items: HTMLElement[] = [];
+        for (let j = 0; j < listEl.children.length; j++) {
+            const child = listEl.children[j] as HTMLElement;
+            if (child.tagName === 'LI' || child.classList.contains('list-item')) {
+                items.push(child);
+            }
+        }
+
+        const itemCount = items.length;
+        if (itemCount === 0) continue;
+
+        const rowCount = Math.ceil(itemCount / colCount);
+
+        listEl.setCssProps({
+            '--sc-list-cols': colCount.toString(),
+            '--sc-list-rows': rowCount.toString()
+        });
+        listEl.addClass('sc-multi-col-list');
+
+        for (let k = 0; k < items.length; k++) {
+            const liEl = items[k];
+            const col = Math.floor(k / rowCount) + 1;
+            const row = (k % rowCount) + 1;
+
+            liEl.setCssProps({ '--sc-col': col.toString(), '--sc-row': row.toString() });
+            liEl.addClass('sc-multi-col-item');
+        }
+    }
+}

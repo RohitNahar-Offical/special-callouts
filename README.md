@@ -27,46 +27,56 @@ Transform your Obsidian notes with premium, dynamic, and fully customizable call
 
 ---
 
-## 🌟 What's New & Changed in this Fork
+## ✨ What Makes This Enhanced Version Special?
 
-* 🔲 **Interactive Multi-Column Matrix Dashboard Builder**:
-  * Visual 2×2 up to 6×6 matrix canvas with drag-to-merge cell spanning.
-  * 1-Click preset templates (*Hero + 2 Cards*, *Workspace*, *3 Columns*, *2×2 Quad*).
-  * Per-box deep customization (colors, glow, icons, fonts, border styles, list columns).
-  * Two-way roundtrip editing directly from existing `> [!multi-callout]` blocks in your notes.
-* 📐 **True Spanned CSS Grid Rendering**:
-  * Ranged token syntax `>> [!type] (colStart-colEnd:totalCols:rowStart-rowEnd) Title` (e.g. `(1-2:3:1-1)`).
-  * High-performance Obsidian CSS variable binding (`--sc-grid-col-start`, `--sc-grid-col-span`, etc.) for seamless Live Preview and Reading Mode rendering.
-* 🖱️ **Right-Click Context Menu & All-in-One Inserter Modal**:
-  * Right-click editor context menu item (`Insert Special Callout...`) to configure and insert callouts instantly at the cursor.
-  * Tabbed customizer modal with a sticky real-time live preview.
-* 🎨 **All 8 Standard CSS Border Styles**:
-  * Added `solid`, `dashed`, `dotted`, `double`, `groove`, `ridge`, `inset`, `outset`, and `none`.
-* ⚡ **Performance & Stability Optimizations**:
-  * Proactive `MutationObserver` and timeout cleanup on element unmount to eliminate memory leaks during note switching.
-  * Streamlined DOM style pipelines and hoisted selector constants.
-  * Comprehensive test suite with 70 passing automated tests.
+* 🔲 **Visual Dashboard Designer**:
+  * Build multi-column layouts and dashboard cards visually by clicking and dragging on a grid canvas — no complicated code needed!
+  * Choose from 1-click presets like *Hero + 2 Columns*, *Workspace*, *3 Columns*, or *2×2 Grid*.
+  * Customize colors, icons, glowing borders, and fonts for each box individually with a live preview.
+* 👁️ **Flawless Live Preview & Reading View**:
+  * Your custom icons, background colors, and layouts look **identical** whether you are typing in Editing Mode (Live Preview) or viewing in Reading View.
+* 🖱️ **Right-Click Studio & Live Inserter**:
+  * Right-click anywhere in your note to open the **Special Callout Studio**.
+  * Pick icons, choose colors, customize borders, and see your changes in real-time before inserting them.
+  * Includes a built-in formatting toolbar and autocomplete suggestions for `[[note links]]` and `#tags`.
+* 🎨 **Glowing Neon Effects & Gradient Colors**:
+  * Add ambient neon glow outlines (`neon:cyan`), smooth 2-color gradients (`gradient:purple-blue`), or custom border styles (dashed, dotted, double, etc.).
+* 📋 **Multi-Column Lists (`col:N`)**:
+  * Automatically split long bullet lists or checklist tasks into 2, 3, or 4 neat side-by-side columns (works seamlessly with Dataview queries too!).
+* ⚡ **Lightning Fast & Memory Efficient**:
+  * Engineered for zero lag, instant rendering, and automatic cleanup so your vault stays fast and lightweight no matter how many callouts you use.
+* 📚 **Built-in Presets & Documentation**:
+  * Includes ready-to-use recipes, full documentation in [`docs/`](docs/), and easy import/export so you can share your favorite styles across vaults.
 
 ---
 
-## Features
+## 🚀 Key Features
 
-- **Inline customization** — background, text, border, gradient, neon, icon — directly in markdown
-- **Custom style presets** — design once, reuse by name
-- **Multi-column lists** — split any list into 2–4 columns
-- **Visual matrix builder** — interactive dashboard designer with drag-and-merge grid spanning
-- **Right-click inserter** — fast modal inserter with live real-time preview
-- **Typography control** — 5 font families, 5 size scales
-- **All 8 border styles** — solid, dashed, dotted, double, groove, ridge, inset, outset
-- **Neon and gradient effects** — glowing borders, smooth color transitions
-- **Dataview integration** — column layouts work with Dataview queries
-- **Import/Export** — share styles as JSON between vaults
+- ✍️ **Simple Markdown Syntax** — Customize backgrounds, borders, glow, and icons directly in your text (e.g. `> [!tip] (bg:#7c4dff, neon:cyan, icon:sparkles) Title`).
+- 🎨 **Reusable Style Presets** — Design a style once in settings and apply it anywhere with `style:MyStyle`.
+- 🔲 **Visual Grid Builder** — Drag-and-merge visual matrix designer for multi-panel dashboards.
+- 📋 **Multi-Column Lists** — Turn vertical lists into balanced 2–4 column layouts (`col:3`).
+- 🖱️ **Right-Click Studio** — Create and edit callouts with a live interactive modal.
+- 🔤 **Typography & Fonts** — Choose from 5 font families and 5 scale sizes.
+- 🖼️ **8 Border Styles** — Solid, dashed, dotted, double, groove, ridge, inset, and outset.
+- ✨ **Neon Glow & Gradients** — Vibrant glowing borders and smooth color transitions.
+- 📊 **Dataview Ready** — Dynamic query results automatically format into columns.
+- 🔄 **Backup & Transfer** — Easily export and import your custom designs between vaults.
 
 ---
 
 ## Screenshots & Layout Capabilities
 
-Explore the endless customization possibilities. 
+Explore the endless customization possibilities.
+
+### 🎛️ Special Callout Studio & Visual Inserter
+
+Create, customize, and preview single callouts and multi-column dashboard layouts in real time before inserting them into your notes:
+
+| Multi-Column Dashboard Builder | Single Callout Studio |
+| :---: | :---: |
+| ![Multi-Column Dashboard Studio](assets/studio-dashboard-builder.png) | ![Single Callout Studio](assets/studio-single-callout.png) |
+| *Interactive multi-box matrix designer with live preview* | *Rich callout studio with markdown editor & toolbar* |
 
 ### Colors, Gradients and Effects
 

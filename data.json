@@ -12,7 +12,31 @@
     "grey": "#95a5a6",
     "gray": "#95a5a6"
   },
-  "customStyles": [],
+  "customStyles": [
+    {
+      "name": "n",
+      "bg": "#448aff",
+      "border": "#448aff",
+      "text": "",
+      "link": "",
+      "icon": "pencil",
+      "iconColor": "",
+      "titleColor": "",
+      "boldBorder": false,
+      "font": "",
+      "fontSize": 3,
+      "borderWidth": "1px",
+      "borderStyle": "solid",
+      "borderRadius": "8px",
+      "neon": "",
+      "gradient": "",
+      "noIcon": false,
+      "compact": false,
+      "center": false,
+      "titleCenter": false,
+      "showInCommandPalette": true
+    }
+  ],
   "standardStyles": {
     "note": {
       "name": "note",
@@ -134,31 +158,17 @@
   },
   "customLayouts": [
     {
-      "name": "this-is",
-      "cols": 3,
-      "rows": 2,
-      "gridAreas": "\"area1 area1 area2\" \"area3 area4 area4\"",
-      "showInCommandPalette": false
-    },
-    {
-      "name": "dfs",
-      "cols": 3,
-      "rows": 2,
-      "gridAreas": "\"area1 area1 area2\" \"area3 area4 area4\"",
-      "showInCommandPalette": false
-    },
-    {
-      "name": "hj",
-      "cols": 3,
+      "name": "bb",
+      "cols": 2,
       "rows": 4,
-      "gridAreas": "\"area1 area2 area3\" \"area4 area5 area6\" \"area7 area8 area9\" \"area10 area11 area12\"",
-      "showInCommandPalette": false
+      "gridAreas": "\"area1 area1\" \"area2 area3\" \"area4 area5\" \"area6 area7\"",
+      "showInCommandPalette": true
     },
     {
-      "name": "r",
-      "cols": 3,
+      "name": "df",
+      "cols": 2,
       "rows": 2,
-      "gridAreas": "\"area4 area2 area5\" \"area4 area5 area2\"",
+      "gridAreas": "\"area1 area1\" \"area2 area3\"",
       "showInCommandPalette": true
     }
   ],

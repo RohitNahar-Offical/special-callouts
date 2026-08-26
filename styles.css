@@ -313,8 +313,12 @@ p.sc-wrapper-p {
     align-items: center;
 }
 .callout[data-center="true"] > .callout-title {
-    justify-content: center;
-    text-align: center;
+    justify-content: center !important;
+    text-align: center !important;
+}
+.callout[data-center="true"] > .callout-title > .callout-title-inner {
+    text-align: center !important;
+    flex: 0 1 auto !important;
 }
 .callout[data-center="true"] > .callout-content {
     text-align: center;
@@ -325,8 +329,12 @@ p.sc-wrapper-p {
 
 /* Title-center-only mode */
 .callout[data-title-center="true"] > .callout-title {
-    justify-content: center;
-    text-align: center;
+    justify-content: center !important;
+    text-align: center !important;
+}
+.callout[data-title-center="true"] > .callout-title > .callout-title-inner {
+    text-align: center !important;
+    flex: 0 1 auto !important;
 }
 
 /* A multi-callout is a layout wrapper, not a visible callout — density and alignment
@@ -552,7 +560,7 @@ p.sc-wrapper-p,
 .sc-nav-tab {
     flex: 1 0 auto;
     min-width: max-content;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
@@ -566,6 +574,27 @@ p.sc-wrapper-p,
     cursor: pointer;
     white-space: nowrap;
     transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.sc-nav-tab > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    vertical-align: middle;
+}
+
+.sc-nav-tab > span:first-child {
+    line-height: 0;
+}
+
+.sc-nav-tab svg,
+.sc-nav-tab .svg-icon {
+    display: block;
+    margin: 0;
+    padding: 0;
+    vertical-align: middle;
 }
 
 .sc-nav-tab:hover {
@@ -1185,13 +1214,65 @@ p.sc-wrapper-p,
 }
 
 .special-callouts-ui .sc-studio-badge {
-    font-size: 0.75rem;
-    font-weight: 500;
-    padding: 2px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 7px;
     border-radius: 12px;
     background: var(--background-secondary);
     color: var(--text-muted);
     border: 1px solid var(--background-modifier-border);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.sc-action-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 5px 10px !important;
+    font-size: 0.82rem !important;
+    font-weight: 500 !important;
+    border-radius: 6px !important;
+    background: var(--background-secondary) !important;
+    color: var(--text-muted) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    line-height: 1 !important;
+    height: auto !important;
+}
+
+.sc-action-btn:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+    border-color: var(--interactive-accent) !important;
+}
+
+.sc-action-btn > span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+}
+
+.sc-action-btn > span:first-child {
+    line-height: 0 !important;
+}
+
+.sc-action-btn svg,
+.sc-action-btn .svg-icon {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    width: 14px !important;
+    height: 14px !important;
 }
 
 /* Mode Switcher (Single / Multi) */
@@ -1208,9 +1289,9 @@ p.sc-wrapper-p,
 
 .sc-mode-btn {
     flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     gap: 8px;
     padding: 8px 16px;
     background: transparent !important;
@@ -1223,6 +1304,27 @@ p.sc-wrapper-p,
     transition: all 0.15s ease-in-out !important;
     box-shadow: none !important;
     height: auto !important;
+    line-height: 1 !important;
+}
+
+.sc-mode-btn > span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+}
+
+.sc-mode-btn > span:first-child {
+    line-height: 0 !important;
+}
+
+.sc-mode-btn svg,
+.sc-mode-btn .svg-icon {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
 }
 
 .sc-mode-btn:hover {
@@ -1247,9 +1349,9 @@ p.sc-wrapper-p,
 
 .sc-nav-tab {
     flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
     gap: 6px;
     padding: 6px 10px !important;
     font-size: 0.83rem !important;
@@ -1262,6 +1364,27 @@ p.sc-wrapper-p,
     transition: all 0.15s ease !important;
     white-space: nowrap !important;
     height: auto !important;
+    line-height: 1 !important;
+}
+
+.sc-nav-tab > span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+}
+
+.sc-nav-tab > span:first-child {
+    line-height: 0 !important;
+}
+
+.sc-nav-tab svg,
+.sc-nav-tab .svg-icon {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
 }
 
 .sc-nav-tab:hover {
@@ -1412,5 +1535,85 @@ p.sc-wrapper-p,
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
     cursor: pointer;
     background: var(--sc-btn-bg, var(--interactive-accent));
+}
+
+/* =========================================================================
+   GLOBAL ICON & TEXT VERTICAL ALIGNMENT
+   Guarantees pixel-perfect horizontal centering and vertical alignment
+   between Lucide SVG icons and text labels across all modals, tabs, and buttons.
+   ========================================================================= */
+
+.special-callouts-ui .sc-nav-tab,
+.special-callouts-ui .sc-mode-btn,
+.special-callouts-ui .sc-tabs-nav button,
+.special-callouts-ui .sc-action-btn,
+.special-callouts-ui .sc-toolbar-btn,
+.special-callouts-ui .sc-suggestion-item,
+.special-callouts-ui .sc-card-title,
+.special-callouts-ui .callout-title,
+.sc-nav-tab,
+.sc-mode-btn,
+.sc-action-btn,
+.sc-toolbar-btn,
+.sc-suggestion-item {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+}
+
+.special-callouts-ui .sc-nav-tab > span,
+.special-callouts-ui .sc-mode-btn > span,
+.special-callouts-ui .sc-tabs-nav button > span,
+.special-callouts-ui .sc-action-btn > span,
+.special-callouts-ui .sc-toolbar-btn > span,
+.special-callouts-ui .sc-suggestion-item > span,
+.special-callouts-ui .callout-icon,
+.sc-nav-tab > span,
+.sc-mode-btn > span,
+.sc-action-btn > span,
+.sc-toolbar-btn > span,
+.sc-suggestion-item > span {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+    flex-shrink: 0;
+}
+
+.special-callouts-ui .sc-nav-tab > span:first-child,
+.special-callouts-ui .sc-mode-btn > span:first-child,
+.special-callouts-ui .callout-icon,
+.sc-nav-tab > span:first-child,
+.sc-mode-btn > span:first-child {
+    line-height: 0 !important;
+}
+
+.special-callouts-ui svg,
+.special-callouts-ui .svg-icon,
+.sc-nav-tab svg,
+.sc-mode-btn svg,
+.sc-action-btn svg,
+.sc-toolbar-btn svg,
+.sc-suggestion-item svg,
+.callout-icon svg {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+    flex-shrink: 0;
+}
+
+.special-callouts-ui .sc-nav-tab > span:not(:first-child),
+.special-callouts-ui .sc-mode-btn > span:not(:first-child),
+.special-callouts-ui .sc-tabs-nav button > span:not(:first-child),
+.sc-nav-tab > span:not(:first-child),
+.sc-mode-btn > span:not(:first-child) {
+    display: inline-flex !important;
+    align-items: center !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
 }
 

@@ -15,12 +15,12 @@ import {
     MarkdownRenderer
 } from 'obsidian';
 import { SpecialCalloutsSettings, CustomLayout } from '../types';
-import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES } from '../constants';
+import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES } from '../constants';
 import { normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
 import { parseMetadata, parseGridLayout, extractMetadata } from '../parser';
 import { IconPickerModal } from './IconPickerModal';
 import { InsertCalloutModal } from './InsertCalloutModal';
-import { createMarkdownEditorWithToolbar, createGradientSetting } from '../ui/UIComponents';
+import { createMarkdownEditorWithToolbar, createGradientSetting, formatListColumns } from '../ui/UIComponents';
 
 export interface GridAreaBlock {
     id: string; // e.g. "area1", "area2"
@@ -53,14 +53,98 @@ export interface GridAreaBlock {
     noIcon?: boolean;
 }
 
+export interface MultiColumnBuilderOptions {
+    isPresetMode?: boolean;
+    layoutToEdit?: CustomLayout;
+    onSavePreset?: (layout: CustomLayout) => Promise<void> | void;
+    plugin?: any;
+}
+
+export class SavePresetDialogModal extends Modal {
+    private initialName: string;
+    private onSave: (name: string) => Promise<void> | void;
+
+    constructor(app: App, initialName: string, onSave: (name: string) => Promise<void> | void) {
+        super(app);
+        this.initialName = initialName;
+        this.onSave = onSave;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('special-callouts-ui');
+
+        contentEl.createEl('h3', { text: '💾 Save Layout Preset' });
+        contentEl.createEl('p', {
+            text: 'Enter a name for this custom layout preset to reuse it across notes and in the settings layout manager.',
+            cls: 'sc-section-desc'
+        });
+
+        let presetName = this.initialName || '';
+        const errorEl = contentEl.createDiv();
+        errorEl.style.color = 'var(--text-error)';
+        errorEl.style.fontSize = '0.85rem';
+        errorEl.style.margin = '4px 0 8px 0';
+        errorEl.style.display = 'none';
+
+        new Setting(contentEl)
+            .setName('Preset Name')
+            .setDesc('e.g. hero-dashboard, 3-column-notes, team-workspace')
+            .addText(text => {
+                text.setPlaceholder('my-layout-preset')
+                    .setValue(presetName)
+                    .onChange(val => {
+                        presetName = val;
+                        errorEl.style.display = 'none';
+                    });
+                text.inputEl.focus();
+                text.inputEl.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        saveAction();
+                    }
+                });
+            });
+
+        const saveAction = async () => {
+            const trimmed = presetName.trim();
+            if (!trimmed) {
+                errorEl.innerText = 'Please enter a name for the layout preset.';
+                errorEl.style.display = 'block';
+                new Notice('Please enter a name for the layout preset.');
+                return;
+            }
+            this.close();
+            await this.onSave(trimmed);
+        };
+
+        const footer = new Setting(contentEl);
+        footer.addButton(btn => btn
+            .setButtonText('Save Preset')
+            .setCta()
+            .onClick(saveAction));
+
+        footer.addButton(btn => btn
+            .setButtonText('Cancel')
+            .onClick(() => this.close()));
+    }
+}
+
 type BuilderTab = 'canvas' | 'colors' | 'icon' | 'layout';
 
 export class MultiColumnBuilderModal extends Modal {
     private settings: SpecialCalloutsSettings;
-    private editor: Editor;
+    private editor: Editor | null;
     private selectedText: string;
     private activeTab: BuilderTab = 'canvas';
     private liveDashboardEl: HTMLElement | null = null;
+
+    // Preset Mode & Layout State
+    public isPresetMode: boolean = false;
+    public presetLayoutName: string = '';
+    private onSavePreset?: (layout: CustomLayout) => Promise<void> | void;
+    private pluginInstance?: any;
 
     // Editing State
     private existingRange: { from: { line: number; ch: number }; to: { line: number; ch: number } } | null = null;
@@ -82,21 +166,91 @@ export class MultiColumnBuilderModal extends Modal {
     private dragStart: { r: number; c: number } | null = null;
     private dragEnd: { r: number; c: number } | null = null;
 
-    constructor(app: App, settings: SpecialCalloutsSettings, editor: Editor) {
+    constructor(
+        app: App,
+        settings: SpecialCalloutsSettings,
+        editor?: Editor | null,
+        options?: MultiColumnBuilderOptions
+    ) {
         super(app);
         this.settings = settings;
-        this.editor = editor;
-        this.selectedText = editor.getSelection().trim();
+        this.editor = editor || null;
+        this.isPresetMode = options?.isPresetMode || false;
+        this.onSavePreset = options?.onSavePreset;
+        this.pluginInstance = options?.plugin;
+        this.presetLayoutName = options?.layoutToEdit?.name || '';
+        this.selectedText = editor ? editor.getSelection().trim() : '';
 
-        // Check if cursor or selection is inside an existing multi-callout
-        const detected = this.findMultiCalloutAtCursor();
-        if (detected && this.parseExistingMultiCallout(detected.text)) {
-            this.existingRange = { from: detected.from, to: detected.to };
-            this.isEditingExisting = true;
+        if (options?.layoutToEdit) {
+            this.applyCustomLayout(options.layoutToEdit);
+            this.presetLayoutName = options.layoutToEdit.name;
+        } else if (editor) {
+            // Check if cursor or selection is inside an existing multi-callout
+            const detected = this.findMultiCalloutAtCursor();
+            if (detected && this.parseExistingMultiCallout(detected.text)) {
+                this.existingRange = { from: detected.from, to: detected.to };
+                this.isEditingExisting = true;
+            } else {
+                // Initialize default layout: Hero + 2 Cards
+                this.applyPresetLayout('hero_2');
+            }
         } else {
-            // Initialize default layout: Hero + 2 Cards
+            // Default layout when opened from Settings or without active editor
             this.applyPresetLayout('hero_2');
         }
+    }
+
+    public async saveCurrentAsPreset(customName?: string): Promise<boolean> {
+        let name = customName?.trim() || this.presetLayoutName?.trim();
+        if (!name) {
+            new Notice('Please enter a name for the layout preset.');
+            return false;
+        }
+
+        name = name.toLowerCase().replace(/\s+/g, '-');
+        if (!name) {
+            new Notice('Please provide a valid layout name.');
+            return false;
+        }
+
+        // Build gridAreas from gridMatrix
+        const areaRows: string[] = [];
+        for (let r = 0; r < this.gridRows; r++) {
+            const rowTokens: string[] = [];
+            for (let c = 0; c < this.gridCols; c++) {
+                rowTokens.push(this.gridMatrix[r] && this.gridMatrix[r][c] ? this.gridMatrix[r][c] : `area${r * this.gridCols + c + 1}`);
+            }
+            areaRows.push(`"${rowTokens.join(' ')}"`);
+        }
+        const gridAreas = areaRows.join(' ');
+
+        const newLayout: CustomLayout = {
+            name,
+            cols: this.gridCols,
+            rows: this.gridRows,
+            gridAreas,
+            showInCommandPalette: true
+        };
+
+        if (!this.settings.customLayouts) {
+            this.settings.customLayouts = [];
+        }
+
+        const existingIdx = this.settings.customLayouts.findIndex(l => l.name === name);
+        if (existingIdx >= 0) {
+            this.settings.customLayouts[existingIdx] = newLayout;
+        } else {
+            this.settings.customLayouts.push(newLayout);
+        }
+
+        if (this.onSavePreset) {
+            await this.onSavePreset(newLayout);
+        } else if (this.pluginInstance && this.pluginInstance.saveSettings) {
+            await this.pluginInstance.saveSettings();
+        }
+
+        new Notice(`Saved layout preset "${name}"!`);
+        return true;
     }
 
     private findMultiCalloutAtCursor(): { text: string; from: { line: number; ch: number }; to: { line: number; ch: number } } | null {
@@ -545,6 +699,87 @@ export class MultiColumnBuilderModal extends Modal {
         this.selectedAreaId = 'area1';
     }
 
+    private setGridDimensions(newRows: number, newCols: number): void {
+        newRows = Math.min(6, Math.max(1, newRows));
+        newCols = Math.min(6, Math.max(1, newCols));
+        if (newRows === this.gridRows && newCols === this.gridCols) return;
+
+        const oldMatrix = this.gridMatrix;
+        const oldRows = this.gridRows;
+        const oldCols = this.gridCols;
+
+        this.gridRows = newRows;
+        this.gridCols = newCols;
+
+        const newMatrix: string[][] = [];
+        const validAreaIds = new Set<string>();
+
+        let nextAreaNum = this.areas.size + 1;
+        for (let r = 0; r < newRows; r++) {
+            const rowArr: string[] = [];
+            for (let c = 0; c < newCols; c++) {
+                if (r < oldRows && c < oldCols && oldMatrix[r] && oldMatrix[r][c] && this.areas.has(oldMatrix[r][c])) {
+                    const existingId = oldMatrix[r][c];
+                    rowArr.push(existingId);
+                    validAreaIds.add(existingId);
+                } else {
+                    const newId = `area${nextAreaNum++}`;
+                    this.areas.set(newId, {
+                        id: newId,
+                        label: `Area ${newId.replace('area', '')}`,
+                        minRow: r,
+                        maxRow: r,
+                        minCol: c,
+                        maxCol: c,
+                        type: 'note',
+                        title: `Box ${newId.replace('area', '')}`,
+                        content: '',
+                        bgColor: '#448aff',
+                        borderColor: '#448aff',
+                        iconName: 'pencil'
+                    });
+                    rowArr.push(newId);
+                    validAreaIds.add(newId);
+                }
+            }
+            newMatrix.push(rowArr);
+        }
+
+        this.gridMatrix = newMatrix;
+
+        // Clean up areas that no longer exist in the grid
+        for (const id of Array.from(this.areas.keys())) {
+            if (!validAreaIds.has(id)) {
+                this.areas.delete(id);
+            }
+        }
+
+        // Recalculate bounding boxes for all remaining areas
+        this.areas.forEach((area, areaId) => {
+            let minR = 999, maxR = -1, minC = 999, maxC = -1;
+            for (let r = 0; r < newRows; r++) {
+                for (let c = 0; c < newCols; c++) {
+                    if (newMatrix[r][c] === areaId) {
+                        if (r < minR) minR = r;
+                        if (r > maxR) maxR = r;
+                        if (c < minC) minC = c;
+                        if (c > maxC) maxC = c;
+                    }
+                }
+            }
+            if (maxR !== -1) {
+                area.minRow = minR;
+                area.maxRow = maxR;
+                area.minCol = minC;
+                area.maxCol = maxC;
+            }
+        });
+
+        if (!this.areas.has(this.selectedAreaId)) {
+            this.selectedAreaId = this.areas.keys().next().value || 'area1';
+        }
+    }
+
     onOpen(): void {
         this.modalEl.addClass('sc-inserter-modal');
         this.renderModal();
@@ -557,37 +792,71 @@ export class MultiColumnBuilderModal extends Modal {
 
         // Sleek compact header
         const headerEl = contentEl.createDiv({ cls: 'sc-studio-header' });
+        const titleText = this.isPresetMode
+            ? (this.presetLayoutName ? `Edit Layout Preset: "${this.presetLayoutName}"` : 'Create Layout Preset')
+            : (this.isEditingExisting ? 'Edit Dashboard' : 'Special Callout Studio');
+
         headerEl.createEl('h3', {
-            text: this.isEditingExisting ? 'Edit Dashboard' : 'Special Callout Studio',
+            text: titleText,
             cls: 'sc-studio-title'
         });
-        if (this.isEditingExisting) {
+        if (this.isPresetMode) {
+            headerEl.createSpan({ text: 'Preset Mode', cls: 'sc-studio-badge' });
+        } else if (this.isEditingExisting) {
             headerEl.createSpan({ text: 'Editing Existing', cls: 'sc-studio-badge' });
         }
 
-        // Top Primary Mode Switcher: SINGLE | MULTI
-        const modeWrap = contentEl.createDiv({ cls: 'sc-mode-switcher-container' });
+        // Top Primary Mode Switcher: SINGLE | MULTI (Only when editing a note)
+        if (!this.isPresetMode) {
+            const modeWrap = contentEl.createDiv({ cls: 'sc-mode-switcher-container' });
 
-        const singleBtn = modeWrap.createEl('button', {
-            cls: 'sc-mode-btn'
-        });
-        const singleIcon = singleBtn.createSpan();
-        setIcon(singleIcon, 'file-text');
-        singleBtn.createSpan({ text: 'Single Callout' });
-        singleBtn.onclick = () => {
-            if (this.closeSuggesterFn) this.closeSuggesterFn();
-            this.close();
-            new InsertCalloutModal(this.app, this.settings, this.editor).open();
-        };
+            const singleBtn = modeWrap.createEl('button', {
+                cls: 'sc-mode-btn'
+            });
+            const singleIcon = singleBtn.createSpan();
+            setIcon(singleIcon, 'file-text');
+            singleBtn.createSpan({ text: 'Single Callout' });
+            singleBtn.onclick = () => {
+                if (this.closeSuggesterFn) this.closeSuggesterFn();
+                this.close();
+                new InsertCalloutModal(this.app, this.settings, this.editor).open();
+            };
 
-        const multiBtn = modeWrap.createEl('button', {
-            cls: 'sc-mode-btn is-active'
-        });
-        const multiIcon = multiBtn.createSpan();
-        setIcon(multiIcon, 'layout-grid');
-        multiBtn.createSpan({ text: 'Multi-Column Dashboard' });
+            const multiBtn = modeWrap.createEl('button', {
+                cls: 'sc-mode-btn is-active'
+            });
+            const multiIcon = multiBtn.createSpan();
+            setIcon(multiIcon, 'layout-grid');
+            multiBtn.createSpan({ text: 'Multi-Column Dashboard' });
+        } else {
+            // Preset Name Input Row when in Preset Mode
+            const nameRow = contentEl.createDiv({ cls: 'sc-preset-name-row' });
+            nameRow.style.display = 'flex';
+            nameRow.style.gap = '10px';
+            nameRow.style.alignItems = 'center';
+            nameRow.style.margin = '4px 0 12px 0';
+            nameRow.style.padding = '8px 12px';
+            nameRow.style.background = 'var(--background-secondary)';
+            nameRow.style.borderRadius = '6px';
+            nameRow.style.border = '1px solid var(--background-modifier-border)';
 
-        // 1. Navigation Tabs (Placed directly below Mode Switcher)
+            nameRow.createSpan({ text: 'Preset Name:', attr: { style: 'font-weight: 600; white-space: nowrap;' } });
+            const nameInput = nameRow.createEl('input', {
+                type: 'text',
+                placeholder: 'e.g. hero-dashboard, 3-columns, workspace',
+                value: this.presetLayoutName
+            });
+            nameInput.style.flex = '1';
+            nameInput.style.padding = '6px 10px';
+            nameInput.style.borderRadius = '4px';
+            nameInput.style.border = '1px solid var(--background-modifier-border)';
+            nameInput.style.background = 'var(--background-primary)';
+            nameInput.oninput = (e) => {
+                this.presetLayoutName = (e.target as HTMLInputElement).value;
+            };
+        }
+
+        // 1. Navigation Tabs
         const nav = contentEl.createDiv({ cls: 'sc-nav-tabs' });
 
         const activeArea = this.areas.get(this.selectedAreaId);
@@ -631,17 +900,51 @@ export class MultiColumnBuilderModal extends Modal {
         });
 
         // 4. Action Footer
-        new Setting(contentEl)
-            .addButton(btn => btn
-                .setButtonText(this.isEditingExisting ? 'Update Dashboard Callout' : 'Insert Dashboard Callout')
-                .setCta()
-                .onClick(() => {
-                    this.insertCalloutIntoEditor();
-                    this.close();
-                }))
-            .addButton(btn => btn
-                .setButtonText('Cancel')
-                .onClick(() => this.close()));
+        const footer = new Setting(contentEl);
+        if (this.isPresetMode) {
+            footer
+                .addButton(btn => btn
+                    .setButtonText('Save Layout Preset')
+                    .setCta()
+                    .onClick(async () => {
+                        if (!this.presetLayoutName.trim()) {
+                            new SavePresetDialogModal(this.app, this.presetLayoutName, async (name) => {
+                                this.presetLayoutName = name;
+                                const saved = await this.saveCurrentAsPreset(name);
+                                if (saved) this.close();
+                            }).open();
+                            return;
+                        }
+                        const saved = await this.saveCurrentAsPreset(this.presetLayoutName);
+                        if (saved) {
+                            this.close();
+                        }
+                    }))
+                .addButton(btn => btn
+                    .setButtonText('Cancel')
+                    .onClick(() => this.close()));
+        } else {
+            footer
+                .addButton(btn => btn
+                    .setButtonText('💾 Save as Preset')
+                    .onClick(() => {
+                        new SavePresetDialogModal(this.app, this.presetLayoutName, async (name) => {
+                            this.presetLayoutName = name;
+                            await this.saveCurrentAsPreset(name);
+                            this.renderModal();
+                        }).open();
+                    }))
+                .addButton(btn => btn
+                    .setButtonText(this.isEditingExisting ? 'Update Dashboard Callout' : 'Insert Dashboard Callout')
+                    .setCta()
+                    .onClick(() => {
+                        this.insertCalloutIntoEditor();
+                        this.close();
+                    }))
+                .addButton(btn => btn
+                    .setButtonText('Cancel')
+                    .onClick(() => this.close()));
+        }
     }
 
     private renderTabContent(container: HTMLElement): void {
@@ -687,26 +990,24 @@ export class MultiColumnBuilderModal extends Modal {
         cardHeader.style.gap = '8px';
 
         const headerLeft = cardHeader.createDiv();
-        headerLeft.style.display = 'flex';
+        headerLeft.style.display = 'inline-flex';
         headerLeft.style.alignItems = 'center';
         headerLeft.style.gap = '8px';
 
-        headerLeft.createEl('h4', { text: `Edit Box: "${activeArea.title}"`, attr: { style: 'margin: 0;' } });
+        headerLeft.createEl('h4', { text: `Edit Box: "${activeArea.title}"`, attr: { style: 'margin: 0; font-size: 0.95rem; font-weight: 600; display: inline-flex; align-items: center;' } });
         const typeBadge = headerLeft.createSpan({ cls: 'sc-studio-badge', text: activeArea.type.toUpperCase() });
 
         const btnGroup = cardHeader.createDiv();
-        btnGroup.style.display = 'flex';
+        btnGroup.style.display = 'inline-flex';
+        btnGroup.style.alignItems = 'center';
         btnGroup.style.gap = '6px';
 
-        const changeLayoutBtn = btnGroup.createEl('button', { cls: 'sc-action-btn', text: '⊞ Change Layout / Grid' });
+        const changeLayoutBtn = btnGroup.createEl('button', { cls: 'sc-action-btn' });
+        const layoutIcon = changeLayoutBtn.createSpan();
+        setIcon(layoutIcon, 'layout-grid');
+        changeLayoutBtn.createSpan({ text: 'Change Layout / Grid' });
         changeLayoutBtn.onclick = () => {
             this.isViewingLayoutPicker = true;
-            this.renderModal();
-        };
-
-        const customizeBtn = btnGroup.createEl('button', { cls: 'sc-action-btn', text: '🎨 Colors & Glow' });
-        customizeBtn.onclick = () => {
-            this.activeTab = 'colors';
             this.renderModal();
         };
 
@@ -719,11 +1020,20 @@ export class MultiColumnBuilderModal extends Modal {
         // Top Row: Type & Title
         const topCtrl = formCard.createDiv();
         topCtrl.style.display = 'grid';
-        topCtrl.style.gridTemplateColumns = '150px 1fr';
+        topCtrl.style.gridTemplateColumns = '160px 1fr';
         topCtrl.style.gap = '10px';
         topCtrl.style.marginBottom = '12px';
+        topCtrl.style.alignItems = 'center';
 
         const typeSelect = topCtrl.createEl('select');
+        typeSelect.style.height = '34px';
+        typeSelect.style.padding = '4px 8px';
+        typeSelect.style.borderRadius = '6px';
+        typeSelect.style.border = '1px solid var(--background-modifier-border)';
+        typeSelect.style.background = 'var(--background-primary)';
+        typeSelect.style.color = 'var(--text-normal)';
+        typeSelect.style.fontSize = '0.88rem';
+        typeSelect.style.boxSizing = 'border-box';
         
         // Standard presets group
         const stdGroup = typeSelect.createEl('optgroup', { attr: { label: 'Standard Callouts' } });
@@ -749,6 +1059,14 @@ export class MultiColumnBuilderModal extends Modal {
         };
 
         const titleInput = topCtrl.createEl('input', { type: 'text', value: activeArea.title, placeholder: 'Box Title' });
+        titleInput.style.height = '34px';
+        titleInput.style.padding = '6px 10px';
+        titleInput.style.borderRadius = '6px';
+        titleInput.style.border = '1px solid var(--background-modifier-border)';
+        titleInput.style.background = 'var(--background-primary)';
+        titleInput.style.color = 'var(--text-normal)';
+        titleInput.style.fontSize = '0.88rem';
+        titleInput.style.boxSizing = 'border-box';
         titleInput.oninput = (e) => {
             activeArea.title = (e.target as HTMLInputElement).value;
             this.updateLivePreview();
@@ -852,43 +1170,73 @@ export class MultiColumnBuilderModal extends Modal {
             };
         });
 
-        // 2. Custom Grid Matrix Size Selector & Tools
-        const ctrlRow = container.createDiv();
+        // 2. Custom Grid Matrix Size Selector & Tools (Centered, balanced toolbar)
+        const ctrlRow = container.createDiv({ cls: 'sc-matrix-toolbar' });
         ctrlRow.style.display = 'flex';
+        ctrlRow.style.flexDirection = 'column';
         ctrlRow.style.alignItems = 'center';
-        ctrlRow.style.justifyContent = 'space-between';
-        ctrlRow.style.gap = '12px';
-        ctrlRow.style.margin = '16px 0 10px 0';
-        ctrlRow.style.flexWrap = 'wrap';
+        ctrlRow.style.justifyContent = 'center';
+        ctrlRow.style.gap = '10px';
+        ctrlRow.style.margin = '16px auto 14px auto';
+        ctrlRow.style.maxWidth = '100%';
 
-        const dimLeft = ctrlRow.createDiv();
-        dimLeft.style.display = 'flex';
-        dimLeft.style.alignItems = 'center';
-        dimLeft.style.gap = '8px';
+        // Row 1: Dimensions & Quick Presets (Centered)
+        const dimRow = ctrlRow.createDiv({ cls: 'sc-matrix-dim-row' });
+        dimRow.style.display = 'flex';
+        dimRow.style.alignItems = 'center';
+        dimRow.style.justifyContent = 'center';
+        dimRow.style.gap = '10px';
+        dimRow.style.flexWrap = 'wrap';
 
-        dimLeft.createEl('strong', { text: 'Custom Grid Matrix:' });
+        // Columns Selector
+        dimRow.createSpan({ text: 'Cols:', attr: { style: 'font-weight: 600;' } });
+        const colsSelect = dimRow.createEl('select');
+        colsSelect.style.padding = '5px 10px';
+        colsSelect.style.borderRadius = '6px';
+        colsSelect.style.border = '1px solid var(--background-modifier-border)';
+        colsSelect.style.background = 'var(--background-primary)';
+        [1, 2, 3, 4, 5, 6].forEach(c => {
+            const opt = colsSelect.createEl('option', { value: String(c), text: `${c} Col${c > 1 ? 's' : ''}` });
+            if (c === this.gridCols) opt.selected = true;
+        });
+        colsSelect.onchange = (e) => {
+            const newCols = Number((e.target as HTMLSelectElement).value);
+            this.setGridDimensions(this.gridRows, newCols);
+            this.renderModal();
+        };
+
+        // Rows Selector
+        dimRow.createSpan({ text: 'Rows:', attr: { style: 'font-weight: 600; margin-left: 6px;' } });
+        const rowsSelect = dimRow.createEl('select');
+        rowsSelect.style.padding = '5px 10px';
+        rowsSelect.style.borderRadius = '6px';
+        rowsSelect.style.border = '1px solid var(--background-modifier-border)';
+        rowsSelect.style.background = 'var(--background-primary)';
+        [1, 2, 3, 4, 5, 6].forEach(r => {
+            const opt = rowsSelect.createEl('option', { value: String(r), text: `${r} Row${r > 1 ? 's' : ''}` });
+            if (r === this.gridRows) opt.selected = true;
+        });
+        rowsSelect.onchange = (e) => {
+            const newRows = Number((e.target as HTMLSelectElement).value);
+            this.setGridDimensions(newRows, this.gridCols);
+            this.renderModal();
+        };
 
         // Presets Dropdown
-        const presetSelect = dimLeft.createEl('select');
-        presetSelect.style.padding = '4px 8px';
-        presetSelect.style.borderRadius = '4px';
+        dimRow.createSpan({ text: 'Presets:', attr: { style: 'font-weight: 600; margin-left: 6px;' } });
+        const presetSelect = dimRow.createEl('select');
+        presetSelect.style.padding = '5px 12px';
+        presetSelect.style.borderRadius = '6px';
         presetSelect.style.border = '1px solid var(--background-modifier-border)';
         presetSelect.style.background = 'var(--background-primary)';
 
-        const presets = [
-            { label: '2×2 Quad', r: 2, c: 2 },
-            { label: '2×3 Standard', r: 2, c: 3 },
-            { label: '2×4 Wide', r: 2, c: 4 },
-            { label: '2×6 Dashboard', r: 2, c: 6 },
-            { label: '3×3 Dashboard', r: 3, c: 3 },
-            { label: '4×4 Master Grid', r: 4, c: 4 }
-        ];
+        presetSelect.createEl('option', { value: '', text: '— Quick Templates —' });
 
-        const stdOptGroup = presetSelect.createEl('optgroup', { attr: { label: 'Standard Dimensions' } });
-        presets.forEach(p => {
-            const opt = stdOptGroup.createEl('option', { value: `${p.r}x${p.c}`, text: p.label });
-            if (p.r === this.gridRows && p.c === this.gridCols) opt.selected = true;
-        });
+        const stdOptGroup = presetSelect.createEl('optgroup', { attr: { label: 'Standard Presets' } });
+        stdOptGroup.createEl('option', { value: 'hero_2', text: 'Hero + 2 Cards (2×2)' });
+        stdOptGroup.createEl('option', { value: 'header_sidebar', text: 'Header + Sidebar (3×3)' });
+        stdOptGroup.createEl('option', { value: 'cols_3', text: '3 Equal Columns (1×3)' });
+        stdOptGroup.createEl('option', { value: 'quad_2x2', text: '2×2 Quad Grid' });
 
         if (this.settings.customLayouts && this.settings.customLayouts.length > 0) {
             const customOptGroup = presetSelect.createEl('optgroup', { attr: { label: 'Saved Custom Layouts' } });
@@ -899,28 +1247,38 @@ export class MultiColumnBuilderModal extends Modal {
 
         presetSelect.onchange = (e) => {
             const val = (e.target as HTMLSelectElement).value;
-            if (val.startsWith('custom-layout:')) {
+            if (val) {
                 this.applyPresetLayout(val);
-            } else {
-                const [r, c] = val.split('x').map(Number);
-                this.initMatrix(r, c);
+                this.renderModal();
             }
-            this.renderModal();
         };
 
-        const dimBtns = ctrlRow.createDiv();
+        // Row 2: Action Buttons (Centered, spacious)
+        const dimBtns = ctrlRow.createDiv({ cls: 'sc-matrix-btns-row' });
         dimBtns.style.display = 'flex';
-        dimBtns.style.gap = '6px';
+        dimBtns.style.alignItems = 'center';
+        dimBtns.style.justifyContent = 'center';
+        dimBtns.style.gap = '8px';
+        dimBtns.style.flexWrap = 'wrap';
 
         const mergeBtn = dimBtns.createEl('button', { cls: 'mod-cta', text: '🧩 Merge Selected' });
+        mergeBtn.style.padding = '6px 14px';
         mergeBtn.onclick = () => {
             this.mergeSelectedCells();
             this.renderModal();
         };
 
         const splitBtn = dimBtns.createEl('button', { text: '✂️ Split Area' });
+        splitBtn.style.padding = '6px 14px';
         splitBtn.onclick = () => {
             this.splitSelectedArea();
+            this.renderModal();
+        };
+
+        const resetBtn = dimBtns.createEl('button', { text: '🔄 Reset' });
+        resetBtn.style.padding = '6px 14px';
+        resetBtn.onclick = () => {
+            this.initMatrix(this.gridRows, this.gridCols);
             this.renderModal();
         };
 
@@ -1211,16 +1569,6 @@ export class MultiColumnBuilderModal extends Modal {
         const area = this.areas.get(this.selectedAreaId);
         if (!area) return;
 
-        const infoBanner = container.createDiv();
-        infoBanner.style.padding = '8px 12px';
-        infoBanner.style.background = 'var(--background-primary-alt)';
-        infoBanner.style.border = '1px solid var(--interactive-accent)';
-        infoBanner.style.borderRadius = '6px';
-        infoBanner.style.marginBottom = '14px';
-        infoBanner.style.fontWeight = '600';
-        infoBanner.style.color = 'var(--text-accent)';
-        infoBanner.innerText = `Customizing Colors for Box "${area.title}" (${area.id})`;
-
         createGradientSetting(container, area.gradient || '', val => {
             area.gradient = val || undefined;
             this.updateLivePreview();
@@ -1310,8 +1658,8 @@ export class MultiColumnBuilderModal extends Modal {
 
         let textColorComp: TextComponent;
         new Setting(container)
-            .setName('Text Color')
-            .setDesc('Content text color (leave blank for theme default)')
+            .setName('Body Text Color')
+            .setDesc('Callout text color (leave blank for theme default)')
             .addText(text => {
                 textColorComp = text;
                 text.setPlaceholder('theme default')
@@ -1436,16 +1784,6 @@ export class MultiColumnBuilderModal extends Modal {
         if (!area) return;
 
         new Setting(container)
-            .setName('Corner Radius')
-            .addSlider(slider => slider
-                .setLimits(0, 30, 1)
-                .setValue(parseInt(area.borderRadius || '8') || 8)
-                .onChange(val => {
-                    area.borderRadius = `${val}px`;
-                    this.updateLivePreview();
-                }));
-
-        new Setting(container)
             .setName('Border Width & Style')
             .addDropdown(drop => drop
                 .addOption('', 'Default Width')
@@ -1470,6 +1808,16 @@ export class MultiColumnBuilderModal extends Modal {
                 .setValue(area.borderStyle || 'solid')
                 .onChange(val => {
                     area.borderStyle = val;
+                    this.updateLivePreview();
+                }));
+
+        new Setting(container)
+            .setName('Corner Radius')
+            .addSlider(slider => slider
+                .setLimits(0, 30, 1)
+                .setValue(parseInt(area.borderRadius || '8') || 8)
+                .onChange(val => {
+                    area.borderRadius = `${val}px`;
                     this.updateLivePreview();
                 }));
 
@@ -1542,15 +1890,18 @@ export class MultiColumnBuilderModal extends Modal {
 
         const outerCallout = el.createDiv({ cls: 'callout' });
         outerCallout.setAttribute('data-callout', 'multi-callout');
+        outerCallout.style.background = 'var(--background-primary)';
         outerCallout.style.border = '1px dashed var(--background-modifier-border)';
-        outerCallout.style.padding = '10px';
+        outerCallout.style.padding = '8px 10px';
+        outerCallout.style.margin = '2px 4px';
         outerCallout.style.borderRadius = '8px';
 
         const grid = outerCallout.createDiv();
         grid.style.display = 'grid';
         grid.style.gridTemplateColumns = `repeat(${this.gridCols}, 1fr)`;
         grid.style.gridTemplateRows = `repeat(${this.gridRows}, auto)`;
-        grid.style.gap = '10px';
+        grid.style.gap = '12px';
+        grid.style.padding = '6px 8px';
 
         const uniqueAreas = Array.from(this.areas.values());
         uniqueAreas.forEach((area, idx) => {
@@ -1561,6 +1912,11 @@ export class MultiColumnBuilderModal extends Modal {
             subCallout.style.gridRow = `${area.minRow + 1} / ${area.maxRow + 2}`;
             subCallout.style.gridColumn = `${area.minCol + 1} / ${area.maxCol + 2}`;
 
+            const borderStyleVal = area.borderStyle || 'solid';
+            const borderWidthVal = toPx(area.borderWidth || '1px');
+            const borderColorVal = area.borderColor || 'var(--interactive-accent)';
+            const normalBorder = borderStyleVal === 'none' ? 'none' : `${borderWidthVal} ${borderStyleVal} ${borderColorVal}`;
+
             if (area.gradient) {
                 let grad = area.gradient.trim();
                 if (!isCssGradient(grad)) {
@@ -1570,23 +1926,21 @@ export class MultiColumnBuilderModal extends Modal {
                     }
                 }
                 subCallout.style.background = grad;
-                subCallout.style.border = area.borderColor
-                    ? `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} ${area.borderColor}`
+                subCallout.style.border = area.borderColor && borderStyleVal !== 'none'
+                    ? `${borderWidthVal} ${borderStyleVal} ${area.borderColor}`
                     : 'none';
             } else {
                 const bg = area.bgColor ? `color-mix(in srgb, ${area.bgColor} 15%, transparent)` : 'var(--background-secondary)';
-                const border = area.borderColor
-                    ? `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} ${area.borderColor}`
-                    : `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} var(--interactive-accent)`;
                 subCallout.style.backgroundColor = bg;
-                subCallout.style.border = border;
+                subCallout.style.border = normalBorder;
             }
 
             subCallout.dataset.areaId = area.id;
-            subCallout.style.outline = isSelected ? '2px solid var(--interactive-accent)' : 'none';
-            subCallout.style.outlineOffset = '2px';
+            subCallout.style.outline = 'none';
+            subCallout.style.overflow = 'hidden';
+            subCallout.style.boxSizing = 'border-box';
             subCallout.style.borderRadius = area.borderRadius ? toPx(area.borderRadius) : '6px';
-            subCallout.style.padding = area.compact ? '0.4em 0.6em' : '8px 10px';
+            subCallout.style.padding = area.compact ? '8px 12px' : '12px 16px';
             subCallout.style.textAlign = area.center ? 'center' : 'left';
             subCallout.style.cursor = 'pointer';
             subCallout.onclick = () => {
@@ -1599,17 +1953,37 @@ export class MultiColumnBuilderModal extends Modal {
                 subCallout.style.fontFamily = FONT_FAMILIES[area.font];
             }
 
+            if (area.fontSize && FONT_SIZES[area.fontSize]) {
+                subCallout.style.fontSize = FONT_SIZES[area.fontSize];
+            }
+
             if (area.neon) {
                 const neon = neonStyles(area.neon);
-                subCallout.style.boxShadow = neon['--sc-neon-shadow'];
+                subCallout.style.boxShadow = isSelected
+                    ? `0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent), ${neon['--sc-neon-shadow']}`
+                    : neon['--sc-neon-shadow'];
+            } else if (isSelected) {
+                subCallout.style.boxShadow = '0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent)';
             } else {
                 subCallout.style.boxShadow = 'none';
+            }
+
+            if (area.center) {
+                subCallout.setAttribute('data-center', 'true');
+                subCallout.removeAttribute('data-title-center');
+            } else if (area.titleCenter) {
+                subCallout.setAttribute('data-title-center', 'true');
+                subCallout.removeAttribute('data-center');
+            } else {
+                subCallout.removeAttribute('data-center');
+                subCallout.removeAttribute('data-title-center');
             }
 
             const titleEl = subCallout.createDiv({ cls: 'callout-title' });
             titleEl.style.display = 'flex';
             titleEl.style.alignItems = 'center';
             titleEl.style.gap = '6px';
+            titleEl.style.width = '100%';
             titleEl.style.justifyContent = (area.center || area.titleCenter) ? 'center' : 'flex-start';
             titleEl.style.fontWeight = '600';
             titleEl.style.color = area.titleColor || area.borderColor || 'var(--text-normal)';
@@ -1621,13 +1995,23 @@ export class MultiColumnBuilderModal extends Modal {
                 setIcon(iconEl, area.iconName || this.getDefaultIconForType(area.type));
             }
 
-            titleEl.createSpan({ text: area.title || `Box ${idx + 1}` });
+            const titleSpan = titleEl.createSpan({ cls: 'callout-title-inner', text: area.title || `Box ${idx + 1}` });
+            if (area.center || area.titleCenter) {
+                titleSpan.style.textAlign = 'center';
+                titleSpan.style.flex = '0 1 auto';
+            }
 
             const contentEl = subCallout.createDiv({ cls: 'callout-content' });
             contentEl.style.fontSize = '0.85em';
             contentEl.style.marginTop = '4px';
+            contentEl.style.textAlign = area.center ? 'center' : 'left';
             if (area.textColor) {
                 contentEl.style.color = area.textColor;
+                subCallout.setCssProps({ '--sc-text-color': area.textColor });
+                subCallout.setAttribute('data-sc-text', '');
+            } else {
+                subCallout.removeAttribute('data-sc-text');
+                contentEl.style.color = '';
             }
 
             if (area.linkColor) {
@@ -1641,7 +2025,24 @@ export class MultiColumnBuilderModal extends Modal {
                 subCallout.setAttribute('data-link-color', area.linkColor);
             }
 
-            void MarkdownRenderer.render(this.app, area.content || '', contentEl, '', this as unknown as any);
+            if (area.col && area.col > 1) {
+                subCallout.setAttribute('data-col', area.col.toString());
+                subCallout.setCssProps({ '--smart-list-cols': area.col.toString() });
+            } else {
+                subCallout.removeAttribute('data-col');
+                subCallout.setCssProps({ '--smart-list-cols': '' });
+            }
+
+            const defaultListContent = '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6';
+            const rawContent = area.content
+                ? area.content
+                : (area.col && area.col > 1 ? defaultListContent : `Main featured section for ${area.title || `Box ${idx + 1}`}...`);
+
+            void MarkdownRenderer.render(this.app, rawContent, contentEl, '', this as unknown as any).then(() => {
+                if (area.col && area.col > 1) {
+                    formatListColumns(contentEl, area.col);
+                }
+            });
         });
     }
 

@@ -23,6 +23,7 @@ import {
 import { isValidHex, normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
 import { createGradientSetting } from '../ui/UIComponents';
 import { IconPickerModal } from '../modals/IconPickerModal';
+import { MultiColumnBuilderModal } from '../modals/MultiColumnBuilderModal';
 import { showHowToUse } from '../modals/HowToModal';
 import { showMetadataReference } from '../modals/MetadataModal';
 
@@ -39,13 +40,6 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
     // Search query for filtering styles
     searchQuery: string = '';
-
-    // Layout Builder State
-    builderCols = 3;
-    builderRows = 2;
-    builderLayoutName = '';
-    builderGridMatrix: number[][] = [[1, 2, 3], [4, 5, 6]];
-    builderSelectedCells: { r: number; c: number }[] = [];
 
     constructor(app: App, plugin: PluginWithSettings) {
         super(app, plugin as unknown as Plugin);
@@ -74,7 +68,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.renderStandardStylesTab(tabContentContainer);
                 break;
             case 'layouts':
-                this.renderLayoutBuilderTab(tabContentContainer);
+                this.renderLayoutPresetsTab(tabContentContainer);
                 break;
             case 'commands':
                 this.renderCommandPaletteTab(tabContentContainer);
@@ -118,7 +112,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         const tabs: { id: SettingsTabId; label: string; icon: string }[] = [
             { id: 'styles', label: 'Custom Styles', icon: 'palette' },
             { id: 'standard', label: 'Standard Callouts', icon: 'bookmark' },
-            { id: 'layouts', label: 'Layout Builder', icon: 'layout-grid' },
+            { id: 'layouts', label: 'Layout Presets', icon: 'layout-grid' },
             { id: 'commands', label: 'Command Palette', icon: 'terminal' },
             { id: 'guide', label: 'Guide & Syntax', icon: 'book-open' },
             { id: 'general', label: 'General & Defaults', icon: 'settings' }
@@ -530,256 +524,119 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     }
 
     // =========================================================================
-    // TAB 4: LAYOUT BUILDER
+    // TAB 3: LAYOUT PRESETS
     // =========================================================================
-    private renderLayoutBuilderTab(container: HTMLElement): void {
+    private renderLayoutPresetsTab(container: HTMLElement): void {
         const topHeader = container.createDiv({ cls: 'sc-section-header' });
-        topHeader.createEl('h3', { text: '📐 Visual Grid Layout Builder' });
+        topHeader.createEl('h3', { text: '📐 Layout Presets' });
         topHeader.createEl('p', {
-            text: 'Design multi-column responsive dashboard grids with drag-to-merge and split controls. Saved layouts automatically integrate into the Multi-Column Studio.',
+            text: 'Create and manage reusable multi-column dashboard layout presets with live preview and interactive drag-and-merge matrix controls.',
             cls: 'sc-section-desc'
         });
 
-        const builderCard = container.createDiv({ cls: 'sc-card-item' });
-        builderCard.style.background = 'var(--background-secondary)';
-        builderCard.style.border = '1px solid var(--background-modifier-border)';
-        builderCard.style.borderRadius = '8px';
-        builderCard.style.padding = '16px';
-        builderCard.style.marginBottom = '1.5rem';
+        // Top Action Toolbar
+        const actionRow = container.createDiv({ cls: 'sc-action-row' });
+        actionRow.style.display = 'flex';
+        actionRow.style.justifyContent = 'space-between';
+        actionRow.style.alignItems = 'center';
+        actionRow.style.marginBottom = '1.25rem';
 
-        // Dimension Controls
-        const ctrlRow = builderCard.createDiv();
-        ctrlRow.style.display = 'flex';
-        ctrlRow.style.gap = '12px';
-        ctrlRow.style.alignItems = 'center';
-        ctrlRow.style.marginBottom = '14px';
-        ctrlRow.style.flexWrap = 'wrap';
-
-        ctrlRow.createSpan({ text: 'Columns:', attr: { style: 'font-weight:600;' } });
-        const colsSelect = ctrlRow.createEl('select');
-        [1, 2, 3, 4, 5, 6].forEach(c => {
-            const opt = colsSelect.createEl('option', { value: String(c), text: `${c} Columns` });
-            if (c === this.builderCols) opt.selected = true;
+        const addBtn = actionRow.createEl('button', {
+            cls: 'mod-cta',
+            text: '+ New Layout Preset'
         });
-
-        ctrlRow.createSpan({ text: 'Rows:', attr: { style: 'font-weight:600; margin-left: 8px;' } });
-        const rowsSelect = ctrlRow.createEl('select');
-        [1, 2, 3, 4, 5, 6].forEach(r => {
-            const opt = rowsSelect.createEl('option', { value: String(r), text: `${r} Rows` });
-            if (r === this.builderRows) opt.selected = true;
-        });
-
-        colsSelect.onchange = (e) => {
-            this.builderCols = Number((e.target as HTMLSelectElement).value);
-            this.initBuilderMatrix();
-            this.renderSettings();
-        };
-
-        rowsSelect.onchange = (e) => {
-            this.builderRows = Number((e.target as HTMLSelectElement).value);
-            this.initBuilderMatrix();
-            this.renderSettings();
-        };
-
-        const mergeBtn = ctrlRow.createEl('button', { cls: 'mod-cta', text: '🧩 Merge Selected' });
-        mergeBtn.onclick = () => {
-            this.mergeBuilderSelected();
-            this.renderSettings();
-        };
-
-        const splitBtn = ctrlRow.createEl('button', { text: '✂️ Split Area' });
-        splitBtn.onclick = () => {
-            this.splitBuilderSelected();
-            this.renderSettings();
-        };
-
-        const resetBtn = ctrlRow.createEl('button', { text: '🔄 Reset Grid' });
-        resetBtn.onclick = () => {
-            this.initBuilderMatrix();
-            this.renderSettings();
-        };
-
-        // Grid Canvas
-        const canvas = builderCard.createDiv({ cls: 'sc-builder-canvas' });
-        canvas.style.display = 'grid';
-        canvas.style.gridTemplateColumns = `repeat(${this.builderCols}, 1fr)`;
-        canvas.style.gap = '8px';
-        canvas.style.padding = '12px';
-        canvas.style.background = 'var(--background-primary)';
-        canvas.style.borderRadius = '6px';
-        canvas.style.border = '1px solid var(--background-modifier-border)';
-        canvas.style.marginBottom = '14px';
-
-        this.renderBuilderCanvas(canvas);
-
-        // Save Form
-        const saveRow = builderCard.createDiv();
-        saveRow.style.display = 'flex';
-        saveRow.style.gap = '10px';
-        saveRow.style.alignItems = 'center';
-
-        const nameInput = saveRow.createEl('input', {
-            type: 'text',
-            placeholder: 'Layout Name (e.g. hero-dashboard)',
-            value: this.builderLayoutName
-        });
-        nameInput.style.flex = '1';
-        nameInput.style.padding = '6px 12px';
-        nameInput.style.borderRadius = '6px';
-        nameInput.style.border = '1px solid var(--background-modifier-border)';
-        nameInput.oninput = (e) => this.builderLayoutName = (e.target as HTMLInputElement).value;
-
-        new ButtonComponent(saveRow)
-            .setButtonText('Save Custom Layout')
-            .setCta()
-            .onClick(async () => {
-                const name = this.builderLayoutName.trim().toLowerCase().replace(/\s+/g, '-');
-                if (!name) {
-                    new Notice('Please enter a layout name.');
-                    return;
-                }
-
-                const areaRows: string[] = [];
-                for (let r = 0; r < this.builderRows; r++) {
-                    const rowTokens = this.builderGridMatrix[r].map(id => `area${id}`).join(' ');
-                    areaRows.push(`"${rowTokens}"`);
-                }
-                const gridAreas = areaRows.join(' ');
-
-                const newLayout: CustomLayout = {
-                    name,
-                    cols: this.builderCols,
-                    rows: this.builderRows,
-                    gridAreas,
-                    showInCommandPalette: true
-                };
-
-                const existingIdx = (this.plugin.settings.customLayouts || []).findIndex(l => l.name === name);
-                if (existingIdx >= 0) {
-                    this.plugin.settings.customLayouts[existingIdx] = newLayout;
-                } else {
-                    this.plugin.settings.customLayouts.push(newLayout);
-                }
-
-                await this.plugin.saveSettings();
-                new Notice(`Saved layout "${name}"!`);
-                this.renderSettings();
-            });
-
-        // Saved Layouts Gallery
-        const customLayouts = this.plugin.settings.customLayouts || [];
-        if (customLayouts.length > 0) {
-            new Setting(container)
-                .setName(`Saved Layouts (${customLayouts.length})`)
-                .setHeading();
-
-            const savedGrid = container.createDiv({ cls: 'sc-cards-grid' });
-            customLayouts.forEach((l, idx) => {
-                const card = savedGrid.createDiv({ cls: 'sc-card-item' });
-                const top = card.createDiv({ cls: 'sc-card-top' });
-                top.createDiv({ cls: 'sc-card-title', text: `📐 ${l.name}` });
-
-                const codeSnippet = card.createEl('code', { text: `> [!multi-callout] (${l.name})` });
-                codeSnippet.style.fontSize = '0.75rem';
-                codeSnippet.style.padding = '4px 6px';
-                codeSnippet.style.background = 'var(--background-primary)';
-                codeSnippet.style.borderRadius = '4px';
-
-                const actions = card.createDiv({ cls: 'sc-card-actions' });
-                const delBtn = actions.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete' });
-                setIcon(delBtn, 'trash');
-                delBtn.onclick = async () => {
-                    customLayouts.splice(idx, 1);
+        addBtn.onclick = () => {
+            new MultiColumnBuilderModal(this.app, this.plugin.settings, null, {
+                isPresetMode: true,
+                plugin: this.plugin,
+                onSavePreset: async () => {
                     await this.plugin.saveSettings();
-                    new Notice(`Deleted layout "${l.name}"`);
                     this.renderSettings();
-                };
+                }
+            }).open();
+        };
+
+        const customLayouts = this.plugin.settings.customLayouts || [];
+
+        if (customLayouts.length === 0) {
+            const emptyCard = container.createDiv({ cls: 'sc-card-item' });
+            emptyCard.style.padding = '2.5rem 1.5rem';
+            emptyCard.style.textAlign = 'center';
+            emptyCard.style.background = 'var(--background-secondary)';
+            emptyCard.style.border = '1px dashed var(--background-modifier-border)';
+            emptyCard.style.borderRadius = '8px';
+
+            const emptyIcon = emptyCard.createDiv();
+            emptyIcon.style.margin = '0 auto 12px auto';
+            emptyIcon.style.opacity = '0.6';
+            setIcon(emptyIcon, 'layout-grid');
+
+            emptyCard.createEl('h4', { text: 'No Custom Layout Presets Saved' });
+            emptyCard.createEl('p', {
+                text: 'Click "+ New Layout Preset" above to visually design a dashboard matrix with live preview!',
+                cls: 'sc-section-desc'
             });
-        }
-    }
 
-    private initBuilderMatrix(): void {
-        this.builderGridMatrix = [];
-        this.builderSelectedCells = [];
-        let id = 1;
-        for (let r = 0; r < this.builderRows; r++) {
-            const row: number[] = [];
-            for (let c = 0; c < this.builderCols; c++) {
-                row.push(id++);
-            }
-            this.builderGridMatrix.push(row);
-        }
-    }
-
-    private mergeBuilderSelected(): void {
-        if (this.builderSelectedCells.length < 2) {
-            new Notice('Please select at least 2 cells to merge.');
-            return;
-        }
-        const targetId = this.builderGridMatrix[this.builderSelectedCells[0].r][this.builderSelectedCells[0].c];
-        this.builderSelectedCells.forEach(cell => {
-            this.builderGridMatrix[cell.r][cell.c] = targetId;
-        });
-        this.builderSelectedCells = [];
-        new Notice('Merged selected cells.');
-    }
-
-    private splitBuilderSelected(): void {
-        if (this.builderSelectedCells.length === 0) {
-            new Notice('Please select an area to split.');
-            return;
-        }
-        let maxId = 0;
-        for (let r = 0; r < this.builderRows; r++) {
-            for (let c = 0; c < this.builderCols; c++) {
-                maxId = Math.max(maxId, this.builderGridMatrix[r][c]);
-            }
-        }
-        this.builderSelectedCells.forEach(cell => {
-            this.builderGridMatrix[cell.r][cell.c] = ++maxId;
-        });
-        this.builderSelectedCells = [];
-        new Notice('Split cells into independent areas.');
-    }
-
-    private renderBuilderCanvas(container: HTMLElement): void {
-        container.empty();
-        for (let r = 0; r < this.builderRows; r++) {
-            for (let c = 0; c < this.builderCols; c++) {
-                const areaId = this.builderGridMatrix[r][c];
-                const isSelected = this.builderSelectedCells.some(s => s.r === r && s.c === c);
-
-                const cell = container.createDiv();
-                cell.style.height = '60px';
-                cell.style.display = 'flex';
-                cell.style.alignItems = 'center';
-                cell.style.justifyContent = 'center';
-                cell.style.background = isSelected ? 'var(--background-modifier-hover)' : 'var(--background-secondary)';
-                cell.style.border = isSelected ? '2px solid var(--interactive-accent)' : '1px solid var(--background-modifier-border)';
-                cell.style.borderRadius = '6px';
-                cell.style.cursor = 'pointer';
-                cell.style.fontWeight = '600';
-                cell.style.fontSize = '0.85rem';
-                cell.innerText = `Area ${areaId}`;
-
-                cell.onclick = (e) => {
-                    if (e.shiftKey || e.ctrlKey || e.metaKey) {
-                        if (isSelected) {
-                            this.builderSelectedCells = this.builderSelectedCells.filter(s => !(s.r === r && s.c === c));
-                        } else {
-                            this.builderSelectedCells.push({ r, c });
-                        }
-                    } else {
-                        if (isSelected && this.builderSelectedCells.length === 1) {
-                            this.builderSelectedCells = [];
-                        } else {
-                            this.builderSelectedCells = [{ r, c }];
-                        }
+            const createFirstBtn = emptyCard.createEl('button', {
+                cls: 'mod-cta',
+                text: '📐 Design Your First Layout Preset'
+            });
+            createFirstBtn.style.marginTop = '12px';
+            createFirstBtn.onclick = () => {
+                new MultiColumnBuilderModal(this.app, this.plugin.settings, null, {
+                    isPresetMode: true,
+                    plugin: this.plugin,
+                    onSavePreset: async () => {
+                        await this.plugin.saveSettings();
+                        this.renderSettings();
                     }
-                    this.renderBuilderCanvas(container);
-                };
-            }
+                }).open();
+            };
+            return;
         }
+
+        const savedGrid = container.createDiv({ cls: 'sc-cards-grid' });
+        customLayouts.forEach((l, idx) => {
+            const card = savedGrid.createDiv({ cls: 'sc-card-item' });
+            const top = card.createDiv({ cls: 'sc-card-top' });
+            top.createDiv({ cls: 'sc-card-title', text: `📐 ${l.name}` });
+
+            const badge = top.createSpan({ cls: 'sc-studio-badge' });
+            badge.innerText = `${l.cols}×${l.rows} Grid`;
+
+            const codeSnippet = card.createEl('code', { text: `> [!multi-callout] (${l.name})` });
+            codeSnippet.style.fontSize = '0.75rem';
+            codeSnippet.style.padding = '4px 8px';
+            codeSnippet.style.background = 'var(--background-primary)';
+            codeSnippet.style.borderRadius = '4px';
+            codeSnippet.style.margin = '8px 0';
+            codeSnippet.style.display = 'block';
+
+            const actions = card.createDiv({ cls: 'sc-card-actions' });
+
+            const editBtn = actions.createEl('button', { cls: 'sc-action-btn', title: 'Edit Layout' });
+            setIcon(editBtn, 'pencil');
+            editBtn.onclick = () => {
+                new MultiColumnBuilderModal(this.app, this.plugin.settings, null, {
+                    isPresetMode: true,
+                    layoutToEdit: l,
+                    plugin: this.plugin,
+                    onSavePreset: async () => {
+                        await this.plugin.saveSettings();
+                        this.renderSettings();
+                    }
+                }).open();
+            };
+
+            const delBtn = actions.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete Layout' });
+            setIcon(delBtn, 'trash');
+            delBtn.onclick = async () => {
+                customLayouts.splice(idx, 1);
+                await this.plugin.saveSettings();
+                new Notice(`Deleted layout preset "${l.name}"`);
+                this.renderSettings();
+            };
+        });
     }
 
     // =========================================================================
