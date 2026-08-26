@@ -85,13 +85,25 @@ export function resolveColor(
     return value;
 }
 
+const transparentBgCache = new Map<string, string>();
+
 /**
- * Creates transparent background using CSS color-mix
+ * Creates transparent background using CSS color-mix with micro-caching
  * @param color - Base color
  * @param opacity - Opacity percentage (default 10)
  */
 export function createTransparentBg(color: string, opacity: number = 10): string {
-    return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+    const key = `${color}::${opacity}`;
+    const cached = transparentBgCache.get(key);
+    if (cached) return cached;
+
+    const result = `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+    if (transparentBgCache.size >= 200) {
+        const firstKey = transparentBgCache.keys().next().value;
+        if (firstKey) transparentBgCache.delete(firstKey);
+    }
+    transparentBgCache.set(key, result);
+    return result;
 }
 
 /**
@@ -124,8 +136,10 @@ export function toPx(value: string | number): string {
     return NUMERIC_REGEX.test(raw) ? `${raw}px` : raw;
 }
 
+const neonCache = new Map<string, Record<string, string>>();
+
 /**
- * Builds the CSS custom properties for the neon border and glow.
+ * Builds the CSS custom properties for the neon border and glow with caching.
  *
  * The glow used to be built by concatenating '40' and '20' onto the color string, which
  * only yields valid CSS for a 6-digit hex — a 3-digit hex or a bare CSS keyword silently
@@ -137,34 +151,53 @@ export function toPx(value: string | number): string {
  * @param color - Any CSS color
  */
 export function neonStyles(color: string): Record<string, string> {
+    const cached = neonCache.get(color);
+    if (cached) return cached;
+
     const glow = (percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
-    return {
+    const result = {
         '--sc-neon-border': `2px solid ${color}`,
         // 25% / 12% match the alpha the old hex suffixes produced (0x40, 0x20)
         '--sc-neon-shadow': `0 0 8px 2px ${glow(25)}, inset 0 0 8px 2px ${glow(12)}`
     };
+
+    if (neonCache.size >= 100) {
+        const firstKey = neonCache.keys().next().value;
+        if (firstKey) neonCache.delete(firstKey);
+    }
+    neonCache.set(color, result);
+    return result;
 }
 
 /**
- * Smart split: splits by comma but not inside parentheses
+ * Smart split: splits by comma but not inside parentheses (Zero-allocation slice scanner)
  * @param str - String to split
  * @returns Array of split parts
  */
 export function smartSplit(str: string): string[] {
     const result: string[] = [];
-    let current = '';
+    const len = str.length;
+    let start = 0;
     let depth = 0;
-    for (const char of str) {
-        if (char === '(') depth++;
-        else if (char === ')') depth--;
-        else if (char === ',' && depth === 0) {
-            if (current.trim()) result.push(current.trim());
-            current = '';
-            continue;
+
+    for (let i = 0; i < len; i++) {
+        const charCode = str.charCodeAt(i);
+        if (charCode === 40) { // '('
+            depth++;
+        } else if (charCode === 41) { // ')'
+            depth = Math.max(0, depth - 1);
+        } else if (charCode === 44 && depth === 0) { // ','
+            const segment = str.slice(start, i).trim();
+            if (segment) result.push(segment);
+            start = i + 1;
         }
-        current += char;
     }
-    if (current.trim()) result.push(current.trim());
+
+    if (start < len) {
+        const segment = str.slice(start).trim();
+        if (segment) result.push(segment);
+    }
+
     return result;
 }
 

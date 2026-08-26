@@ -14,10 +14,10 @@ import {
     TextComponent,
     MarkdownRenderer
 } from 'obsidian';
-import { SpecialCalloutsSettings } from '../types';
+import { SpecialCalloutsSettings, CustomLayout } from '../types';
 import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES } from '../constants';
 import { normalizeHex, toPx, neonStyles } from '../utils';
-import { parseMetadata, parseGridLayout } from '../parser';
+import { parseMetadata, parseGridLayout, extractMetadata } from '../parser';
 import { IconPickerModal } from './IconPickerModal';
 import { InsertCalloutModal } from './InsertCalloutModal';
 import { createMarkdownEditorWithToolbar } from '../ui/UIComponents';
@@ -162,20 +162,34 @@ export class MultiColumnBuilderModal extends Modal {
             contentLines: string[];
         }
 
+        const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
         const items: ParsedSubItem[] = [];
         let currentItem: ParsedSubItem | null = null;
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
-            const subMatch = line.match(/^\s*>+\s*\[!([^\]]+)\](?:\s*\(([^)]+)\))?\s*(.*)$/);
-            if (subMatch) {
+            const headMatch = line.match(/^\s*>+\s*\[!([a-zA-Z0-9_\-]+)(?:\|([^\]]+))?\]\s*(.*)$/);
+            if (headMatch) {
+                const subType = headMatch[1].trim();
+                if (subType.toLowerCase() === 'multi-callout') {
+                    // Skip the outer parent container header
+                    continue;
+                }
                 if (currentItem) {
                     items.push(currentItem);
                 }
+                const pipeMeta = headMatch[2] ? headMatch[2].trim() : '';
+                let rawTitle = headMatch[3] ? headMatch[3].trim() : '';
+                let metaStr = pipeMeta;
+                const extracted = extractMetadata(rawTitle, layoutNames);
+                if (extracted) {
+                    metaStr = metaStr ? `${metaStr}, ${extracted.content}` : extracted.content;
+                    rawTitle = extracted.title;
+                }
                 currentItem = {
-                    type: subMatch[1].trim(),
-                    metaStr: subMatch[2] ? subMatch[2].trim() : '',
-                    title: subMatch[3] ? subMatch[3].trim() : '',
+                    type: subType,
+                    metaStr,
+                    title: rawTitle,
                     contentLines: []
                 };
             } else if (currentItem) {
@@ -196,7 +210,6 @@ export class MultiColumnBuilderModal extends Modal {
         this.areas.clear();
         let maxColsFound = 1;
         let maxRowsFound = 1;
-        const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
 
         items.forEach((item, idx) => {
             const areaId = `area${idx + 1}`;
@@ -302,6 +315,15 @@ export class MultiColumnBuilderModal extends Modal {
 
     private applyPresetLayout(presetKey: string): void {
         this.areas.clear();
+
+        if (presetKey.startsWith('custom-layout:')) {
+            const layoutName = presetKey.slice('custom-layout:'.length);
+            const customLayout = (this.settings.customLayouts || []).find(l => l.name === layoutName);
+            if (customLayout) {
+                this.applyCustomLayout(customLayout);
+                return;
+            }
+        }
 
         switch (presetKey) {
             case 'hero_2': {
@@ -413,6 +435,77 @@ export class MultiColumnBuilderModal extends Modal {
                 break;
             }
         }
+    }
+
+    private applyCustomLayout(layout: CustomLayout): void {
+        this.areas.clear();
+        this.gridRows = Math.min(6, Math.max(1, layout.rows));
+        this.gridCols = Math.min(6, Math.max(1, layout.cols));
+
+        // Parse gridAreas string: e.g. '"area1 area2" "area1 area3"'
+        const rowMatches = layout.gridAreas.match(/"([^"]+)"/g) || [];
+        this.gridMatrix = [];
+
+        if (rowMatches.length > 0) {
+            for (let r = 0; r < this.gridRows; r++) {
+                const rowTokens = (rowMatches[r] ? rowMatches[r].replace(/"/g, '').trim().split(/\s+/) : []);
+                const rowArr: string[] = [];
+                for (let c = 0; c < this.gridCols; c++) {
+                    const token = rowTokens[c] || `area${r * this.gridCols + c + 1}`;
+                    rowArr.push(token);
+                }
+                this.gridMatrix.push(rowArr);
+            }
+        } else {
+            this.initMatrix(this.gridRows, this.gridCols);
+            return;
+        }
+
+        // Compute unique bounding boxes for each area token
+        const areaBounds: Map<string, { minRow: number; maxRow: number; minCol: number; maxCol: number }> = new Map();
+        for (let r = 0; r < this.gridRows; r++) {
+            for (let c = 0; c < this.gridCols; c++) {
+                const id = this.gridMatrix[r][c];
+                if (!areaBounds.has(id)) {
+                    areaBounds.set(id, { minRow: r, maxRow: r, minCol: c, maxCol: c });
+                } else {
+                    const b = areaBounds.get(id)!;
+                    b.minRow = Math.min(b.minRow, r);
+                    b.maxRow = Math.max(b.maxRow, r);
+                    b.minCol = Math.min(b.minCol, c);
+                    b.maxCol = Math.max(b.maxCol, c);
+                }
+            }
+        }
+
+        let idx = 1;
+        const colorPalette = ['#7c4dff', '#00e676', '#448aff', '#ffab00', '#ff5252', '#00bcd4', '#e040fb'];
+        const iconList = ['sparkles', 'flame', 'pencil', 'alert-triangle', 'zap', 'layers', 'bookmark'];
+        const typeList = ['info', 'tip', 'note', 'warning', 'danger', 'summary', 'example'];
+
+        areaBounds.forEach((bounds, areaId) => {
+            const color = colorPalette[(idx - 1) % colorPalette.length];
+            const icon = iconList[(idx - 1) % iconList.length];
+            const type = typeList[(idx - 1) % typeList.length];
+
+            this.areas.set(areaId, {
+                id: areaId,
+                label: `Box ${idx}`,
+                minRow: bounds.minRow,
+                maxRow: bounds.maxRow,
+                minCol: bounds.minCol,
+                maxCol: bounds.maxCol,
+                type,
+                title: `Box ${idx}`,
+                content: idx === 1 && this.selectedText ? this.selectedText : `Content for Box ${idx}...`,
+                bgColor: color,
+                borderColor: color,
+                iconName: icon
+            });
+            idx++;
+        });
+
+        this.selectedAreaId = this.areas.keys().next().value || 'area1';
     }
 
     private initMatrix(rows: number, cols: number): void {
@@ -705,12 +798,24 @@ export class MultiColumnBuilderModal extends Modal {
         galleryGrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(130px, 1fr))';
         galleryGrid.style.gap = '8px';
 
-        const presetCards = [
+        const presetCards: { key: string; name: string; desc: string; icon: string }[] = [
             { key: 'hero_2', name: '⚡ Hero + 2 Cards', desc: 'Top wide hero & 2 columns', icon: 'sparkles' },
             { key: 'header_sidebar', name: '📊 Workspace', desc: 'Header, Sidebar & Main', icon: 'layout-dashboard' },
             { key: 'cols_3', name: '📰 3 Columns', desc: '3 equal vertical cards', icon: 'columns' },
             { key: 'quad_2x2', name: '🔲 2×2 Quad', desc: '4 equal grid boxes', icon: 'grid' }
         ];
+
+        // Append saved custom layouts created in Layout Builder
+        if (this.settings.customLayouts && this.settings.customLayouts.length > 0) {
+            this.settings.customLayouts.forEach(layout => {
+                presetCards.push({
+                    key: `custom-layout:${layout.name}`,
+                    name: `📐 ${layout.name}`,
+                    desc: `Saved (${layout.cols}×${layout.rows} Grid)`,
+                    icon: 'layout-grid'
+                });
+            });
+        }
 
         presetCards.forEach(p => {
             const card = galleryGrid.createDiv();
@@ -777,14 +882,27 @@ export class MultiColumnBuilderModal extends Modal {
             { label: '4×4 Master Grid', r: 4, c: 4 }
         ];
 
+        const stdOptGroup = presetSelect.createEl('optgroup', { attr: { label: 'Standard Dimensions' } });
         presets.forEach(p => {
-            const opt = presetSelect.createEl('option', { value: `${p.r}x${p.c}`, text: p.label });
+            const opt = stdOptGroup.createEl('option', { value: `${p.r}x${p.c}`, text: p.label });
             if (p.r === this.gridRows && p.c === this.gridCols) opt.selected = true;
         });
 
+        if (this.settings.customLayouts && this.settings.customLayouts.length > 0) {
+            const customOptGroup = presetSelect.createEl('optgroup', { attr: { label: 'Saved Custom Layouts' } });
+            this.settings.customLayouts.forEach(l => {
+                customOptGroup.createEl('option', { value: `custom-layout:${l.name}`, text: `${l.name} (${l.cols}×${l.rows})` });
+            });
+        }
+
         presetSelect.onchange = (e) => {
-            const [r, c] = (e.target as HTMLSelectElement).value.split('x').map(Number);
-            this.initMatrix(r, c);
+            const val = (e.target as HTMLSelectElement).value;
+            if (val.startsWith('custom-layout:')) {
+                this.applyPresetLayout(val);
+            } else {
+                const [r, c] = val.split('x').map(Number);
+                this.initMatrix(r, c);
+            }
             this.renderModal();
         };
 
@@ -1562,5 +1680,7 @@ export class MultiColumnBuilderModal extends Modal {
             this.closeSuggesterFn();
             this.closeSuggesterFn = null;
         }
+        this.liveDashboardEl = null;
+        this.contentEl.empty();
     }
 }

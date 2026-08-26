@@ -24,7 +24,7 @@ interface PluginWithSettings {
     saveSettings(): Promise<void>;
 }
 
-type SettingsTabId = 'styles' | 'standard' | 'colors' | 'layouts' | 'guide' | 'general';
+type SettingsTabId = 'styles' | 'standard' | 'colors' | 'layouts' | 'commands' | 'guide' | 'general';
 
 export class SpecialCalloutsSettingTab extends PluginSettingTab {
     plugin: PluginWithSettings;
@@ -72,6 +72,9 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             case 'layouts':
                 this.renderLayoutBuilderTab(tabContentContainer);
                 break;
+            case 'commands':
+                this.renderCommandPaletteTab(tabContentContainer);
+                break;
             case 'guide':
                 this.renderGuideTab(tabContentContainer);
                 break;
@@ -92,7 +95,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         right.style.gap = '8px';
 
         const guideBtn = new ButtonComponent(right)
-            .setButtonText('=��� Cheat Sheet')
+            .setButtonText('📖 Cheat Sheet')
             .onClick(() => {
                 showMetadataReference(this.app);
             });
@@ -114,6 +117,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             { id: 'standard', label: 'Standard Callouts', icon: 'bookmark' },
             { id: 'colors', label: 'Color Palettes', icon: 'droplet' },
             { id: 'layouts', label: 'Layout Builder', icon: 'layout-grid' },
+            { id: 'commands', label: 'Command Palette', icon: 'terminal' },
             { id: 'guide', label: 'Guide & Syntax', icon: 'book-open' },
             { id: 'general', label: 'General & Defaults', icon: 'settings' }
         ];
@@ -969,12 +973,39 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     }
 
     // =========================================================================
-    // TAB 6: GENERAL & DEFAULTS
+    // TAB 5: COMMAND PALETTE MANAGEMENT
     // =========================================================================
-    private renderGeneralTab(container: HTMLElement): void {
+    private renderCommandPaletteTab(container: HTMLElement): void {
+        const topHeader = container.createDiv({ cls: 'sc-section-header' });
+        topHeader.createEl('h3', { text: '⌨️ Command Palette Management' });
+        topHeader.createEl('p', {
+            text: 'Control which special callouts, dashboards, and layouts appear as executable commands in the Obsidian Command Palette (Ctrl+P / Cmd+P) and manage command defaults.',
+            cls: 'sc-section-desc'
+        });
+
+        // Quick Hotkeys tip alert
+        const tipAlert = container.createDiv();
+        tipAlert.style.background = 'var(--background-secondary)';
+        tipAlert.style.border = '1px solid var(--interactive-accent)';
+        tipAlert.style.borderRadius = '8px';
+        tipAlert.style.padding = '10px 14px';
+        tipAlert.style.marginBottom = '1.5rem';
+        tipAlert.style.display = 'flex';
+        tipAlert.style.alignItems = 'center';
+        tipAlert.style.gap = '10px';
+
+        const tipIcon = tipAlert.createSpan();
+        setIcon(tipIcon, 'zap');
+        tipIcon.style.color = 'var(--interactive-accent)';
+
+        const tipText = tipAlert.createDiv();
+        tipText.style.fontSize = '0.85rem';
+        tipText.innerHTML = '<strong>Pro-Tip:</strong> Any command enabled below can be bound to custom keyboard shortcuts under <code>Settings → Hotkeys → Special Callouts</code>.';
+
+        // 1. Command Insertion Defaults
         new Setting(container)
             .setName('Default Callout Metadata')
-            .setDesc('Default metadata (e.g. "compact, col:2") automatically appended when inserting callouts via command palette.')
+            .setDesc('Metadata automatically appended when inserting callouts via command palette (e.g. "compact, col:2").')
             .addText(text => text
                 .setPlaceholder('compact, col:2')
                 .setValue(this.plugin.settings.defaultMetadata || '')
@@ -983,11 +1014,211 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
+        // 2. Core Studio & Quick Insert Commands
         new Setting(container)
-            .setName('Command Palette Shortcuts')
-            .setDesc('You can assign hotkeys to your favorite callouts in Settings G�� Hotkeys G�� Special Callouts.')
+            .setName('Core Plugin Commands')
+            .setDesc('Standard studio and builder commands registered globally in the palette')
             .setHeading();
 
+        const coreCommands = [
+            { name: 'Special Callout Studio (Create / Edit Single & Multi)...', desc: 'Unified Studio dialog for editing or inserting single callouts and multi-column dashboards with live preview.' },
+            { name: 'Insert Special Callout (Single Mode)...', desc: 'Directly opens Single Callout inserter with full color, typography, and border controls.' },
+            { name: 'Insert Multi-Column Dashboard (Multi Mode)...', desc: 'Directly opens visual drag-and-drop matrix dashboard builder.' },
+            { name: 'Insert Callout from Style Palette...', desc: 'Searchable quick suggester modal listing all standard and custom callout presets.' },
+            { name: 'Insert Column Layout from Presets...', desc: 'Quick column suggester to divide note areas into 2-6 columns.' },
+            { name: 'Change Icon of Callout at Cursor...', desc: 'Searchable Lucide icon picker that replaces the active callout icon in place.' }
+        ];
+
+        const coreTable = container.createDiv();
+        coreTable.style.background = 'var(--background-secondary)';
+        coreTable.style.border = '1px solid var(--background-modifier-border)';
+        coreTable.style.borderRadius = '8px';
+        coreTable.style.padding = '8px 12px';
+        coreTable.style.marginBottom = '1.5rem';
+
+        coreCommands.forEach((cmd, idx) => {
+            const row = coreTable.createDiv();
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.style.alignItems = 'center';
+            row.style.padding = '8px 4px';
+            if (idx < coreCommands.length - 1) {
+                row.style.borderBottom = '1px solid var(--background-modifier-border)';
+            }
+
+            const left = row.createDiv();
+            const nameEl = left.createDiv({ text: cmd.name });
+            nameEl.style.fontWeight = '600';
+            nameEl.style.fontSize = '0.88rem';
+
+            const descEl = left.createDiv({ text: cmd.desc });
+            descEl.style.fontSize = '0.78rem';
+            descEl.style.color = 'var(--text-muted)';
+
+            const badge = row.createSpan({ cls: 'sc-studio-badge', text: 'Active' });
+            badge.style.marginLeft = '12px';
+        });
+
+        // 3. Custom Styles Commands
+        const customStyles = this.plugin.settings.customStyles || [];
+        const customHeader = new Setting(container)
+            .setName(`Custom Styles Commands (${customStyles.length} Styles)`)
+            .setDesc('Toggle individual palette commands for each custom callout style (e.g. "Insert [Style] Callout")')
+            .setHeading();
+
+        if (customStyles.length > 0) {
+            customHeader
+                .addButton(btn => btn
+                    .setButtonText('Enable All')
+                    .onClick(async () => {
+                        customStyles.forEach(s => s.showInCommandPalette = true);
+                        await this.plugin.saveSettings();
+                        new Notice('Enabled all custom style commands. Reload Obsidian to register new commands.');
+                        this.renderSettings();
+                    }))
+                .addButton(btn => btn
+                    .setButtonText('Disable All')
+                    .onClick(async () => {
+                        customStyles.forEach(s => s.showInCommandPalette = false);
+                        await this.plugin.saveSettings();
+                        new Notice('Disabled all custom style commands.');
+                        this.renderSettings();
+                    }));
+
+            const stylesList = container.createDiv();
+            stylesList.style.background = 'var(--background-secondary)';
+            stylesList.style.border = '1px solid var(--background-modifier-border)';
+            stylesList.style.borderRadius = '8px';
+            stylesList.style.padding = '8px 12px';
+            stylesList.style.marginBottom = '1.5rem';
+
+            customStyles.forEach((style, idx) => {
+                const row = stylesList.createDiv();
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '8px 4px';
+                if (idx < customStyles.length - 1) {
+                    row.style.borderBottom = '1px solid var(--background-modifier-border)';
+                }
+
+                const left = row.createDiv();
+                left.style.display = 'flex';
+                left.style.alignItems = 'center';
+                left.style.gap = '8px';
+
+                if (style.icon) {
+                    const iconSpan = left.createSpan();
+                    setIcon(iconSpan, style.icon);
+                    iconSpan.style.color = style.iconColor || style.border || 'var(--text-accent)';
+                }
+
+                const info = left.createDiv();
+                const titleSpan = info.createDiv({ text: `Insert "${style.name}" Callout` });
+                titleSpan.style.fontWeight = '600';
+                titleSpan.style.fontSize = '0.88rem';
+
+                const subSpan = info.createDiv({ text: `Command ID: insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, '-')}` });
+                subSpan.style.fontSize = '0.75rem';
+                subSpan.style.color = 'var(--text-muted)';
+
+                const right = row.createDiv();
+                new ToggleComponent(right)
+                    .setValue(style.showInCommandPalette !== false)
+                    .onChange(async (val) => {
+                        style.showInCommandPalette = val;
+                        await this.plugin.saveSettings();
+                        new Notice(`"${style.name}" command ${val ? 'enabled' : 'disabled'}. Reload Obsidian to update palette.`);
+                    });
+            });
+        } else {
+            const emptyEl = container.createDiv();
+            emptyEl.style.padding = '12px 16px';
+            emptyEl.style.background = 'var(--background-secondary)';
+            emptyEl.style.border = '1px dashed var(--background-modifier-border)';
+            emptyEl.style.borderRadius = '8px';
+            emptyEl.style.color = 'var(--text-muted)';
+            emptyEl.style.marginBottom = '1.5rem';
+            emptyEl.innerText = 'No custom styles created yet. Create presets in the "Custom Styles" tab to configure individual commands.';
+        }
+
+        // 4. Custom Layouts Commands
+        const customLayouts = this.plugin.settings.customLayouts || [];
+        const layoutHeader = new Setting(container)
+            .setName(`Custom Layouts Commands (${customLayouts.length} Layouts)`)
+            .setDesc('Toggle individual palette commands for each saved grid layout (e.g. "Insert [Layout] Layout")')
+            .setHeading();
+
+        if (customLayouts.length > 0) {
+            layoutHeader
+                .addButton(btn => btn
+                    .setButtonText('Enable All')
+                    .onClick(async () => {
+                        customLayouts.forEach(l => l.showInCommandPalette = true);
+                        await this.plugin.saveSettings();
+                        new Notice('Enabled all custom layout commands. Reload Obsidian to register new commands.');
+                        this.renderSettings();
+                    }))
+                .addButton(btn => btn
+                    .setButtonText('Disable All')
+                    .onClick(async () => {
+                        customLayouts.forEach(l => l.showInCommandPalette = false);
+                        await this.plugin.saveSettings();
+                        new Notice('Disabled all custom layout commands.');
+                        this.renderSettings();
+                    }));
+
+            const layoutList = container.createDiv();
+            layoutList.style.background = 'var(--background-secondary)';
+            layoutList.style.border = '1px solid var(--background-modifier-border)';
+            layoutList.style.borderRadius = '8px';
+            layoutList.style.padding = '8px 12px';
+            layoutList.style.marginBottom = '1.5rem';
+
+            customLayouts.forEach((layout, idx) => {
+                const row = layoutList.createDiv();
+                row.style.display = 'flex';
+                row.style.justifyContent = 'space-between';
+                row.style.alignItems = 'center';
+                row.style.padding = '8px 4px';
+                if (idx < customLayouts.length - 1) {
+                    row.style.borderBottom = '1px solid var(--background-modifier-border)';
+                }
+
+                const left = row.createDiv();
+                const titleSpan = left.createDiv({ text: `Insert "${layout.name}" Layout` });
+                titleSpan.style.fontWeight = '600';
+                titleSpan.style.fontSize = '0.88rem';
+
+                const subSpan = left.createDiv({ text: `${layout.cols} Columns × ${layout.rows} Rows` });
+                subSpan.style.fontSize = '0.75rem';
+                subSpan.style.color = 'var(--text-muted)';
+
+                const right = row.createDiv();
+                new ToggleComponent(right)
+                    .setValue(layout.showInCommandPalette === true)
+                    .onChange(async (val) => {
+                        layout.showInCommandPalette = val;
+                        await this.plugin.saveSettings();
+                        new Notice(`"${layout.name}" layout command ${val ? 'enabled' : 'disabled'}. Reload Obsidian to update palette.`);
+                    });
+            });
+        } else {
+            const emptyEl = container.createDiv();
+            emptyEl.style.padding = '12px 16px';
+            emptyEl.style.background = 'var(--background-secondary)';
+            emptyEl.style.border = '1px dashed var(--background-modifier-border)';
+            emptyEl.style.borderRadius = '8px';
+            emptyEl.style.color = 'var(--text-muted)';
+            emptyEl.style.marginBottom = '1.5rem';
+            emptyEl.innerText = 'No custom grid layouts saved yet. Create layouts in the "Layout Builder" tab to configure individual commands.';
+        }
+    }
+
+    // =========================================================================
+    // TAB 6: GENERAL & DEFAULTS
+    // =========================================================================
+    private renderGeneralTab(container: HTMLElement): void {
         new Setting(container)
             .setName('Backup & Data Management')
             .setDesc('Export or import your Special Callouts configuration as JSON')

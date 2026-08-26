@@ -206,6 +206,18 @@ lives in the user's settings, so a note using `(my_dashboard)` renders as a plai
 any vault that does not have that layout saved. For notes meant to be shared or published,
 prefer inline grid syntax.
 
+## Multi-Column Dashboard Studio & Saved Custom Layouts
+
+In the **Multi-Column Dashboard Studio** (`MultiColumnBuilderModal.ts`):
+- **Built-in Presets**: Quick starters including `⚡ Hero + 2 Cards`, `📊 Workspace`, `📰 3 Columns`, and `🔲 2×2 Quad`.
+- **Saved Custom Layouts Integration**: Any custom layout designed and saved in **Settings → Layout Builder** automatically populates the preset gallery cards (`📐 [Name] (Cols×Rows)`) and the *Custom Grid Matrix* dropdown.
+- **Instant Reconstruction**: Selecting a custom layout parses its `gridAreas` string, calculates bounding boxes for merged and split areas, applies default visual accents (colors, icons, badges), and seamlessly loads the full-space content editor.
+- **Smart 4-Tab Architecture**:
+  1. **Tab 1: Box Editor & Grid Canvas** — Toggles between the layout preset gallery / matrix and the full-space box Markdown editor.
+  2. **Tab 2: Colors & Accents** — Direct per-box background, border, title, text, link, and neon controls.
+  3. **Tab 3: Typography & Icons** — Searchable Lucide icon picker, font families, and size scales.
+  4. **Tab 4: Borders & Layout** — Border width, style, radius, compact, and centering flags.
+
 ## Dataview integration
 
 Dataview output is ordinary lists, so `col:` works on it directly:

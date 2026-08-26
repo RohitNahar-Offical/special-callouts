@@ -1,7 +1,7 @@
 import { App, Modal, Editor, Setting, setIcon, Notice, MarkdownRenderer } from 'obsidian';
 import { SpecialCalloutsSettings, CalloutStyle, CalloutConfig } from '../types';
 import { DEFAULT_STANDARD_STYLES } from '../constants';
-import { serializeMetadata, parseMetadata } from '../parser';
+import { serializeMetadata, parseMetadata, extractMetadata } from '../parser';
 import {
     createColorSetting,
     createIconSetting,
@@ -140,10 +140,10 @@ export class InsertCalloutModal extends Modal {
 
         // Extract metadata span in title if present: e.g. "(bg:red, link:yellow) My Title" or "My Title (bg:red)"
         let metaStr = pipeMeta;
-        const parenMatch = rawTitle.match(/\(([^)]+)\)/);
-        if (parenMatch) {
-            metaStr = metaStr ? `${metaStr}, ${parenMatch[1]}` : parenMatch[1];
-            rawTitle = rawTitle.replace(parenMatch[0], '').trim();
+        const extracted = extractMetadata(rawTitle, (this.settings.customLayouts || []).map(l => l.name));
+        if (extracted) {
+            metaStr = metaStr ? `${metaStr}, ${extracted.content}` : extracted.content;
+            rawTitle = extracted.title;
         }
 
         this.titleText = rawTitle || this.calloutType.charAt(0).toUpperCase() + this.calloutType.slice(1);
@@ -333,98 +333,107 @@ export class InsertCalloutModal extends Modal {
     }
 
     private renderContentSection(container: HTMLElement): void {
-        // Preset / Type Chooser
-        new Setting(container)
-            .setName('Callout Preset / Type')
-            .setDesc('Select standard Obsidian type or a saved custom style')
-            .addDropdown(drop => {
-                drop.addOption('custom-builder', '🎨 Open Multi-Column Grid Dashboard...');
-                drop.addOption('std:note', 'Standard: Note');
-                drop.addOption('std:tip', 'Standard: Tip');
-                drop.addOption('std:info', 'Standard: Info');
-                drop.addOption('std:warning', 'Standard: Warning');
-                drop.addOption('std:danger', 'Standard: Danger');
-                drop.addOption('std:success', 'Standard: Success');
-                drop.addOption('std:question', 'Standard: Question');
-                drop.addOption('std:quote', 'Standard: Quote');
-                drop.addOption('std:example', 'Standard: Example');
-                drop.addOption('std:todo', 'Standard: Todo');
+        const formCard = container.createDiv({ cls: 'sc-card-item' });
+        formCard.style.background = 'var(--background-secondary)';
+        formCard.style.border = '1px solid var(--background-modifier-border)';
+        formCard.style.borderRadius = '8px';
+        formCard.style.padding = '14px';
 
-                if (this.settings.customStyles.length > 0) {
-                    this.settings.customStyles.forEach(s => {
-                        drop.addOption(`custom:${s.name}`, `Custom: ${s.name}`);
-                    });
-                }
+        // Top Row: Type Select & Title Input
+        const topCtrl = formCard.createDiv();
+        topCtrl.style.display = 'grid';
+        topCtrl.style.gridTemplateColumns = '150px 1fr';
+        topCtrl.style.gap = '10px';
+        topCtrl.style.marginBottom = '12px';
 
-                drop.setValue(`std:${this.calloutType}`);
-                drop.onChange(val => {
-                    if (val === 'custom-builder') {
-                        this.close();
-                        new MultiColumnBuilderModal(this.app, this.settings, this.editor).open();
-                        return;
-                    }
+        const typeSelect = topCtrl.createEl('select');
 
-                    if (val.startsWith('std:')) {
-                        const type = val.slice(4);
-                        this.calloutType = type;
-                        this.titleText = type.charAt(0).toUpperCase() + type.slice(1);
-                        const std = DEFAULT_STANDARD_STYLES[type];
-                        if (std) {
-                            this.bgColor = std.bg;
-                            this.borderColor = std.border;
-                            this.iconName = std.icon;
-                        }
-                    } else if (val.startsWith('custom:')) {
-                        const name = val.slice(7);
-                        const custom = this.settings.customStyles.find(s => s.name === name);
-                        if (custom) {
-                            this.calloutType = custom.name;
-                            this.titleText = custom.name;
-                            this.bgColor = custom.bg || '#448aff';
-                            this.borderColor = custom.border || '#448aff';
-                            this.textColor = custom.text || '';
-                            this.linkColor = custom.link || '';
-                            this.titleColor = custom.titleColor || '';
-                            this.iconColor = custom.iconColor || '';
-                            this.iconName = custom.icon || 'pencil';
-                            this.font = custom.font || '';
-                            this.fontSize = custom.fontSize ?? 3;
-                            this.borderWidth = custom.borderWidth || '1px';
-                            this.borderStyle = custom.borderStyle || 'solid';
-                            this.borderRadius = custom.borderRadius || '8px';
-                            this.neon = custom.neon || '';
-                            this.compact = !!custom.compact;
-                            this.center = !!custom.center;
-                            this.titleCenter = !!custom.titleCenter;
-                            this.noIcon = !!custom.noIcon;
-                        }
-                    }
-                    this.updateLivePreview();
-                });
+        // Standard presets group
+        const stdGroup = typeSelect.createEl('optgroup', { attr: { label: 'Standard Callouts' } });
+        ['note', 'tip', 'info', 'warning', 'danger', 'success', 'question', 'quote', 'bug', 'example', 'summary', 'important', 'caution', 'todo'].forEach(t => {
+            const opt = stdGroup.createEl('option', { value: t, text: t.charAt(0).toUpperCase() + t.slice(1) });
+            if (t.toLowerCase() === this.calloutType.toLowerCase()) opt.selected = true;
+        });
+
+        // Custom user styles group
+        if (this.settings.customStyles && this.settings.customStyles.length > 0) {
+            const customGroup = typeSelect.createEl('optgroup', { attr: { label: 'Custom Styles' } });
+            this.settings.customStyles.forEach(s => {
+                const opt = customGroup.createEl('option', { value: `custom:${s.name}`, text: s.name });
+                if (s.name.toLowerCase() === this.calloutType.toLowerCase()) opt.selected = true;
             });
+        }
 
-        // Title Input
-        new Setting(container)
-            .setName('Callout Title')
-            .addText(text => text
-                .setValue(this.titleText)
-                .onChange(val => {
-                    this.titleText = val;
-                    this.updateLivePreview();
-                }));
+        const titleInput = topCtrl.createEl('input', {
+            type: 'text',
+            value: this.titleText,
+            placeholder: 'Callout Title'
+        });
 
-        // Content Input
-        new Setting(container)
-            .setName('Content Body')
-            .setDesc('Supports markdown formatting, lists, #tags, and [[internal link]] suggestions')
-            .setHeading();
+        typeSelect.onchange = (e) => {
+            const val = (e.target as HTMLSelectElement).value;
+            if (val.startsWith('custom:')) {
+                const name = val.slice(7);
+                const custom = this.settings.customStyles.find(s => s.name === name);
+                if (custom) {
+                    this.calloutType = custom.name;
+                    if (!this.titleText || this.titleText.toLowerCase() === 'note' || this.titleText === this.calloutType) {
+                        this.titleText = custom.name;
+                        titleInput.value = custom.name;
+                    }
+                    this.bgColor = custom.bg || '#448aff';
+                    this.borderColor = custom.border || '#448aff';
+                    this.textColor = custom.text || '';
+                    this.linkColor = custom.link || '';
+                    this.titleColor = custom.titleColor || '';
+                    this.iconColor = custom.iconColor || '';
+                    this.iconName = custom.icon || 'pencil';
+                    this.font = custom.font || '';
+                    this.fontSize = custom.fontSize ?? 3;
+                    this.borderWidth = custom.borderWidth || '1px';
+                    this.borderStyle = custom.borderStyle || 'solid';
+                    this.borderRadius = custom.borderRadius || '8px';
+                    this.neon = custom.neon || '';
+                    this.compact = !!custom.compact;
+                    this.center = !!custom.center;
+                    this.titleCenter = !!custom.titleCenter;
+                    this.noIcon = !!custom.noIcon;
+                }
+            } else {
+                const type = val;
+                this.calloutType = type;
+                const formattedTitle = type.charAt(0).toUpperCase() + type.slice(1);
+                if (!this.titleText || this.titleText.toLowerCase() === this.calloutType.toLowerCase()) {
+                    this.titleText = formattedTitle;
+                    titleInput.value = formattedTitle;
+                }
+                const std = DEFAULT_STANDARD_STYLES[type];
+                if (std) {
+                    this.bgColor = std.bg;
+                    this.borderColor = std.border;
+                    this.iconName = std.icon;
+                }
+            }
+            this.updateLivePreview();
+        };
+
+        titleInput.oninput = (e) => {
+            this.titleText = (e.target as HTMLInputElement).value;
+            this.updateLivePreview();
+        };
+
+        // Rich Markdown Editor with Toolbar & [[ Suggester
+        if (this.closeSuggesterFn) {
+            this.closeSuggesterFn();
+            this.closeSuggesterFn = null;
+        }
 
         const editorComp = createMarkdownEditorWithToolbar({
-            container,
+            container: formCard,
             app: this.app,
             initialValue: this.contentText,
-            placeholder: 'Type markdown content, [[links]], or bullet points...',
-            rows: 5,
+            placeholder: 'Type callout content, [[links]], #tags, or lists...',
+            rows: 6,
             onChange: (val) => {
                 this.contentText = val;
                 this.updateLivePreview();
@@ -640,5 +649,17 @@ export class InsertCalloutModal extends Modal {
             this.editor.replaceSelection(fullBlock);
             new Notice('Inserted Callout!');
         }
+    }
+
+    onClose(): void {
+        if (this.closeSuggesterFn) {
+            this.closeSuggesterFn();
+            this.closeSuggesterFn = null;
+        }
+        this.liveCalloutEl = null;
+        this.titleInnerEl = null;
+        this.iconEl = null;
+        this.bodyEl = null;
+        this.contentEl.empty();
     }
 }

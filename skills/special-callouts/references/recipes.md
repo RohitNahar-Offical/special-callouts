@@ -61,8 +61,7 @@ gradient. This is the workaround for `bg:` being translucent.
 > Production deploy failed.
 ```
 
-Neon needs a dark `bg:` to show. Use 6-digit hex — the glow is built by appending an alpha
-suffix and silently breaks on `#f00` or on CSS keywords outside the palette.
+Neon renders best against a dark `bg:`. Hex codes (`#ff0044`, `#00ffcc`), palette names (`cyan`, `teal`), and standard CSS keywords are fully supported.
 
 ### Two-tone header
 

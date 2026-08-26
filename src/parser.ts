@@ -110,6 +110,9 @@ export function parseMetadata(
     const cacheKey = customLayoutNames.length > 0 ? `${trimmed}::${customLayoutNames.join(',')}` : trimmed;
     const cached = parseCache.get(cacheKey);
     if (cached) {
+        // Refresh LRU order
+        parseCache.delete(cacheKey);
+        parseCache.set(cacheKey, cached);
         // Return a fresh copy of the config object so mutations do not leak
         return { config: { ...cached.config }, layoutParam: cached.layoutParam, styleParam: cached.styleParam };
     }

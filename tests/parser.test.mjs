@@ -587,6 +587,14 @@ describe('edge cases and stress boundaries', () => {
         const body = lines.slice(1).map(l => l.replace(/^\s*>\s?/, '')).join('\n');
         assert.equal(body, 'Line 1 content\nLine 2 content with `code`');
     });
+
+    test('extracts nested grouped metadata and titles cleanly', () => {
+        const rawTitle = '(bg:red, text:(white, dark-border), 1:3:1) Feature Matrix (Beta)';
+        const extracted = extractMetadata(rawTitle);
+        assert.ok(extracted);
+        assert.equal(extracted.content, 'bg:red, text:(white, dark-border), 1:3:1');
+        assert.equal(extracted.title, 'Feature Matrix (Beta)');
+    });
 });
 
 

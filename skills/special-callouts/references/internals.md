@@ -205,59 +205,34 @@ Registered in `main.ts`, all available from the command palette and assignable t
 
 | Id | Name | Behaviour |
 |---|---|---|
-| `insert-custom-callout` | Insert Custom Style… | picker over saved presets, inserts `> [!name]` |
-| `wrap-selection-in-callout` | Wrap Selection in Callout… | wraps the selection in a chosen preset |
-| `insert-multi-column-layout` | Insert Multi-Column Layout… | scaffolds a `multi-callout` with 2–4 panels |
-| `change-current-callout-icon` | Change Icon of Callout at Cursor | icon picker; **writes the pipe form** |
-| `advanced-callout-builder` | Advanced Callout Builder… | modal for type/bg/icon/radius/compact/center |
-| `insert-<style-name>` | Insert "<name>" Callout | one per saved preset |
+| `insert-special-callout-modal` | Special Callout Studio (Create / Edit Single & Multi)... | Unified studio modal with top switcher for Single and Multi-Column Dashboards |
+| `insert-special-callout-single` | Insert Special Callout (Single Mode)... | Directly opens Single Callout inserter with full color, typography, and border controls |
+| `multi-column-dashboard-builder` | Insert Multi-Column Dashboard (Multi Mode)... | Directly opens visual drag-and-drop matrix dashboard builder |
+| `insert-custom-callout` | Insert Callout from Style Palette... | Searchable quick suggester modal listing all standard and custom callout presets |
+| `insert-multi-column-layout` | Insert Column Layout from Presets... | Quick column suggester to divide note areas into 2–6 columns |
+| `change-current-callout-icon` | Change Icon of Callout at Cursor... | Searchable Lucide icon picker that replaces the active callout icon in place |
+| `insert-<style-name>` | Insert "<name>" Callout | One per saved custom style (toggleable in Command Palette tab) |
+| `insert-layout-<layout-name>` | Insert "<name>" Layout | One per saved custom layout (toggleable in Command Palette tab) |
 
-Two caveats. The per-preset commands are registered during `onload`, so a newly created
-preset does not get its command until Obsidian reloads. And `insert-custom-callout` /
-`wrap-selection-in-callout` append **Default Callout Metadata** using the pipe form, so that
-setting should stay empty.
-
-The *Advanced Callout Builder* is the one command that emits correct parenthesis syntax.
-
-## Settings UI map
+## Settings UI Map
 
 **Settings → Community plugins → Special Callouts**
 
-1. **Core Layout** — the Default Callout Metadata field (see the caveat above).
-2. **Visual Layout Builder** — columns/rows 1–8, drag to select, Merge / Split, name, save.
-   Saved layouts can be edited, deleted, exported and imported. Names are lowercased with
-   whitespace turned into underscores. Area ids are renumbered in reading order after every
-   merge or split, which is what makes children map onto areas predictably.
-3. **Callouts → Custom Callouts** — the preset editor: quick-start presets (Ocean Deep,
-   Neon Glow, Forest, Sunset), a randomiser, live preview, icon picker, colour pickers for
-   background/border/title/icon/text/link (the icon picker follows the title colour until
-   set, with a reset that hands it back), neon toggle, font family and size, border style,
-   width and radius sliders, compact and hide-icon toggles, plus import/export.
-4. **Callouts → Standard Callouts** — override the built-in types' colors, grid or list
-   view, reset to default.
-5. **Colors** — edit the standard palette's hex values, and define custom named colors
-   usable anywhere a color is accepted.
+1. **Custom Styles (`palette`)** — Searchable cards of custom callout presets with live preview, Quick Start presets, and full parameter modals.
+2. **Standard Callouts (`bookmark`)** — Customize the appearance of standard Obsidian callout types (`note`, `tip`, `warning`, `danger`, etc.).
+3. **Color Palettes (`droplet`)** — Palette manager for standard hex overrides and custom named colors.
+4. **Layout Builder (`layout-grid`)** — Interactive 1×1 to 6×6 visual grid matrix builder with cell merging and splitting. Saved custom layouts automatically integrate with the Multi-Column Dashboard Studio.
+5. **Command Palette (`terminal`)** — Dedicated command palette management tab. Configure default callout metadata, review all core studio commands, and toggle individual per-style and per-layout command registrations with batch `[ Enable All ]` / `[ Disable All ]` actions.
+6. **Guide & Syntax (`book-open`)** — Interactive documentation, cheat sheet, and parameter table.
+7. **General & Defaults (`settings`)** — Data management with full JSON export, import, and factory reset.
 
-## Known bugs and inconsistencies
+## Performance & Optimization Architecture
 
-### Fixed in 1.0.9
-
-- **The layout scan reached inside values.** The bare `N:M` token is the one entry written
-  without a key, so it is looked for across the whole metadata string before it is split
-  into parameters — and digits with separators inside a value look exactly like it.
-  `bg:rgba(0,0,0,0.5)` had `0,0` cut out of it and rendered from `rgba(0,,0.5)`. The scan
-  now runs over a copy with the contents of every parenthesised group masked out.
-- **A preset with an empty colour blanked the callout.** `applyStyleObject` applied
-  background, text and link unguarded, so an unset field produced
-  `color-mix(in srgb,  15%, transparent)`. That is invalid at computed-value time, which
-  drops the property to its initial value instead of leaving the theme's in place — a
-  border-only preset lost the callout's tint.
-- **Presets and inline metadata were two copies of the apply logic**, and they had drifted:
-  the preset path folded the border width into the `--sc-border` shorthand while the inline
-  path hardcoded `1px`, which only looked consistent because the `data-sc-bw` rule is
-  declared later in the stylesheet. `applyStyleObject` now builds a `CalloutConfig` and
-  hands it to the same `applyConfig` as everything else.
-- **A preset holding a gradient rendered with no background.** The style editor writes
+- **Zero-Allocation String Tokenization**: `smartSplit` in `src/utils.ts` operates on char codes and string slices rather than continuous substring allocations.
+- **LRU Cache Refreshing**: `parseMetadata` maintains an active 250-entry cache refreshed on every hit for true LRU eviction.
+- **Bounded Micro-Caching**: `neonStyles` (100 entries) and `createTransparentBg` (200 entries) eliminate repetitive CSS color computations.
+- **DOM & Listener Lifecycle Cleanup**: Modals implement full suggester teardown and DOM disposal on `onClose()`.
+- **Parentheses Safety**: Non-metadata parenthesized text in titles (e.g. `(Phase 1)`) is preserved without stripping, while grouped metadata (e.g. `text:(white, dark-border)`) parses cleanly.
   the composed `linear-gradient(90deg, …)` into the style's `bg` field, which then went
   through `applyColor` and `color-mix` — invalid at computed-value time. `applyGradient`
   now accepts either the finished function or the inline `c1-c2` shorthand.
