@@ -74,19 +74,22 @@ export default class SpecialCallouts extends Plugin {
                 const mutation = mutations[i];
                 for (let j = 0; j < mutation.addedNodes.length; j++) {
                     const node = mutation.addedNodes[j];
-                    if (node instanceof HTMLElement) {
-                        if (node.classList?.contains('callout')) {
-                            this.processor.processCallout(node);
-                        }
-                        const nested = node.querySelectorAll?.<HTMLElement>('.callout');
-                        if (nested && nested.length > 0) {
-                            nested.forEach(c => this.processor.processCallout(c));
+                    if (node.nodeType === 1) {
+                        const el = node as HTMLElement;
+                        if (el.classList.contains('callout')) {
+                            this.processor.processCallout(el);
+                        } else if (el.childElementCount > 0) {
+                            const nested = el.querySelectorAll<HTMLElement>('.callout');
+                            if (nested.length > 0) {
+                                nested.forEach(c => this.processor.processCallout(c));
+                            }
                         }
                     }
                 }
             }
         });
-        livePreviewObserver.observe(document.body, { childList: true, subtree: true });
+        const targetContainer = this.app.workspace.containerEl || document.body;
+        livePreviewObserver.observe(targetContainer, { childList: true, subtree: true });
         this.register(() => livePreviewObserver.disconnect());
 
         // Register right-click context menu in editor

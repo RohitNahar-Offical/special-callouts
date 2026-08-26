@@ -1114,14 +1114,18 @@ var CalloutProcessor = class {
       prevObserver.disconnect();
       this.activeObservers.delete(prevObserver);
     }
+    const calloutRef = new WeakRef(calloutEl);
     const observer = new MutationObserver(() => {
-      if (!calloutEl.isConnected) {
+      const el = calloutRef.deref();
+      if (!el || !el.isConnected) {
         observer.disconnect();
         this.activeObservers.delete(observer);
-        this.observers.delete(calloutEl);
         return;
       }
-      this.applyAreasToChildren(contentEl);
+      const content = el.querySelector(".callout-content");
+      if (content) {
+        this.applyAreasToChildren(content);
+      }
     });
     observer.observe(contentEl, { childList: true });
     this.observers.set(calloutEl, observer);
@@ -1256,11 +1260,12 @@ var CalloutProcessor = class {
     }
     const contentEl = calloutEl.querySelector(".callout-content");
     if (!contentEl) return;
+    const calloutRef = new WeakRef(calloutEl);
     const observer = new MutationObserver((mutations) => {
-      if (!calloutEl.isConnected) {
+      const el = calloutRef.deref();
+      if (!el || !el.isConnected) {
         observer.disconnect();
         this.activeObservers.delete(observer);
-        this.observers.delete(calloutEl);
         return;
       }
       let update = false;
@@ -1270,8 +1275,8 @@ var CalloutProcessor = class {
           for (let j = 0; j < m.addedNodes.length; j++) {
             const n = m.addedNodes[j];
             if (n.nodeType === 1) {
-              const el = n;
-              if (el.matches(MUTATION_TARGET_SELECTOR) || el.querySelector(MUTATION_TARGET_SELECTOR)) {
+              const nodeEl = n;
+              if (nodeEl.matches(MUTATION_TARGET_SELECTOR) || nodeEl.querySelector(MUTATION_TARGET_SELECTOR)) {
                 update = true;
                 break;
               }
@@ -1283,7 +1288,7 @@ var CalloutProcessor = class {
         }
         if (update) break;
       }
-      if (update) this.debouncedColumnApply(calloutEl, colCount);
+      if (update) this.debouncedColumnApply(el, colCount);
     });
     observer.observe(contentEl, { childList: true, subtree: true, characterData: true });
     this.observers.set(calloutEl, observer);
@@ -1429,6 +1434,7 @@ var import_obsidian4 = require("obsidian");
 
 // src/modals/IconPickerModal.ts
 var import_obsidian3 = require("obsidian");
+var cachedIconIds = null;
 var IconPickerModal = class extends import_obsidian3.FuzzySuggestModal {
   constructor(app, onChoose) {
     super(app);
@@ -1436,7 +1442,10 @@ var IconPickerModal = class extends import_obsidian3.FuzzySuggestModal {
     this.setPlaceholder("Search for an icon... (e.g. star, pencil, flame)");
   }
   getItems() {
-    return (0, import_obsidian3.getIconIds)();
+    if (!cachedIconIds) {
+      cachedIconIds = (0, import_obsidian3.getIconIds)();
+    }
+    return cachedIconIds;
   }
   getItemText(icon) {
     return icon;
@@ -5339,24 +5348,26 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
       });
     });
     const livePreviewObserver = new MutationObserver((mutations) => {
-      var _a, _b;
       for (let i = 0; i < mutations.length; i++) {
         const mutation = mutations[i];
         for (let j = 0; j < mutation.addedNodes.length; j++) {
           const node = mutation.addedNodes[j];
-          if (node instanceof HTMLElement) {
-            if ((_a = node.classList) == null ? void 0 : _a.contains("callout")) {
-              this.processor.processCallout(node);
-            }
-            const nested = (_b = node.querySelectorAll) == null ? void 0 : _b.call(node, ".callout");
-            if (nested && nested.length > 0) {
-              nested.forEach((c) => this.processor.processCallout(c));
+          if (node.nodeType === 1) {
+            const el = node;
+            if (el.classList.contains("callout")) {
+              this.processor.processCallout(el);
+            } else if (el.childElementCount > 0) {
+              const nested = el.querySelectorAll(".callout");
+              if (nested.length > 0) {
+                nested.forEach((c) => this.processor.processCallout(c));
+              }
             }
           }
         }
       }
     });
-    livePreviewObserver.observe(document.body, { childList: true, subtree: true });
+    const targetContainer = this.app.workspace.containerEl || document.body;
+    livePreviewObserver.observe(targetContainer, { childList: true, subtree: true });
     this.register(() => livePreviewObserver.disconnect());
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor) => {

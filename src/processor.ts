@@ -507,14 +507,18 @@ export class CalloutProcessor {
             this.activeObservers.delete(prevObserver);
         }
 
+        const calloutRef = new WeakRef(calloutEl);
         const observer = new MutationObserver(() => {
-            if (!calloutEl.isConnected) {
+            const el = calloutRef.deref();
+            if (!el || !el.isConnected) {
                 observer.disconnect();
                 this.activeObservers.delete(observer);
-                this.observers.delete(calloutEl);
                 return;
             }
-            this.applyAreasToChildren(contentEl as HTMLElement);
+            const content = el.querySelector('.callout-content');
+            if (content) {
+                this.applyAreasToChildren(content as HTMLElement);
+            }
         });
 
         observer.observe(contentEl, { childList: true });
@@ -678,11 +682,12 @@ export class CalloutProcessor {
         const contentEl = calloutEl.querySelector('.callout-content');
         if (!contentEl) return;
 
+        const calloutRef = new WeakRef(calloutEl);
         const observer = new MutationObserver((mutations) => {
-            if (!calloutEl.isConnected) {
+            const el = calloutRef.deref();
+            if (!el || !el.isConnected) {
                 observer.disconnect();
                 this.activeObservers.delete(observer);
-                this.observers.delete(calloutEl);
                 return;
             }
             let update = false;
@@ -692,8 +697,8 @@ export class CalloutProcessor {
                     for (let j = 0; j < m.addedNodes.length; j++) {
                         const n = m.addedNodes[j];
                         if (n.nodeType === 1) {
-                            const el = n as Element;
-                            if (el.matches(MUTATION_TARGET_SELECTOR) || el.querySelector(MUTATION_TARGET_SELECTOR)) {
+                            const nodeEl = n as Element;
+                            if (nodeEl.matches(MUTATION_TARGET_SELECTOR) || nodeEl.querySelector(MUTATION_TARGET_SELECTOR)) {
                                 update = true;
                                 break;
                             }
@@ -705,7 +710,7 @@ export class CalloutProcessor {
                 }
                 if (update) break;
             }
-            if (update) this.debouncedColumnApply(calloutEl, colCount);
+            if (update) this.debouncedColumnApply(el, colCount);
         });
 
         observer.observe(contentEl, { childList: true, subtree: true, characterData: true });

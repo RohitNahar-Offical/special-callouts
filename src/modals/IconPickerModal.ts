@@ -5,6 +5,8 @@
 
 import { App, FuzzySuggestModal, getIconIds, setIcon } from 'obsidian';
 
+let cachedIconIds: string[] | null = null;
+
 export class IconPickerModal extends FuzzySuggestModal<string> {
     onChoose: (icon: string) => void;
 
@@ -15,7 +17,10 @@ export class IconPickerModal extends FuzzySuggestModal<string> {
     }
 
     getItems(): string[] {
-        return getIconIds();
+        if (!cachedIconIds) {
+            cachedIconIds = getIconIds();
+        }
+        return cachedIconIds;
     }
 
     getItemText(icon: string): string {
