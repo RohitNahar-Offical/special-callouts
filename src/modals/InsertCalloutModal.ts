@@ -8,6 +8,7 @@ import {
     createBorderStyleSetting,
     createFontSetting,
     createFontSizeSetting,
+    createGradientSetting,
     applyStyleToLivePreview,
     createMarkdownEditorWithToolbar
 } from '../ui/UIComponents';
@@ -41,6 +42,7 @@ export class InsertCalloutModal extends Modal {
     private borderColor: string = '#448aff';
     private textColor: string = '';
     private linkColor: string = '';
+    private gradient: string = '';
     private font: string = '';
     private fontSize: number = 3;
     private borderWidth: string = '1px';
@@ -174,6 +176,7 @@ export class InsertCalloutModal extends Modal {
             if (cfg.borderStyle) this.borderStyle = cfg.borderStyle;
             if (cfg.radius) this.borderRadius = cfg.radius;
             if (cfg.neon) this.neon = cfg.neon;
+            if (cfg.gradient) this.gradient = cfg.gradient;
             if (cfg.col) this.colCount = cfg.col;
             if (cfg.compact !== undefined) this.compact = cfg.compact;
             if (cfg.center !== undefined) this.center = cfg.center;
@@ -201,6 +204,7 @@ export class InsertCalloutModal extends Modal {
                 this.borderStyle = custom.borderStyle || 'solid';
                 this.borderRadius = custom.borderRadius || '8px';
                 this.neon = custom.neon || '';
+                this.gradient = custom.gradient || '';
                 this.compact = !!custom.compact;
                 this.center = !!custom.center;
                 this.titleCenter = !!custom.titleCenter;
@@ -394,6 +398,7 @@ export class InsertCalloutModal extends Modal {
                     this.borderStyle = custom.borderStyle || 'solid';
                     this.borderRadius = custom.borderRadius || '8px';
                     this.neon = custom.neon || '';
+                    this.gradient = custom.gradient || '';
                     this.compact = !!custom.compact;
                     this.center = !!custom.center;
                     this.titleCenter = !!custom.titleCenter;
@@ -402,6 +407,7 @@ export class InsertCalloutModal extends Modal {
             } else {
                 const type = val;
                 this.calloutType = type;
+                this.gradient = '';
                 const formattedTitle = type.charAt(0).toUpperCase() + type.slice(1);
                 if (!this.titleText || this.titleText.toLowerCase() === this.calloutType.toLowerCase()) {
                     this.titleText = formattedTitle;
@@ -443,7 +449,12 @@ export class InsertCalloutModal extends Modal {
     }
 
     private renderColorsSection(container: HTMLElement): void {
-        createColorSetting(container, 'Background Color', 'Background tint', this.bgColor, '#448aff', val => {
+        createGradientSetting(container, this.gradient, val => {
+            this.gradient = val;
+            this.updateLivePreview();
+        });
+
+        createColorSetting(container, 'Background Color (Tint)', 'Translucent 15% background tint (used when gradient is off)', this.bgColor, '#448aff', val => {
             this.bgColor = val;
             this.updateLivePreview();
         });
@@ -602,6 +613,7 @@ export class InsertCalloutModal extends Modal {
             borderStyle: this.borderStyle,
             borderRadius: this.borderRadius,
             neon: this.neon,
+            gradient: this.gradient,
             compact: this.compact,
             center: this.center,
             titleCenter: this.titleCenter,
@@ -626,6 +638,7 @@ export class InsertCalloutModal extends Modal {
             borderStyle: this.borderStyle !== 'solid' ? this.borderStyle : '',
             radius: this.borderRadius !== '8px' ? this.borderRadius : '',
             neon: this.neon,
+            gradient: this.gradient,
             col: this.colCount,
             compact: this.compact,
             center: this.center,

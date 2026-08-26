@@ -16,11 +16,11 @@ import {
 } from 'obsidian';
 import { SpecialCalloutsSettings, CustomLayout } from '../types';
 import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES } from '../constants';
-import { normalizeHex, toPx, neonStyles } from '../utils';
+import { normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
 import { parseMetadata, parseGridLayout, extractMetadata } from '../parser';
 import { IconPickerModal } from './IconPickerModal';
 import { InsertCalloutModal } from './InsertCalloutModal';
-import { createMarkdownEditorWithToolbar } from '../ui/UIComponents';
+import { createMarkdownEditorWithToolbar, createGradientSetting } from '../ui/UIComponents';
 
 export interface GridAreaBlock {
     id: string; // e.g. "area1", "area2"
@@ -40,6 +40,7 @@ export interface GridAreaBlock {
     textColor?: string;
     linkColor?: string;
     neon?: string;
+    gradient?: string;
     font?: string;
     fontSize?: number;
     borderWidth?: string;
@@ -262,6 +263,7 @@ export class MultiColumnBuilderModal extends Modal {
                 textColor: config.text || undefined,
                 linkColor: config.link || undefined,
                 neon: config.neon,
+                gradient: config.gradient || undefined,
                 font: config.font,
                 fontSize: config.fontSize || undefined,
                 borderWidth: config.borderWidth,
@@ -1156,6 +1158,7 @@ export class MultiColumnBuilderModal extends Modal {
             area.borderStyle = customStyle.borderStyle || 'solid';
             area.borderRadius = customStyle.borderRadius || '8px';
             area.neon = customStyle.neon || '';
+            area.gradient = customStyle.gradient || '';
             area.compact = customStyle.compact || false;
             area.center = customStyle.center || false;
             area.titleCenter = customStyle.titleCenter || false;
@@ -1173,12 +1176,14 @@ export class MultiColumnBuilderModal extends Modal {
             area.iconName = standardStyle.icon || this.getDefaultIconForType(typeName);
             area.iconColor = standardStyle.iconColor || '';
             area.neon = '';
+            area.gradient = '';
             area.compact = false;
             area.center = false;
             area.titleCenter = false;
             area.noIcon = false;
         } else {
             area.iconName = this.getDefaultIconForType(typeName);
+            area.gradient = '';
         }
     }
 
@@ -1216,9 +1221,15 @@ export class MultiColumnBuilderModal extends Modal {
         infoBanner.style.color = 'var(--text-accent)';
         infoBanner.innerText = `Customizing Colors for Box "${area.title}" (${area.id})`;
 
+        createGradientSetting(container, area.gradient || '', val => {
+            area.gradient = val || undefined;
+            this.updateLivePreview();
+        });
+
         let bgTextComp: TextComponent;
         new Setting(container)
-            .setName('Background Color')
+            .setName('Background Color (Tint)')
+            .setDesc('Translucent 15% background tint (used when gradient is disabled)')
             .addText(text => {
                 bgTextComp = text;
                 text.setValue(area.bgColor || '')
@@ -1550,14 +1561,28 @@ export class MultiColumnBuilderModal extends Modal {
             subCallout.style.gridRow = `${area.minRow + 1} / ${area.maxRow + 2}`;
             subCallout.style.gridColumn = `${area.minCol + 1} / ${area.maxCol + 2}`;
 
-            const bg = area.bgColor ? `color-mix(in srgb, ${area.bgColor} 15%, transparent)` : 'var(--background-secondary)';
-            const border = area.borderColor
-                ? `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} ${area.borderColor}`
-                : `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} var(--interactive-accent)`;
+            if (area.gradient) {
+                let grad = area.gradient.trim();
+                if (!isCssGradient(grad)) {
+                    const parts = grad.split('-');
+                    if (parts.length >= 2) {
+                        grad = `linear-gradient(90deg, ${parts[0]}, ${parts.slice(1).join('-')})`;
+                    }
+                }
+                subCallout.style.background = grad;
+                subCallout.style.border = area.borderColor
+                    ? `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} ${area.borderColor}`
+                    : 'none';
+            } else {
+                const bg = area.bgColor ? `color-mix(in srgb, ${area.bgColor} 15%, transparent)` : 'var(--background-secondary)';
+                const border = area.borderColor
+                    ? `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} ${area.borderColor}`
+                    : `${area.borderWidth || '1px'} ${area.borderStyle || 'solid'} var(--interactive-accent)`;
+                subCallout.style.backgroundColor = bg;
+                subCallout.style.border = border;
+            }
 
             subCallout.dataset.areaId = area.id;
-            subCallout.style.backgroundColor = bg;
-            subCallout.style.border = border;
             subCallout.style.outline = isSelected ? '2px solid var(--interactive-accent)' : 'none';
             subCallout.style.outlineOffset = '2px';
             subCallout.style.borderRadius = area.borderRadius ? toPx(area.borderRadius) : '6px';
@@ -1636,7 +1661,11 @@ export class MultiColumnBuilderModal extends Modal {
 
             const metaParams: string[] = [posToken];
 
-            if (area.bgColor) metaParams.push(`bg:${area.bgColor}`);
+            if (area.gradient) {
+                metaParams.push(`gradient:${area.gradient}`);
+            } else if (area.bgColor) {
+                metaParams.push(`bg:${area.bgColor}`);
+            }
             if (area.borderColor && area.borderColor !== area.bgColor) metaParams.push(`border:${area.borderColor}`);
             if (area.titleColor) metaParams.push(`title:${area.titleColor}`);
             if (area.iconColor) metaParams.push(`icon-color:${area.iconColor}`);

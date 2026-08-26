@@ -218,13 +218,12 @@ Registered in `main.ts`, all available from the command palette and assignable t
 
 **Settings → Community plugins → Special Callouts**
 
-1. **Custom Styles (`palette`)** — Searchable cards of custom callout presets with live preview, Quick Start presets, and full parameter modals.
+1. **Custom Styles (`palette`)** — Searchable cards of custom callout presets with live preview, Quick Start presets, full parameter modals, and expandable **Named Color Palette & Keyword Overrides** manager.
 2. **Standard Callouts (`bookmark`)** — Customize the appearance of standard Obsidian callout types (`note`, `tip`, `warning`, `danger`, etc.).
-3. **Color Palettes (`droplet`)** — Palette manager for standard hex overrides and custom named colors.
-4. **Layout Builder (`layout-grid`)** — Interactive 1×1 to 6×6 visual grid matrix builder with cell merging and splitting. Saved custom layouts automatically integrate with the Multi-Column Dashboard Studio.
-5. **Command Palette (`terminal`)** — Dedicated command palette management tab. Configure default callout metadata, review all core studio commands, and toggle individual per-style and per-layout command registrations with batch `[ Enable All ]` / `[ Disable All ]` actions.
-6. **Guide & Syntax (`book-open`)** — Interactive documentation, cheat sheet, and parameter table.
-7. **General & Defaults (`settings`)** — Data management with full JSON export, import, and factory reset.
+3. **Layout Builder (`layout-grid`)** — Interactive 1×1 to 6×6 visual grid matrix builder with cell merging and splitting. Saved custom layouts automatically integrate with the Multi-Column Dashboard Studio.
+4. **Command Palette (`terminal`)** — Dedicated command palette management tab. Configure default callout metadata, review all core studio commands, and toggle individual per-style and per-layout command registrations with batch `[ Enable All ]` / `[ Disable All ]` actions.
+5. **Guide & Syntax (`book-open`)** — Interactive documentation, cheat sheet, and parameter table.
+6. **General & Defaults (`settings`)** — Data management with full JSON export, import, and factory reset.
 
 ## Performance & Optimization Architecture
 

@@ -25,11 +25,41 @@ export class CalloutProcessor {
     private processedElements: WeakMap<HTMLElement, string> = new WeakMap();
     private debouncedColumnApply: (container: HTMLElement, colCount: number) => void;
 
+    // Fast-lookup caches
+    private modifiedStandardStyles: Map<string, CalloutStyle> = new Map();
+    private customStylesMap: Map<string, CalloutStyle> = new Map();
+    private customLayoutNames: string[] = [];
+
     constructor(settings: SpecialCalloutsSettings) {
         this.settings = settings;
+        this.recomputeIndices();
         this.debouncedColumnApply = debounce((container: HTMLElement, colCount: number) => {
             this.applyColumnsToContainer(container, colCount);
         }, 50);
+    }
+
+    private recomputeIndices(): void {
+        this.modifiedStandardStyles.clear();
+        if (this.settings.standardStyles) {
+            for (const [key, style] of Object.entries(this.settings.standardStyles)) {
+                const def = DEFAULT_STANDARD_STYLES[key];
+                if (def && (style.bg !== def.bg || style.text !== def.text || style.titleColor !== def.titleColor || style.link !== def.link)) {
+                    this.modifiedStandardStyles.set(key, style);
+                }
+            }
+        }
+
+        this.customStylesMap.clear();
+        if (this.settings.customStyles) {
+            for (let i = 0; i < this.settings.customStyles.length; i++) {
+                const s = this.settings.customStyles[i];
+                if (s?.name) {
+                    this.customStylesMap.set(s.name.toLowerCase(), s);
+                }
+            }
+        }
+
+        this.customLayoutNames = (this.settings.customLayouts || []).map(l => l.name);
     }
 
     /**
@@ -37,6 +67,7 @@ export class CalloutProcessor {
      */
     updateSettings(settings: SpecialCalloutsSettings): void {
         this.settings = settings;
+        this.recomputeIndices();
         this.processedElements = new WeakMap();
     }
 
@@ -45,14 +76,34 @@ export class CalloutProcessor {
      */
     processCallout(calloutEl: HTMLElement): void {
         try {
-            const titleEl = calloutEl.querySelector('.callout-title');
+            const calloutType = calloutEl.getAttribute('data-callout');
+
+            if (calloutType === 'multi-callout') {
+                const titleEl = calloutEl.querySelector(':scope > .callout-title') as HTMLElement | null;
+                if (titleEl) titleEl.addClass('sc-hidden');
+                return;
+            }
+
+            const titleEl = (calloutEl.querySelector(':scope > .callout-title') || calloutEl.querySelector('.callout-title')) as HTMLElement | null;
             if (!titleEl) return;
 
-            const innerTitleEl = (titleEl.querySelector('.callout-title-inner') || titleEl) as HTMLElement;
+            let innerTitleEl = (titleEl.querySelector(':scope > .callout-title-inner') || titleEl.querySelector('.callout-title-inner')) as HTMLElement | null;
+            if (!innerTitleEl) {
+                innerTitleEl = titleEl.createSpan({ cls: 'callout-title-inner' });
+                const nodesToMove: Node[] = [];
+                for (let i = 0; i < titleEl.childNodes.length; i++) {
+                    const child = titleEl.childNodes[i];
+                    if (child !== innerTitleEl && !(child instanceof HTMLElement && (child.classList.contains('callout-icon') || child.classList.contains('callout-fold')))) {
+                        nodesToMove.push(child);
+                    }
+                }
+                nodesToMove.forEach(node => innerTitleEl!.appendChild(node));
+            }
+
             const fullText = innerTitleEl.textContent || '';
             const pipeMetadata = calloutEl.getAttribute('data-callout-metadata') || '';
-            const calloutType = calloutEl.getAttribute('data-callout');
-            const cacheKey = `${calloutType}_${pipeMetadata}_${fullText}`;
+            const storedMeta = calloutEl.getAttribute('data-sc-meta') || '';
+            const cacheKey = `${calloutType}_${pipeMetadata}_${fullText}_${storedMeta}`;
 
             // Skip if already processed with identical content
             if (this.processedElements.get(calloutEl) === cacheKey) return;
@@ -64,13 +115,13 @@ export class CalloutProcessor {
             // Apply custom style by type name
             const customMatched = this.applyCustomStyleByType(calloutEl, calloutType);
 
-            // Fast-path: If there is no pipe metadata and title has no parentheses, skip parsing
-            if (!pipeMetadata && !fullText.includes('(')) {
+            // Fast-path: If there is no pipe metadata, no parentheses, and no stored metadata
+            if (!pipeMetadata && !fullText.includes('(') && !storedMeta) {
                 return;
             }
 
-            // Parse and apply metadata (from pipe and/or title)
-            this.processMetadata(calloutEl, innerTitleEl, fullText, pipeMetadata);
+            // Parse and apply metadata (from pipe, title, and/or stored metadata)
+            this.processMetadata(calloutEl, innerTitleEl, fullText, pipeMetadata, storedMeta);
         } catch (error) {
             console.error('Special Callouts: Error processing callout', error);
         }
@@ -80,22 +131,14 @@ export class CalloutProcessor {
      * Applies standard style if user has modified it
      */
     private applyStandardStyleIfModified(calloutEl: HTMLElement, calloutType: string | null): boolean {
-        if (!calloutType) return false;
+        if (!calloutType || this.modifiedStandardStyles.size === 0) return false;
 
         const resolvedType = resolveCalloutType(calloutType);
-        const standardStyle = this.settings.standardStyles[resolvedType];
-        const defaultStyle = DEFAULT_STANDARD_STYLES[resolvedType];
+        const standardStyle = this.modifiedStandardStyles.get(resolvedType);
 
-        if (standardStyle && defaultStyle) {
-            const isModified = standardStyle.bg !== defaultStyle.bg ||
-                standardStyle.text !== defaultStyle.text ||
-                standardStyle.titleColor !== defaultStyle.titleColor ||
-                standardStyle.link !== defaultStyle.link;
-
-            if (isModified) {
-                this.applyStyleObject(calloutEl, standardStyle);
-                return true;
-            }
+        if (standardStyle) {
+            this.applyStyleObject(calloutEl, standardStyle);
+            return true;
         }
         return false;
     }
@@ -104,11 +147,9 @@ export class CalloutProcessor {
      * Applies custom style if callout type matches a custom style name
      */
     private applyCustomStyleByType(calloutEl: HTMLElement, calloutType: string | null): boolean {
-        if (!calloutType) return false;
+        if (!calloutType || this.customStylesMap.size === 0) return false;
 
-        const typeStyle = this.settings.customStyles.find(
-            s => s.name.toLowerCase() === calloutType.toLowerCase()
-        );
+        const typeStyle = this.customStylesMap.get(calloutType.toLowerCase());
         if (typeStyle) {
             this.applyStyleObject(calloutEl, typeStyle);
             return true;
@@ -119,36 +160,47 @@ export class CalloutProcessor {
     /**
      * Processes metadata from callout title and pipe attribute
      */
-    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string, pipeMetadata: string): void {
-        const layoutNames = (this.settings.customLayouts || []).map(l => l.name);
-        const extracted = extractMetadata(fullText, layoutNames);
+    private processMetadata(calloutEl: HTMLElement, innerTitleEl: HTMLElement, fullText: string, pipeMetadata: string, storedMeta = ''): void {
+        const extracted = extractMetadata(fullText, this.customLayoutNames);
+        let currentExtractedMeta = extracted?.content?.trim() || '';
         
         // Safely update title text if metadata was inside parentheses in the title
         if (extracted && innerTitleEl.textContent !== extracted.title) {
-            let updated = false;
-            for (let i = 0; i < innerTitleEl.childNodes.length; i++) {
-                const node = innerTitleEl.childNodes[i];
-                if (node.nodeType === Node.TEXT_NODE && node.nodeValue) {
-                    if (node.nodeValue.includes(`(${extracted.content})`)) {
-                        node.nodeValue = node.nodeValue.replace(`(${extracted.content})`, '').trim();
-                        updated = true;
-                        break;
+            const stripTarget = `(${extracted.content})`;
+            const stripTextFromNode = (root: Node): boolean => {
+                if (root.nodeType === Node.TEXT_NODE && root.nodeValue) {
+                    if (root.nodeValue.includes(stripTarget)) {
+                        root.nodeValue = root.nodeValue.replace(stripTarget, '').trim();
+                        return true;
                     }
                 }
-            }
-            if (!updated) {
+                for (let i = 0; i < root.childNodes.length; i++) {
+                    if (stripTextFromNode(root.childNodes[i])) return true;
+                }
+                return false;
+            };
+
+            const updated = stripTextFromNode(innerTitleEl);
+            if (!updated && innerTitleEl.textContent) {
                 innerTitleEl.textContent = extracted.title;
             }
         }
 
+        // Store extracted metadata on element attribute so subsequent passes retain styling
+        if (currentExtractedMeta) {
+            calloutEl.setAttribute('data-sc-meta', currentExtractedMeta);
+        } else if (storedMeta) {
+            currentExtractedMeta = storedMeta;
+        }
+
         // Combine metadata from pipe and title
         let combinedMetadata = '';
-        if (pipeMetadata.trim() && extracted?.content.trim()) {
-            combinedMetadata = `${pipeMetadata.trim()}, ${extracted.content.trim()}`;
+        if (pipeMetadata.trim() && currentExtractedMeta) {
+            combinedMetadata = `${pipeMetadata.trim()}, ${currentExtractedMeta}`;
         } else if (pipeMetadata.trim()) {
             combinedMetadata = pipeMetadata.trim();
-        } else if (extracted?.content.trim()) {
-            combinedMetadata = extracted.content.trim();
+        } else if (currentExtractedMeta) {
+            combinedMetadata = currentExtractedMeta;
         }
 
         if (!combinedMetadata) return;
@@ -158,22 +210,18 @@ export class CalloutProcessor {
             combinedMetadata,
             this.settings.standardColors,
             this.settings.customColors,
-            layoutNames
+            this.customLayoutNames
         );
 
         // Apply style parameter first
         let resolvedStyleName = styleParam;
         if (!resolvedStyleName && pipeMetadata) {
-            const matchCustom = this.settings.customStyles.find(
-                s => s.name.toLowerCase() === pipeMetadata.trim().toLowerCase()
-            );
+            const matchCustom = this.customStylesMap.get(pipeMetadata.trim().toLowerCase());
             if (matchCustom) resolvedStyleName = matchCustom.name;
         }
 
         if (resolvedStyleName) {
-            const manualStyle = this.settings.customStyles.find(
-                s => s.name.toLowerCase() === resolvedStyleName.toLowerCase()
-            );
+            const manualStyle = this.customStylesMap.get(resolvedStyleName.toLowerCase());
             if (manualStyle) {
                 this.applyStyleObject(calloutEl, manualStyle);
             }
@@ -257,20 +305,21 @@ export class CalloutProcessor {
             if (title) applyTextBorder(title as HTMLElement, config.titleBorder);
         }
 
+        const titleEl = (calloutEl.querySelector(':scope > .callout-title') || calloutEl.querySelector('.callout-title')) as HTMLElement | null;
+
         if (config.noIcon) {
-            const icon = calloutEl.querySelector('.callout-icon');
+            const icon = titleEl ? titleEl.querySelector('.callout-icon') : calloutEl.querySelector('.callout-icon');
             if (icon) (icon as HTMLElement).addClass('sc-hidden');
+            calloutEl.setAttribute('data-sc-no-icon', 'true');
         } else if (config.icon) {
-            let iconEl = calloutEl.querySelector('.callout-icon');
-            if (!iconEl) {
-                const titleEl = calloutEl.querySelector('.callout-title');
-                if (titleEl) {
-                    iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-                    titleEl.prepend(iconEl);
-                }
+            cssProps['--callout-icon'] = config.icon;
+            let iconEl = (titleEl ? titleEl.querySelector('.callout-icon') : calloutEl.querySelector('.callout-icon')) as HTMLElement;
+            if (!iconEl && titleEl) {
+                iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+                titleEl.prepend(iconEl);
             }
             if (iconEl) {
-                this.forceApplyIcon(iconEl as HTMLElement, config.icon);
+                this.forceApplyIcon(iconEl, config.icon);
             }
         }
 
@@ -586,6 +635,12 @@ export class CalloutProcessor {
      * Schedules retry attempts for column layout with timeout lifecycle management
      */
     private scheduleColumnRetry(calloutEl: HTMLElement, colCount: number): void {
+        // If content already has lists, applyColumnsToContainer in requestAnimationFrame handles it
+        const contentEl = calloutEl.querySelector('.callout-content');
+        if (contentEl && contentEl.querySelector(LIST_SELECTOR)) {
+            return;
+        }
+
         const existingTimers = this.activeTimeouts.get(calloutEl);
         if (existingTimers) {
             existingTimers.forEach(id => {
@@ -594,39 +649,20 @@ export class CalloutProcessor {
             });
         }
 
-        const retryDelays = [100, 300, 600, 1000, 2000];
-        const timerIds: number[] = [];
+        // Single fallback retry for async/dataview blocks
+        const id = window.setTimeout(() => {
+            this.allPendingTimeouts.delete(id);
+            this.activeTimeouts.delete(calloutEl);
+            if (!calloutEl.isConnected) return;
 
-        retryDelays.forEach(delay => {
-            const id = window.setTimeout(() => {
-                this.allPendingTimeouts.delete(id);
-                if (!calloutEl.isConnected) {
-                    timerIds.forEach(tId => {
-                        window.clearTimeout(tId);
-                        this.allPendingTimeouts.delete(tId);
-                    });
-                    this.activeTimeouts.delete(calloutEl);
-                    return;
-                }
+            const cEl = calloutEl.querySelector('.callout-content');
+            if (cEl && cEl.querySelector(LIST_SELECTOR)) {
+                this.applyColumnsToContainer(calloutEl, colCount);
+            }
+        }, 120);
 
-                const contentEl = calloutEl.querySelector('.callout-content');
-                if (!contentEl) return;
-
-                const lists = contentEl.querySelectorAll(LIST_SELECTOR);
-                if (lists.length > 0) {
-                    this.applyColumnsToContainer(calloutEl, colCount);
-                    timerIds.forEach(tId => {
-                        window.clearTimeout(tId);
-                        this.allPendingTimeouts.delete(tId);
-                    });
-                    this.activeTimeouts.delete(calloutEl);
-                }
-            }, delay);
-            timerIds.push(id);
-            this.allPendingTimeouts.add(id);
-        });
-
-        this.activeTimeouts.set(calloutEl, timerIds);
+        this.allPendingTimeouts.add(id);
+        this.activeTimeouts.set(calloutEl, [id]);
     }
 
     /**
@@ -684,14 +720,43 @@ export class CalloutProcessor {
      * Safely applies an icon bypassing Obsidian's native override
      */
     private forceApplyIcon(iconEl: HTMLElement, iconName: string): void {
-        iconEl.empty();
-        setIcon(iconEl, iconName);
-        iconEl.removeClass('sc-hidden');
+        if (!iconEl || !iconName) return;
 
-        // SMIL animated SVG scroll recovery support
-        const svg = iconEl.querySelector('svg');
-        if (svg && svg.querySelector('animate, animateTransform, set')) {
-            this.trackAnimatedSvg(svg as unknown as SVGElement);
+        const apply = () => {
+            iconEl.empty();
+            setIcon(iconEl, iconName);
+            if (!iconEl.querySelector('svg')) {
+                const alt = iconName.startsWith('lucide-') ? iconName.slice(7) : `lucide-${iconName}`;
+                setIcon(iconEl, alt);
+            }
+            iconEl.removeClass('sc-hidden');
+
+            // SMIL animated SVG scroll recovery support
+            const svg = iconEl.querySelector('svg');
+            if (svg) {
+                svg.addClass('svg-icon');
+                if (svg.querySelector('animate, animateTransform, set')) {
+                    this.trackAnimatedSvg(svg as unknown as SVGElement);
+                }
+            }
+        };
+
+        // Layer 1: Apply immediately
+        apply();
+
+        // Layer 2: Next tick override for Obsidian's post-render pencil reset
+        window.setTimeout(() => {
+            apply();
+        }, 0);
+
+        // Layer 3: Short-lived MutationObserver to intercept delayed native DOM resets
+        if (typeof MutationObserver !== 'undefined') {
+            const observer = new MutationObserver(() => {
+                observer.disconnect();
+                apply();
+            });
+            observer.observe(iconEl, { childList: true });
+            window.setTimeout(() => observer.disconnect(), 150);
         }
     }
 

@@ -6,7 +6,7 @@
 import { Setting, setIcon, App, Component, MarkdownRenderer } from 'obsidian';
 import { CalloutStyle, CalloutConfig } from '../types';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
-import { normalizeHex, toPx, neonStyles } from '../utils';
+import { normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
 import { IconPickerModal } from '../modals/IconPickerModal';
 
 export const BORDER_STYLES = [
@@ -61,6 +61,8 @@ export function createMarkdownEditorWithToolbar(options: MarkdownEditorOptions):
     let selectedIndex = 0;
     let suggestType: 'link' | 'tag' | null = null;
     let suggestStart = -1;
+    let cachedLinkCandidates: string[] | null = null;
+    let cachedTagCandidates: string[] | null = null;
 
     const closeSuggester = () => {
         if (suggestEl) {
@@ -69,6 +71,8 @@ export function createMarkdownEditorWithToolbar(options: MarkdownEditorOptions):
         }
         suggestType = null;
         suggestStart = -1;
+        cachedLinkCandidates = null;
+        cachedTagCandidates = null;
     };
 
     const wrapText = (prefix: string, suffix: string, cursorOffset = 0) => {
@@ -238,12 +242,18 @@ export function createMarkdownEditorWithToolbar(options: MarkdownEditorOptions):
             if (query.includes(' ') || query.includes('\n')) {
                 closeSuggester();
             } else {
-                let all: string[] = [];
+                let all: string[];
                 if (suggestType === 'link') {
-                    all = app.vault.getMarkdownFiles().map(f => f.basename);
+                    if (!cachedLinkCandidates) {
+                        cachedLinkCandidates = app.vault.getMarkdownFiles().map(f => f.basename);
+                    }
+                    all = cachedLinkCandidates;
                 } else {
-                    const tagsCache = (app.metadataCache as any)?.getTags?.() || {};
-                    all = Object.keys(tagsCache).map(t => t.startsWith('#') ? t.substring(1) : t);
+                    if (!cachedTagCandidates) {
+                        const tagsCache = (app.metadataCache as any)?.getTags?.() || {};
+                        cachedTagCandidates = Object.keys(tagsCache).map(t => t.startsWith('#') ? t.substring(1) : t);
+                    }
+                    all = cachedTagCandidates;
                 }
 
                 suggestItems = all.filter(item => item.toLowerCase().includes(query)).slice(0, 10);
@@ -445,6 +455,124 @@ export function createFontSizeSetting(
             .onChange(val => onChange(val)));
 }
 
+export const GRADIENT_PRESETS = [
+    { name: 'Sunset', from: '#ff512f', to: '#dd2476' },
+    { name: 'Ocean', from: '#2193b0', to: '#6dd5ed' },
+    { name: 'Emerald', from: '#11998e', to: '#38ef7d' },
+    { name: 'Cyberpunk', from: '#ff007f', to: '#7928ca' },
+    { name: 'Purple Dusk', from: '#654ea3', to: '#eaafc8' },
+    { name: 'Midnight', from: '#0f2027', to: '#2c5364' },
+    { name: 'Solar', from: '#f12711', to: '#f5af19' },
+    { name: 'Deep Blue', from: '#2c3e50', to: '#3498db' }
+];
+
+/**
+ * Creates an interactive Gradient Builder setting with dual color pickers & presets
+ */
+export function createGradientSetting(
+    container: HTMLElement,
+    currentGradient: string,
+    onChange: (gradient: string) => void
+): HTMLElement {
+    const wrap = container.createDiv({ cls: 'sc-gradient-builder-wrap' });
+
+    let color1 = '#ff512f';
+    let color2 = '#dd2476';
+
+    if (currentGradient) {
+        const parts = currentGradient.split('-');
+        if (parts.length >= 2) {
+            color1 = parts[0];
+            color2 = parts.slice(1).join('-');
+        }
+    }
+
+    const isEnabled = !!currentGradient;
+
+    new Setting(wrap)
+        .setName('Gradient Background')
+        .setDesc('Enable 100% opacity linear gradient background')
+        .addToggle(toggle => toggle
+            .setValue(isEnabled)
+            .onChange(val => {
+                if (val) {
+                    controlsDiv.removeClass('sc-hidden');
+                    onChange(`${color1}-${color2}`);
+                } else {
+                    controlsDiv.addClass('sc-hidden');
+                    onChange('');
+                }
+            }));
+
+    const controlsDiv = wrap.createDiv({ cls: `sc-gradient-controls ${isEnabled ? '' : 'sc-hidden'}` });
+
+    // Dual Color Picker row
+    const pickersRow = controlsDiv.createDiv({ cls: 'sc-gradient-inputs-row' });
+
+    // Color 1
+    const c1Wrap = pickersRow.createDiv({ cls: 'sc-gradient-color-field' });
+    c1Wrap.createSpan({ text: 'From:', cls: 'sc-gradient-color-label' });
+    const c1Input = c1Wrap.createEl('input', { type: 'text', value: color1, cls: 'sc-gradient-text-input' });
+    const c1Picker = c1Wrap.createEl('input', { type: 'color', value: normalizeHex(color1) });
+
+    // Color 2
+    const c2Wrap = pickersRow.createDiv({ cls: 'sc-gradient-color-field' });
+    c2Wrap.createSpan({ text: 'To:', cls: 'sc-gradient-color-label' });
+    const c2Input = c2Wrap.createEl('input', { type: 'text', value: color2, cls: 'sc-gradient-text-input' });
+    const c2Picker = c2Wrap.createEl('input', { type: 'color', value: normalizeHex(color2) });
+
+    const emitUpdate = () => {
+        onChange(`${color1}-${color2}`);
+    };
+
+    c1Input.oninput = (e) => {
+        color1 = (e.target as HTMLInputElement).value;
+        if (color1.startsWith('#') && (color1.length === 4 || color1.length === 7)) {
+            c1Picker.value = normalizeHex(color1);
+        }
+        emitUpdate();
+    };
+    c1Picker.onchange = (e) => {
+        color1 = (e.target as HTMLInputElement).value;
+        c1Input.value = color1;
+        emitUpdate();
+    };
+
+    c2Input.oninput = (e) => {
+        color2 = (e.target as HTMLInputElement).value;
+        if (color2.startsWith('#') && (color2.length === 4 || color2.length === 7)) {
+            c2Picker.value = normalizeHex(color2);
+        }
+        emitUpdate();
+    };
+    c2Picker.onchange = (e) => {
+        color2 = (e.target as HTMLInputElement).value;
+        c2Input.value = color2;
+        emitUpdate();
+    };
+
+    // Quick Presets Row
+    controlsDiv.createDiv({ text: 'Quick Gradient Presets:', cls: 'sc-gradient-presets-header' });
+    const presetsWrap = controlsDiv.createDiv({ cls: 'sc-gradient-presets-wrap' });
+
+    GRADIENT_PRESETS.forEach(p => {
+        const btn = presetsWrap.createEl('button', { text: p.name, cls: 'sc-gradient-preset-btn' });
+        btn.setCssProps({ '--sc-btn-bg': `linear-gradient(90deg, ${p.from}, ${p.to})` });
+        btn.onclick = (e) => {
+            e.preventDefault();
+            color1 = p.from;
+            color2 = p.to;
+            c1Input.value = color1;
+            c1Picker.value = normalizeHex(color1);
+            c2Input.value = color2;
+            c2Picker.value = normalizeHex(color2);
+            emitUpdate();
+        };
+    });
+
+    return wrap;
+}
+
 /**
  * Updates a Live Callout Preview DOM element with style properties safely
  */
@@ -463,6 +591,8 @@ export function applyStyleToLivePreview(
     previewCard.removeAttribute('data-sc-bs');
     previewCard.removeAttribute('data-sc-radius');
     previewCard.removeAttribute('data-sc-neon');
+    previewCard.removeAttribute('data-sc-gradient');
+    previewCard.removeAttribute('data-sc-no-border');
     previewCard.removeAttribute('data-sc-font');
     previewCard.removeAttribute('data-sc-fontsize');
     previewCard.removeAttribute('data-compact');
@@ -473,7 +603,18 @@ export function applyStyleToLivePreview(
     previewCard.removeAttribute('data-sc-text');
     previewCard.removeAttribute('data-link-color');
 
-    if (style.bg) {
+    if (style.gradient) {
+        let grad = style.gradient.trim();
+        if (!isCssGradient(grad)) {
+            const parts = grad.split('-');
+            if (parts.length >= 2) {
+                grad = `linear-gradient(90deg, ${parts[0]}, ${parts.slice(1).join('-')})`;
+            }
+        }
+        cssProps['--sc-gradient'] = grad;
+        previewCard.setAttribute('data-sc-gradient', 'true');
+        previewCard.setAttribute('data-sc-no-border', 'true');
+    } else if (style.bg) {
         cssProps['--sc-bg-color'] = createTransparentBg(style.bg, 15);
         previewCard.setAttribute('data-sc-bg', '');
     }
@@ -502,7 +643,7 @@ export function applyStyleToLivePreview(
         previewCard.setAttribute('data-sc-icon-color', '');
     }
 
-    if (style.border) {
+    if (style.border && !style.gradient) {
         const width = style.borderWidth ? toPx(style.borderWidth) : '1px';
         const borderPattern = style.borderStyle || 'solid';
         cssProps['--sc-border'] = `${width} ${borderPattern} ${style.border}`;

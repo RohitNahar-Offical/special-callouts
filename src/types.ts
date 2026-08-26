@@ -22,6 +22,7 @@ export interface CalloutStyle {
     borderStyle?: string;
     borderRadius?: string;
     neon?: string;
+    gradient?: string;
     noIcon?: boolean;
     compact?: boolean;
     center?: boolean;

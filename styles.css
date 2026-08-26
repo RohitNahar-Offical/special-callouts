@@ -258,20 +258,17 @@ p.sc-wrapper-p {
     padding: 0 !important;
 }
 
-/* Live Preview Callout Icon Isolation */
+/* Live callout preview inside modal dialogs */
 .sc-live-callout .callout-icon {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    background: none !important;
-    mask: none !important;
-    -webkit-mask: none !important;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .sc-live-callout .callout-icon svg {
-    display: inline-block !important;
-    width: 16px !important;
-    height: 16px !important;
+    display: inline-block;
+    width: 16px;
+    height: 16px;
 }
 
 /* Gradient background */
@@ -1352,5 +1349,68 @@ p.sc-wrapper-p,
 .sc-suggestion-item.is-selected {
     background-color: var(--background-modifier-hover);
     color: var(--text-accent);
+}
+
+/* Gradient Builder Component */
+.sc-gradient-builder-wrap {
+    margin-bottom: 1rem;
+}
+
+.sc-gradient-controls {
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.sc-gradient-controls.sc-hidden {
+    display: none !important;
+}
+
+.sc-gradient-inputs-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.sc-gradient-color-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sc-gradient-color-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.sc-gradient-text-input {
+    width: 80px;
+}
+
+.sc-gradient-presets-header {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.sc-gradient-presets-wrap {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.sc-gradient-preset-btn {
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    color: #ffffff !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+    cursor: pointer;
+    background: var(--sc-btn-bg, var(--interactive-accent));
 }
 

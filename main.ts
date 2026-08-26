@@ -54,11 +54,40 @@ export default class SpecialCallouts extends Plugin {
 
         // Register markdown post processor for callouts
         this.registerMarkdownPostProcessor((element) => {
-            const callouts = element.querySelectorAll('.callout');
+            const callouts: HTMLElement[] = [];
+            if (element.classList?.contains('callout')) {
+                callouts.push(element);
+            }
+            element.querySelectorAll?.('.callout').forEach((el) => {
+                if (!callouts.includes(el as HTMLElement)) {
+                    callouts.push(el as HTMLElement);
+                }
+            });
             callouts.forEach((callout) => {
-                this.processor.processCallout(callout as HTMLElement);
+                this.processor.processCallout(callout);
             });
         });
+
+        // Live Preview (Editing Mode) observer for dynamic CodeMirror 6 widget additions
+        const livePreviewObserver = new MutationObserver((mutations) => {
+            for (let i = 0; i < mutations.length; i++) {
+                const mutation = mutations[i];
+                for (let j = 0; j < mutation.addedNodes.length; j++) {
+                    const node = mutation.addedNodes[j];
+                    if (node instanceof HTMLElement) {
+                        if (node.classList?.contains('callout')) {
+                            this.processor.processCallout(node);
+                        }
+                        const nested = node.querySelectorAll?.<HTMLElement>('.callout');
+                        if (nested && nested.length > 0) {
+                            nested.forEach(c => this.processor.processCallout(c));
+                        }
+                    }
+                }
+            }
+        });
+        livePreviewObserver.observe(document.body, { childList: true, subtree: true });
+        this.register(() => livePreviewObserver.disconnect());
 
         // Register right-click context menu in editor
         this.registerEvent(

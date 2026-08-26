@@ -29,12 +29,14 @@ const KNOWN_STANDALONE_FLAGS = new Set([
 // LRU Cache for parsed metadata (Max 500 entries to prevent memory bloat)
 const MAX_CACHE_SIZE = 500;
 const parseCache = new Map<string, { config: CalloutConfig; layoutParam: string | null; styleParam: string | null }>();
+const extractCache = new Map<string, { content: string; title: string } | null>();
 
 /**
  * Clears the parser LRU cache
  */
 export function clearMetadataCache(): void {
     parseCache.clear();
+    extractCache.clear();
 }
 
 /**
@@ -482,8 +484,15 @@ export function extractMetadata(fullText: string, customLayoutNames: string[] = 
     // Fast-path: if there are no parentheses at all, skip everything in O(1)
     if (!fullText.includes('(') || !fullText.includes(')')) return null;
 
+    const cacheKey = customLayoutNames.length > 0 ? `${fullText}::${customLayoutNames.join(',')}` : fullText;
+    if (extractCache.has(cacheKey)) {
+        return extractCache.get(cacheKey)!;
+    }
+
     const trimmedText = fullText.trim();
     if (!trimmedText) return null;
+
+    let result: { content: string; title: string } | null = null;
 
     // 1. Leading metadata: (metadata) Title
     if (trimmedText.startsWith('(')) {
@@ -495,23 +504,22 @@ export function extractMetadata(fullText: string, customLayoutNames: string[] = 
             if (remaining && (remaining.startsWith('(') || remaining.endsWith(')'))) {
                 const second = extractMetadata(remaining, customLayoutNames);
                 if (second) {
-                    return {
+                    result = {
                         content: `${firstContent}, ${second.content}`,
                         title: second.title
                     };
                 }
             }
 
-            return {
-                content: firstContent,
-                title: remaining
-            };
+            if (!result) {
+                result = {
+                    content: firstContent,
+                    title: remaining
+                };
+            }
         }
-        return null;
-    }
-
-    // 2. Trailing metadata: Title (metadata)
-    if (trimmedText.endsWith(')')) {
+    } else if (trimmedText.endsWith(')')) {
+        // 2. Trailing metadata: Title (metadata)
         let depth = 0;
         let startIndex = -1;
         for (let i = trimmedText.length - 1; i >= 0; i--) {
@@ -532,21 +540,29 @@ export function extractMetadata(fullText: string, customLayoutNames: string[] = 
                 if (remainingTitle && remainingTitle.startsWith('(')) {
                     const leading = extractMetadata(remainingTitle, customLayoutNames);
                     if (leading) {
-                        return {
+                        result = {
                             content: `${leading.content}, ${candidate}`,
                             title: leading.title
                         };
                     }
                 }
-                return {
-                    content: candidate,
-                    title: remainingTitle
-                };
+                if (!result) {
+                    result = {
+                        content: candidate,
+                        title: remainingTitle
+                    };
+                }
             }
         }
     }
 
-    return null;
+    if (extractCache.size >= MAX_CACHE_SIZE) {
+        const first = extractCache.keys().next().value;
+        if (first) extractCache.delete(first);
+    }
+    extractCache.set(cacheKey, result);
+
+    return result;
 }
 
 /**
