@@ -531,4 +531,63 @@ describe('performance heuristics and caching', () => {
     });
 });
 
+describe('edge cases and stress boundaries', () => {
+    test('handles empty and whitespace-only metadata without throwing', () => {
+        assert.equal(parse('').config.bg, '');
+        assert.equal(parse('   ').config.bg, '');
+        assert.equal(parse('\t\n\r').config.bg, '');
+    });
+
+    test('ignores stray separators, empty keys, and trailing colons safely', () => {
+        const { config } = parse('bg:, :red, ,, , , border:blue, font-size:abc, span:-3');
+        assert.equal(config.bg, '');
+        assert.equal(config.border, '#3498db');
+        assert.equal(config.fontSize, null);
+        assert.equal(config.span, null);
+    });
+
+    test('recovers safely from invalid numerical boundaries', () => {
+        const { config } = parse('font-size:0, font-size:6, font-size:99, span:0, span:-5, col:0');
+        assert.equal(config.fontSize, null);
+        assert.equal(config.span, null);
+        assert.equal(config.col, 0); // col:0 is parsed as 0
+    });
+
+    test('preserves parenthesized title words that are not metadata without stripping them', () => {
+        const res = extractMetadata('Meeting Notes (Q3 Review)');
+        assert.equal(res, null);
+    });
+
+    test('handles titles with both metadata and non-metadata parenthesized text', () => {
+        const res = extractMetadata('(bg:red) Project Roadmap (Phase 1)');
+        assert.ok(res);
+        assert.equal(res.title, 'Project Roadmap (Phase 1)');
+        assert.equal(res.content, 'bg:red');
+    });
+
+    test('serializeMetadata tolerates undefined/empty values gracefully', () => {
+        const res = serializeMetadata({});
+        assert.equal(res, '');
+    });
+
+    test('extracts callout header, metadata, title, and body content cleanly', () => {
+        const rawCallout = '> [!info] (bg:red, link:yellow) My Custom Title\n> Line 1 content\n> Line 2 content with `code`';
+        const lines = rawCallout.split('\n');
+        const headMatch = lines[0].match(/^\s*>\s*\[!([a-zA-Z0-9_\-]+)(?:\|([^\]]+))?\]\s*(.*)$/);
+        assert.ok(headMatch);
+        assert.equal(headMatch[1], 'info');
+        
+        let title = headMatch[3];
+        const paren = title.match(/\(([^)]+)\)/);
+        assert.ok(paren);
+        assert.equal(paren[1], 'bg:red, link:yellow');
+        title = title.replace(paren[0], '').trim();
+        assert.equal(title, 'My Custom Title');
+
+        const body = lines.slice(1).map(l => l.replace(/^\s*>\s?/, '')).join('\n');
+        assert.equal(body, 'Line 1 content\nLine 2 content with `code`');
+    });
+});
+
+
 

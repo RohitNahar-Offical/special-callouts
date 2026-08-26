@@ -57,3 +57,31 @@ export class CustomCalloutSuggester extends SuggestModal<CalloutStyle> {
         this.onSelect(style);
     }
 }
+
+/**
+ * Modal for choosing column layout presets
+ */
+export class ColumnSuggesterModal extends SuggestModal<string> {
+    private items: string[];
+    private onChoose: (item: string) => void;
+
+    constructor(app: App, items: string[], onChoose: (item: string) => void) {
+        super(app);
+        this.items = items;
+        this.onChoose = onChoose;
+        this.setPlaceholder('Select column count...');
+    }
+
+    getSuggestions(query: string): string[] {
+        return this.items.filter(item => item.toLowerCase().includes(query.toLowerCase()));
+    }
+
+    renderSuggestion(item: string, el: HTMLElement): void {
+        el.setText(item);
+    }
+
+    onChooseSuggestion(item: string): void {
+        this.onChoose(item);
+    }
+}
+

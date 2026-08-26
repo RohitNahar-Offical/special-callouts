@@ -10,13 +10,17 @@ import {
     Editor,
     Setting,
     setIcon,
-    Notice
+    Notice,
+    TextComponent,
+    MarkdownRenderer
 } from 'obsidian';
 import { SpecialCalloutsSettings } from '../types';
 import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES } from '../constants';
 import { normalizeHex, toPx, neonStyles } from '../utils';
 import { parseMetadata, parseGridLayout } from '../parser';
 import { IconPickerModal } from './IconPickerModal';
+import { InsertCalloutModal } from './InsertCalloutModal';
+import { createMarkdownEditorWithToolbar } from '../ui/UIComponents';
 
 export interface GridAreaBlock {
     id: string; // e.g. "area1", "area2"
@@ -33,6 +37,8 @@ export interface GridAreaBlock {
     titleColor?: string;
     iconColor?: string;
     iconName?: string;
+    textColor?: string;
+    linkColor?: string;
     neon?: string;
     font?: string;
     fontSize?: number;
@@ -42,6 +48,7 @@ export interface GridAreaBlock {
     col?: number;
     compact?: boolean;
     center?: boolean;
+    titleCenter?: boolean;
     noIcon?: boolean;
 }
 
@@ -66,6 +73,8 @@ export class MultiColumnBuilderModal extends Modal {
     private gridMatrix: string[][] = []; // matrix[row][col] -> areaId
     private areas: Map<string, GridAreaBlock> = new Map();
     private selectedAreaId: string = 'area1';
+    private isViewingLayoutPicker: boolean = false;
+    private closeSuggesterFn: (() => void) | null = null;
 
     // Drag Selection State
     private isDragging: boolean = false;
@@ -237,6 +246,8 @@ export class MultiColumnBuilderModal extends Modal {
                 titleColor: config.titleColor,
                 iconColor: config.iconColor,
                 iconName: config.icon || undefined,
+                textColor: config.text || undefined,
+                linkColor: config.link || undefined,
                 neon: config.neon,
                 font: config.font,
                 fontSize: config.fontSize || undefined,
@@ -245,6 +256,8 @@ export class MultiColumnBuilderModal extends Modal {
                 borderRadius: config.radius,
                 col: config.col || undefined,
                 compact: config.compact,
+                center: config.center,
+                titleCenter: config.titleCenter,
                 noIcon: config.noIcon
             });
         });
@@ -447,9 +460,53 @@ export class MultiColumnBuilderModal extends Modal {
         contentEl.empty();
         contentEl.addClass('special-callouts-ui');
 
-        contentEl.createEl('h2', { text: this.isEditingExisting ? 'Edit Multi-Column Dashboard' : 'Multi-Column Dashboard Builder' });
+        // Sleek compact header
+        const headerEl = contentEl.createDiv({ cls: 'sc-studio-header' });
+        headerEl.createEl('h3', {
+            text: this.isEditingExisting ? 'Edit Dashboard' : 'Special Callout Studio',
+            cls: 'sc-studio-title'
+        });
+        if (this.isEditingExisting) {
+            headerEl.createSpan({ text: 'Editing Existing', cls: 'sc-studio-badge' });
+        }
 
-        // 1. Live Sticky Dashboard Preview
+        // Top Primary Mode Switcher: SINGLE | MULTI
+        const modeWrap = contentEl.createDiv({ cls: 'sc-mode-switcher-container' });
+
+        const singleBtn = modeWrap.createEl('button', {
+            cls: 'sc-mode-btn'
+        });
+        const singleIcon = singleBtn.createSpan();
+        setIcon(singleIcon, 'file-text');
+        singleBtn.createSpan({ text: 'Single Callout' });
+        singleBtn.onclick = () => {
+            if (this.closeSuggesterFn) this.closeSuggesterFn();
+            this.close();
+            new InsertCalloutModal(this.app, this.settings, this.editor).open();
+        };
+
+        const multiBtn = modeWrap.createEl('button', {
+            cls: 'sc-mode-btn is-active'
+        });
+        const multiIcon = multiBtn.createSpan();
+        setIcon(multiIcon, 'layout-grid');
+        multiBtn.createSpan({ text: 'Multi-Column Dashboard' });
+
+        // 1. Navigation Tabs (Placed directly below Mode Switcher)
+        const nav = contentEl.createDiv({ cls: 'sc-nav-tabs' });
+
+        const activeArea = this.areas.get(this.selectedAreaId);
+        const activeLabel = activeArea ? activeArea.title : 'Active Box';
+        const tab1Label = this.isViewingLayoutPicker ? 'Layout Presets & Canvas' : `Content (${activeLabel})`;
+
+        const tabs: { id: BuilderTab; label: string; icon: string }[] = [
+            { id: 'canvas', label: tab1Label, icon: this.isViewingLayoutPicker ? 'layout-grid' : 'file-text' },
+            { id: 'colors', label: `Colors & Glow (${activeLabel})`, icon: 'palette' },
+            { id: 'icon', label: `Icon & Font (${activeLabel})`, icon: 'type' },
+            { id: 'layout', label: `Borders & Style (${activeLabel})`, icon: 'layout' }
+        ];
+
+        // 2. Live Sticky Dashboard Preview
         const previewContainer = contentEl.createDiv({ cls: 'sc-live-preview-container sc-sticky-preview' });
         const previewHeader = previewContainer.createDiv({ cls: 'sc-live-preview-header' });
         previewHeader.createSpan({ text: `Live Dashboard Preview (${this.gridRows}×${this.gridCols} Grid, ${this.areas.size} Callout Boxes)` });
@@ -457,19 +514,10 @@ export class MultiColumnBuilderModal extends Modal {
         this.liveDashboardEl = previewContainer.createDiv({ cls: 'callout sc-live-callout' });
         this.updateLivePreview();
 
-        // 2. Navigation Tabs
-        const nav = contentEl.createDiv({ cls: 'sc-nav-tabs' });
-        nav.style.marginBottom = '1.25rem';
-
-        const activeArea = this.areas.get(this.selectedAreaId);
-        const activeLabel = activeArea ? activeArea.title : 'Active Box';
-
-        const tabs: { id: BuilderTab; label: string; icon: string }[] = [
-            { id: 'canvas', label: 'Layout Presets & Canvas', icon: 'layout-grid' },
-            { id: 'colors', label: `Colors & Glow (${activeLabel})`, icon: 'palette' },
-            { id: 'icon', label: `Icon & Font (${activeLabel})`, icon: 'type' },
-            { id: 'layout', label: `Borders & Style (${activeLabel})`, icon: 'layout' }
-        ];
+        // 3. Dynamic Tab Container
+        const tabContainer = contentEl.createDiv({ cls: 'sc-section-content' });
+        tabContainer.style.minHeight = '280px';
+        this.renderTabContent(tabContainer);
 
         tabs.forEach(tab => {
             const btn = nav.createEl('button', { cls: `sc-nav-tab ${this.activeTab === tab.id ? 'is-active' : ''}` });
@@ -486,11 +534,6 @@ export class MultiColumnBuilderModal extends Modal {
                 });
             };
         });
-
-        // 3. Dynamic Tab Container
-        const tabContainer = contentEl.createDiv({ cls: 'sc-section-content' });
-        tabContainer.style.minHeight = '280px';
-        this.renderTabContent(tabContainer);
 
         // 4. Action Footer
         new Setting(contentEl)
@@ -526,13 +569,136 @@ export class MultiColumnBuilderModal extends Modal {
     }
 
     // ==========================================
-    // TAB 1: PRESET GALLERY & VISUAL CANVAS
+    // TAB 1: BOX CONTENT EDITOR vs LAYOUT PRESETS & CANVAS
     // ==========================================
     private renderGridCanvasSection(container: HTMLElement): void {
+        const activeArea = this.areas.get(this.selectedAreaId);
+
+        if (!this.isViewingLayoutPicker && activeArea) {
+            this.renderBoxContentEditor(container, activeArea);
+            return;
+        }
+
+        this.renderLayoutPresetsAndCanvas(container);
+    }
+
+    private renderBoxContentEditor(container: HTMLElement, activeArea: GridAreaBlock): void {
+        const cardHeader = container.createDiv();
+        cardHeader.style.display = 'flex';
+        cardHeader.style.justifyContent = 'space-between';
+        cardHeader.style.alignItems = 'center';
+        cardHeader.style.marginBottom = '10px';
+        cardHeader.style.flexWrap = 'wrap';
+        cardHeader.style.gap = '8px';
+
+        const headerLeft = cardHeader.createDiv();
+        headerLeft.style.display = 'flex';
+        headerLeft.style.alignItems = 'center';
+        headerLeft.style.gap = '8px';
+
+        headerLeft.createEl('h4', { text: `Edit Box: "${activeArea.title}"`, attr: { style: 'margin: 0;' } });
+        const typeBadge = headerLeft.createSpan({ cls: 'sc-studio-badge', text: activeArea.type.toUpperCase() });
+
+        const btnGroup = cardHeader.createDiv();
+        btnGroup.style.display = 'flex';
+        btnGroup.style.gap = '6px';
+
+        const changeLayoutBtn = btnGroup.createEl('button', { cls: 'sc-action-btn', text: '⊞ Change Layout / Grid' });
+        changeLayoutBtn.onclick = () => {
+            this.isViewingLayoutPicker = true;
+            this.renderModal();
+        };
+
+        const customizeBtn = btnGroup.createEl('button', { cls: 'sc-action-btn', text: '🎨 Colors & Glow' });
+        customizeBtn.onclick = () => {
+            this.activeTab = 'colors';
+            this.renderModal();
+        };
+
+        const formCard = container.createDiv({ cls: 'sc-card-item' });
+        formCard.style.background = 'var(--background-secondary)';
+        formCard.style.border = '1px solid var(--background-modifier-border)';
+        formCard.style.borderRadius = '8px';
+        formCard.style.padding = '14px';
+
+        // Top Row: Type & Title
+        const topCtrl = formCard.createDiv();
+        topCtrl.style.display = 'grid';
+        topCtrl.style.gridTemplateColumns = '150px 1fr';
+        topCtrl.style.gap = '10px';
+        topCtrl.style.marginBottom = '12px';
+
+        const typeSelect = topCtrl.createEl('select');
+        
+        // Standard presets group
+        const stdGroup = typeSelect.createEl('optgroup', { attr: { label: 'Standard Callouts' } });
+        ['note', 'tip', 'info', 'warning', 'danger', 'success', 'question', 'quote', 'bug', 'example', 'summary', 'important', 'caution', 'todo'].forEach(t => {
+            const opt = stdGroup.createEl('option', { value: t, text: t.charAt(0).toUpperCase() + t.slice(1) });
+            if (t === activeArea.type) opt.selected = true;
+        });
+
+        // Custom user styles group
+        if (this.settings.customStyles && this.settings.customStyles.length > 0) {
+            const customGroup = typeSelect.createEl('optgroup', { attr: { label: 'Custom Styles' } });
+            this.settings.customStyles.forEach(s => {
+                const opt = customGroup.createEl('option', { value: s.name, text: s.name });
+                if (s.name.toLowerCase() === activeArea.type.toLowerCase()) opt.selected = true;
+            });
+        }
+
+        typeSelect.onchange = (e) => {
+            const selectedType = (e.target as HTMLSelectElement).value;
+            this.applyPresetToArea(activeArea, selectedType);
+            typeBadge.textContent = selectedType.toUpperCase();
+            this.updateLivePreview();
+        };
+
+        const titleInput = topCtrl.createEl('input', { type: 'text', value: activeArea.title, placeholder: 'Box Title' });
+        titleInput.oninput = (e) => {
+            activeArea.title = (e.target as HTMLInputElement).value;
+            this.updateLivePreview();
+        };
+
+        // Rich Markdown Editor with Toolbar & [[ Suggester (Generous height with rows: 6)
+        if (this.closeSuggesterFn) {
+            this.closeSuggesterFn();
+            this.closeSuggesterFn = null;
+        }
+
+        const editorComp = createMarkdownEditorWithToolbar({
+            container: formCard,
+            app: this.app,
+            initialValue: activeArea.content,
+            placeholder: 'Type box content, [[links]], #tags, or lists...',
+            rows: 6,
+            onChange: (val) => {
+                activeArea.content = val;
+                this.updateLivePreview();
+            }
+        });
+        this.closeSuggesterFn = editorComp.closeSuggester;
+    }
+
+    private renderLayoutPresetsAndCanvas(container: HTMLElement): void {
+        const topHeader = container.createDiv();
+        topHeader.style.display = 'flex';
+        topHeader.style.justifyContent = 'space-between';
+        topHeader.style.alignItems = 'center';
+        topHeader.style.marginBottom = '12px';
+
+        topHeader.createEl('h4', { text: 'Choose Layout Preset & Grid Matrix', attr: { style: 'margin: 0;' } });
+        
+        if (this.areas.size > 0) {
+            const doneBtn = topHeader.createEl('button', { cls: 'mod-cta', text: '✓ Done (Edit Box Content)' });
+            doneBtn.onclick = () => {
+                this.isViewingLayoutPicker = false;
+                this.renderModal();
+            };
+        }
+
         // 1. Interactive Layout Preset Gallery
         const gallerySection = container.createDiv();
         gallerySection.style.marginBottom = '16px';
-        gallerySection.createEl('h4', { text: 'Step 1: Choose Layout Preset', attr: { style: 'margin: 0 0 8px 0;' } });
 
         const galleryGrid = gallerySection.createDiv();
         galleryGrid.style.display = 'grid';
@@ -574,6 +740,7 @@ export class MultiColumnBuilderModal extends Modal {
             card.onmouseleave = () => { card.style.borderColor = 'var(--background-modifier-border)'; };
             card.onclick = () => {
                 this.applyPresetLayout(p.key);
+                this.isViewingLayoutPicker = false;
                 this.renderModal();
             };
         });
@@ -691,6 +858,7 @@ export class MultiColumnBuilderModal extends Modal {
             block.onclick = (e) => {
                 e.stopPropagation();
                 this.selectedAreaId = area.id;
+                this.isViewingLayoutPicker = false;
                 this.renderModal();
             };
 
@@ -710,81 +878,6 @@ export class MultiColumnBuilderModal extends Modal {
                 }
             };
         });
-
-        // 4. Cards List / Form for Active Box
-        const activeArea = this.areas.get(this.selectedAreaId);
-        if (!activeArea) return;
-
-        const cardHeader = container.createDiv();
-        cardHeader.style.display = 'flex';
-        cardHeader.style.justifyContent = 'space-between';
-        cardHeader.style.alignItems = 'center';
-        cardHeader.style.marginBottom = '10px';
-
-        cardHeader.createEl('h4', { text: `Step 2: Edit Selected Box ("${activeArea.title}")`, attr: { style: 'margin: 0;' } });
-
-        const customizeBtn = cardHeader.createEl('button', { cls: 'sc-action-btn', text: '🎨 Full Style & Colors' });
-        customizeBtn.onclick = () => {
-            this.activeTab = 'colors';
-            this.renderModal();
-        };
-
-        const formCard = container.createDiv({ cls: 'sc-card-item' });
-        formCard.style.background = 'var(--background-secondary)';
-        formCard.style.border = '1px solid var(--background-modifier-border)';
-        formCard.style.borderRadius = '8px';
-        formCard.style.padding = '14px';
-
-        // Top Row: Type & Title
-        const topCtrl = formCard.createDiv();
-        topCtrl.style.display = 'grid';
-        topCtrl.style.gridTemplateColumns = '140px 1fr';
-        topCtrl.style.gap = '10px';
-        topCtrl.style.marginBottom = '10px';
-
-        const typeSelect = topCtrl.createEl('select');
-        
-        // Standard presets group
-        const stdGroup = typeSelect.createEl('optgroup', { attr: { label: 'Standard Callouts' } });
-        ['note', 'tip', 'info', 'warning', 'danger', 'success', 'question', 'quote', 'bug', 'example', 'summary', 'important', 'caution', 'todo'].forEach(t => {
-            const opt = stdGroup.createEl('option', { value: t, text: t.charAt(0).toUpperCase() + t.slice(1) });
-            if (t === activeArea.type) opt.selected = true;
-        });
-
-        // Custom user styles group
-        if (this.settings.customStyles && this.settings.customStyles.length > 0) {
-            const customGroup = typeSelect.createEl('optgroup', { attr: { label: 'Custom Styles' } });
-            this.settings.customStyles.forEach(s => {
-                const opt = customGroup.createEl('option', { value: s.name, text: s.name });
-                if (s.name.toLowerCase() === activeArea.type.toLowerCase()) opt.selected = true;
-            });
-        }
-
-        typeSelect.onchange = (e) => {
-            const selectedType = (e.target as HTMLSelectElement).value;
-            this.applyPresetToArea(activeArea, selectedType);
-            this.updateLivePreview();
-            this.updateCanvasBlockTitle(activeArea.id);
-        };
-
-        const titleInput = topCtrl.createEl('input', { type: 'text', value: activeArea.title, placeholder: 'Box Title' });
-        titleInput.oninput = (e) => {
-            activeArea.title = (e.target as HTMLInputElement).value;
-            this.updateLivePreview();
-            this.updateCanvasBlockTitle(activeArea.id);
-        };
-
-        // Textarea: Multi-line Content
-        const ta = formCard.createEl('textarea', { placeholder: 'Type multi-line box content...' });
-        ta.value = activeArea.content;
-        ta.rows = 3;
-        ta.style.width = '100%';
-        ta.style.fontSize = '0.88rem';
-        ta.style.resize = 'vertical';
-        ta.oninput = (e) => {
-            activeArea.content = (e.target as HTMLTextAreaElement).value;
-            this.updateLivePreview();
-        };
     }
 
     private updateCanvasBlockTitle(areaId: string): void {
@@ -935,6 +1028,8 @@ export class MultiColumnBuilderModal extends Modal {
             area.bgColor = customStyle.bg || '#448aff';
             area.borderColor = customStyle.border || customStyle.bg || '#448aff';
             area.titleColor = customStyle.titleColor || '';
+            area.textColor = customStyle.text || '';
+            area.linkColor = customStyle.link || '';
             area.iconName = customStyle.icon || 'pencil';
             area.iconColor = customStyle.iconColor || '';
             area.font = customStyle.font || '';
@@ -944,6 +1039,8 @@ export class MultiColumnBuilderModal extends Modal {
             area.borderRadius = customStyle.borderRadius || '8px';
             area.neon = customStyle.neon || '';
             area.compact = customStyle.compact || false;
+            area.center = customStyle.center || false;
+            area.titleCenter = customStyle.titleCenter || false;
             area.noIcon = customStyle.noIcon || false;
             return;
         }
@@ -953,10 +1050,14 @@ export class MultiColumnBuilderModal extends Modal {
             area.bgColor = standardStyle.bg || '#448aff';
             area.borderColor = standardStyle.border || standardStyle.bg || '#448aff';
             area.titleColor = standardStyle.titleColor || '';
+            area.textColor = standardStyle.text || '';
+            area.linkColor = standardStyle.link || '';
             area.iconName = standardStyle.icon || this.getDefaultIconForType(typeName);
-            area.iconColor = '';
+            area.iconColor = standardStyle.iconColor || '';
             area.neon = '';
             area.compact = false;
+            area.center = false;
+            area.titleCenter = false;
             area.noIcon = false;
         } else {
             area.iconName = this.getDefaultIconForType(typeName);
@@ -997,76 +1098,147 @@ export class MultiColumnBuilderModal extends Modal {
         infoBanner.style.color = 'var(--text-accent)';
         infoBanner.innerText = `Customizing Colors for Box "${area.title}" (${area.id})`;
 
+        let bgTextComp: TextComponent;
         new Setting(container)
             .setName('Background Color')
-            .addText(text => text
-                .setValue(area.bgColor || '')
-                .onChange(val => {
-                    area.bgColor = val;
-                    this.updateLivePreview();
-                }))
+            .addText(text => {
+                bgTextComp = text;
+                text.setValue(area.bgColor || '')
+                    .setPlaceholder('#448aff or blue')
+                    .onChange(val => {
+                        area.bgColor = val;
+                        this.updateLivePreview();
+                    });
+            })
             .addColorPicker(picker => picker
                 .setValue(normalizeHex(area.bgColor || '#448aff'))
                 .onChange(val => {
                     area.bgColor = val;
+                    if (bgTextComp) bgTextComp.setValue(val);
                     this.updateLivePreview();
                 }));
 
+        let borderTextComp: TextComponent;
         new Setting(container)
             .setName('Border Color')
-            .addText(text => text
-                .setValue(area.borderColor || '')
-                .onChange(val => {
-                    area.borderColor = val;
-                    this.updateLivePreview();
-                }))
+            .addText(text => {
+                borderTextComp = text;
+                text.setValue(area.borderColor || '')
+                    .setPlaceholder('#448aff or blue')
+                    .onChange(val => {
+                        area.borderColor = val;
+                        this.updateLivePreview();
+                    });
+            })
             .addColorPicker(picker => picker
                 .setValue(normalizeHex(area.borderColor || '#448aff'))
                 .onChange(val => {
                     area.borderColor = val;
+                    if (borderTextComp) borderTextComp.setValue(val);
                     this.updateLivePreview();
                 }));
 
+        let titleTextComp: TextComponent;
         new Setting(container)
             .setName('Title Color')
-            .addText(text => text
-                .setPlaceholder('Auto')
-                .setValue(area.titleColor || '')
-                .onChange(val => {
-                    area.titleColor = val;
-                    this.updateLivePreview();
-                }))
+            .addText(text => {
+                titleTextComp = text;
+                text.setPlaceholder('Auto (follows theme)')
+                    .setValue(area.titleColor || '')
+                    .onChange(val => {
+                        area.titleColor = val;
+                        this.updateLivePreview();
+                    });
+            })
             .addColorPicker(picker => picker
                 .setValue(normalizeHex(area.titleColor || '#ffffff'))
                 .onChange(val => {
                     area.titleColor = val;
+                    if (titleTextComp) titleTextComp.setValue(val);
                     this.updateLivePreview();
                 }));
 
+        let iconTextComp: TextComponent;
         new Setting(container)
             .setName('Icon Color')
-            .addText(text => text
-                .setPlaceholder('Auto')
-                .setValue(area.iconColor || '')
-                .onChange(val => {
-                    area.iconColor = val;
-                    this.updateLivePreview();
-                }))
+            .setDesc('Leave blank to follow title color')
+            .addText(text => {
+                iconTextComp = text;
+                text.setPlaceholder('Auto (follows title)')
+                    .setValue(area.iconColor || '')
+                    .onChange(val => {
+                        area.iconColor = val;
+                        this.updateLivePreview();
+                    });
+            })
             .addColorPicker(picker => picker
                 .setValue(normalizeHex(area.iconColor || '#ffffff'))
                 .onChange(val => {
                     area.iconColor = val;
+                    if (iconTextComp) iconTextComp.setValue(val);
                     this.updateLivePreview();
                 }));
 
+        let textColorComp: TextComponent;
+        new Setting(container)
+            .setName('Text Color')
+            .setDesc('Content text color (leave blank for theme default)')
+            .addText(text => {
+                textColorComp = text;
+                text.setPlaceholder('theme default')
+                    .setValue(area.textColor || '')
+                    .onChange(val => {
+                        area.textColor = val;
+                        this.updateLivePreview();
+                    });
+            })
+            .addColorPicker(picker => picker
+                .setValue(normalizeHex(area.textColor || '#ffffff'))
+                .onChange(val => {
+                    area.textColor = val;
+                    if (textColorComp) textColorComp.setValue(val);
+                    this.updateLivePreview();
+                }));
+
+        let linkTextComp: TextComponent;
+        new Setting(container)
+            .setName('Link Color')
+            .setDesc('Link color (leave blank for theme default)')
+            .addText(text => {
+                linkTextComp = text;
+                text.setPlaceholder('theme default')
+                    .setValue(area.linkColor || '')
+                    .onChange(val => {
+                        area.linkColor = val;
+                        this.updateLivePreview();
+                    });
+            })
+            .addColorPicker(picker => picker
+                .setValue(normalizeHex(area.linkColor || '#3498db'))
+                .onChange(val => {
+                    area.linkColor = val;
+                    if (linkTextComp) linkTextComp.setValue(val);
+                    this.updateLivePreview();
+                }));
+
+        let neonTextComp: TextComponent;
         new Setting(container)
             .setName('Neon Glow Effect')
             .setDesc('Color of glowing cyber neon border')
-            .addText(text => text
-                .setPlaceholder('#00f2ff or cyan')
-                .setValue(area.neon || '')
+            .addText(text => {
+                neonTextComp = text;
+                text.setPlaceholder('#00f2ff or cyan')
+                    .setValue(area.neon || '')
+                    .onChange(val => {
+                        area.neon = val;
+                        this.updateLivePreview();
+                    });
+            })
+            .addColorPicker(picker => picker
+                .setValue(normalizeHex(area.neon || '#00f2ff'))
                 .onChange(val => {
                     area.neon = val;
+                    if (neonTextComp) neonTextComp.setValue(val);
                     this.updateLivePreview();
                 }));
     }
@@ -1197,6 +1369,26 @@ export class MultiColumnBuilderModal extends Modal {
                 }));
 
         new Setting(container)
+            .setName('Center Text (center)')
+            .setDesc('Center align all text inside this callout box')
+            .addToggle(toggle => toggle
+                .setValue(area.center || false)
+                .onChange(val => {
+                    area.center = val;
+                    this.updateLivePreview();
+                }));
+
+        new Setting(container)
+            .setName('Center Title Only (title:center)')
+            .setDesc('Center align only the box title header')
+            .addToggle(toggle => toggle
+                .setValue(area.titleCenter || false)
+                .onChange(val => {
+                    area.titleCenter = val;
+                    this.updateLivePreview();
+                }));
+
+        new Setting(container)
             .setName('Hide Icon')
             .addToggle(toggle => toggle
                 .setValue(area.noIcon || false)
@@ -1252,9 +1444,11 @@ export class MultiColumnBuilderModal extends Modal {
             subCallout.style.outlineOffset = '2px';
             subCallout.style.borderRadius = area.borderRadius ? toPx(area.borderRadius) : '6px';
             subCallout.style.padding = area.compact ? '0.4em 0.6em' : '8px 10px';
+            subCallout.style.textAlign = area.center ? 'center' : 'left';
             subCallout.style.cursor = 'pointer';
             subCallout.onclick = () => {
                 this.selectedAreaId = area.id;
+                this.isViewingLayoutPicker = false;
                 this.renderModal();
             };
 
@@ -1273,6 +1467,7 @@ export class MultiColumnBuilderModal extends Modal {
             titleEl.style.display = 'flex';
             titleEl.style.alignItems = 'center';
             titleEl.style.gap = '6px';
+            titleEl.style.justifyContent = (area.center || area.titleCenter) ? 'center' : 'flex-start';
             titleEl.style.fontWeight = '600';
             titleEl.style.color = area.titleColor || area.borderColor || 'var(--text-normal)';
 
@@ -1288,11 +1483,22 @@ export class MultiColumnBuilderModal extends Modal {
             const contentEl = subCallout.createDiv({ cls: 'callout-content' });
             contentEl.style.fontSize = '0.85em';
             contentEl.style.marginTop = '4px';
+            if (area.textColor) {
+                contentEl.style.color = area.textColor;
+            }
 
-            const lines = (area.content !== undefined && area.content !== null ? area.content : '').split('\n');
-            lines.forEach(l => {
-                contentEl.createEl('p', { text: l, attr: { style: 'margin: 2px 0;' } });
-            });
+            if (area.linkColor) {
+                subCallout.setCssProps({
+                    '--link-color': area.linkColor,
+                    '--link-color-hover': area.linkColor,
+                    '--link-internal-color': area.linkColor,
+                    '--link-external-color': area.linkColor,
+                    '--sc-link-color': area.linkColor
+                });
+                subCallout.setAttribute('data-link-color', area.linkColor);
+            }
+
+            void MarkdownRenderer.render(this.app, area.content || '', contentEl, '', this as unknown as any);
         });
     }
 
@@ -1317,6 +1523,8 @@ export class MultiColumnBuilderModal extends Modal {
             if (area.titleColor) metaParams.push(`title:${area.titleColor}`);
             if (area.iconColor) metaParams.push(`icon-color:${area.iconColor}`);
             if (area.iconName) metaParams.push(`icon:${area.iconName}`);
+            if (area.textColor) metaParams.push(`text:${area.textColor}`);
+            if (area.linkColor) metaParams.push(`link:${area.linkColor}`);
             if (area.neon) metaParams.push(`neon:${area.neon}`);
             if (area.font) metaParams.push(`font:${area.font}`);
             if (area.fontSize && area.fontSize !== 3) metaParams.push(`font-size:${area.fontSize}`);
@@ -1325,6 +1533,8 @@ export class MultiColumnBuilderModal extends Modal {
             if (area.borderStyle && area.borderStyle !== 'solid') metaParams.push(`bs:${area.borderStyle}`);
             if (area.col) metaParams.push(`col:${area.col}`);
             if (area.compact) metaParams.push('compact');
+            if (area.center) metaParams.push('center');
+            if (area.titleCenter) metaParams.push('title:center');
             if (area.noIcon) metaParams.push('no-icon');
 
             const metadataString = `(${metaParams.join(', ')})`;
@@ -1344,6 +1554,13 @@ export class MultiColumnBuilderModal extends Modal {
         } else {
             this.editor.replaceSelection(multiMarkdown);
             new Notice('Multi-column grid dashboard inserted!');
+        }
+    }
+
+    onClose(): void {
+        if (this.closeSuggesterFn) {
+            this.closeSuggesterFn();
+            this.closeSuggesterFn = null;
         }
     }
 }

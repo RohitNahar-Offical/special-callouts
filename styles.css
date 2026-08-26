@@ -38,12 +38,27 @@
     display: none;
 }
 
-.callout[data-link-color] a {
-    color: var(--link-color);
+.callout[data-link-color] a,
+.callout[data-link-color] a.internal-link,
+.callout[data-link-color] a.external-link,
+.callout[data-link-color] .cm-link,
+.callout[data-link-color] .cm-hmd-internal-link,
+.callout[data-link-color] .callout-content a,
+.callout[data-link-color] .callout-content a.internal-link,
+.callout[data-link-color] .callout-content a.external-link {
+    color: var(--sc-link-color, var(--link-color)) !important;
 }
 
-.callout[data-link-color] a:hover {
-    opacity: 0.8;
+.callout[data-link-color] a:hover,
+.callout[data-link-color] a.internal-link:hover,
+.callout[data-link-color] a.external-link:hover,
+.callout[data-link-color] .cm-link:hover,
+.callout[data-link-color] .cm-hmd-internal-link:hover,
+.callout[data-link-color] .callout-content a:hover,
+.callout[data-link-color] .callout-content a.internal-link:hover,
+.callout[data-link-color] .callout-content a.external-link:hover {
+    color: var(--sc-link-color, var(--link-color)) !important;
+    opacity: 0.8 !important;
 }
 
 /* Column Layout for Lists */
@@ -1130,3 +1145,212 @@ p.sc-wrapper-p,
 .special-callouts-ui .sc-var-pointer-events { pointer-events: var(--sc-dyn-pointer-events); }
 .special-callouts-ui .sc-var-border-color { border-color: var(--sc-dyn-border-color); }
 .special-callouts-ui .sc-var-font-family { font-family: var(--sc-dyn-font-family); }
+.special-callouts-ui .sc-var-left, .sc-var-left { left: var(--sc-dyn-left); }
+.special-callouts-ui .sc-var-top, .sc-var-top { top: var(--sc-dyn-top); }
+.special-callouts-ui .sc-btn-success { color: var(--text-success, #2ecc71) !important; border-color: var(--text-success, #2ecc71) !important; }
+/* Inline Code inside Callouts */
+.callout code {
+    color: var(--code-normal, var(--text-accent));
+    background-color: var(--code-background, rgba(var(--mono-rgb-100), 0.08));
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-family: var(--font-monospace);
+    vertical-align: baseline;
+}
+
+/* Special Callouts Inserter & Builder Modal Spacing */
+.modal.sc-inserter-modal {
+    padding-top: 12px !important;
+}
+
+.modal.sc-inserter-modal .modal-content,
+.sc-inserter-modal .modal-content {
+    padding-top: 4px !important;
+}
+
+.special-callouts-ui .sc-studio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0 !important;
+    margin-bottom: 8px !important;
+    padding-right: 32px;
+}
+
+.special-callouts-ui .sc-studio-title {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 1.15rem !important;
+    font-weight: 600 !important;
+    color: var(--text-normal) !important;
+    line-height: 1.2 !important;
+}
+
+.special-callouts-ui .sc-studio-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--background-secondary);
+    color: var(--text-muted);
+    border: 1px solid var(--background-modifier-border);
+}
+
+/* Mode Switcher (Single / Multi) */
+.sc-mode-switcher-container {
+    display: flex;
+    gap: 6px;
+    background: var(--background-secondary);
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+    margin-top: 0;
+    margin-bottom: 10px;
+}
+
+.sc-mode-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent !important;
+    border: none !important;
+    border-radius: 6px !important;
+    color: var(--text-muted) !important;
+    font-weight: 600 !important;
+    font-size: 0.92rem !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease-in-out !important;
+    box-shadow: none !important;
+    height: auto !important;
+}
+
+.sc-mode-btn:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+}
+
+.sc-mode-btn.is-active {
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent, #ffffff) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Studio Sub-Navigation Tabs */
+.sc-nav-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 2px;
+    margin-bottom: 10px !important;
+}
+
+.sc-nav-tab {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 10px !important;
+    font-size: 0.83rem !important;
+    font-weight: 500 !important;
+    border-radius: 6px !important;
+    background: var(--background-secondary) !important;
+    color: var(--text-muted) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+    cursor: pointer !important;
+    transition: all 0.15s ease !important;
+    white-space: nowrap !important;
+    height: auto !important;
+}
+
+.sc-nav-tab:hover {
+    background: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+}
+
+.sc-nav-tab.is-active {
+    background: var(--interactive-accent) !important;
+    color: var(--text-on-accent, #ffffff) !important;
+    border-color: var(--interactive-accent) !important;
+    font-weight: 600 !important;
+}
+
+/* Markdown Editor Toolbar & Suggester UI */
+.sc-markdown-textarea {
+    width: 100%;
+    resize: vertical;
+    font-family: var(--font-monospace);
+    font-size: 0.9rem;
+    line-height: 1.5;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+.sc-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+    padding: 4px 6px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.sc-toolbar-btn {
+    background: transparent !important;
+    border: none !important;
+    cursor: pointer !important;
+    padding: 4px 6px !important;
+    border-radius: 4px !important;
+    color: var(--text-muted) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    height: auto !important;
+    min-height: 24px !important;
+}
+
+.sc-toolbar-btn:hover {
+    background-color: var(--background-modifier-hover) !important;
+    color: var(--text-normal) !important;
+}
+
+.sc-suggestion-container {
+    position: fixed;
+    z-index: 20000;
+    max-height: 220px;
+    width: 260px;
+    overflow-y: auto;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.sc-suggestion {
+    padding: 4px;
+}
+
+.sc-suggestion-item {
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-normal);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sc-suggestion-item:hover,
+.sc-suggestion-item.is-selected {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-accent);
+}
+

@@ -8,39 +8,16 @@
  * @license MIT
  */
 
-import { App, Plugin, Editor, FuzzySuggestModal, Menu } from 'obsidian';
+import { App, Plugin, Editor, Menu } from 'obsidian';
 import { SpecialCalloutsSettings } from './src/types';
 import { DEFAULT_SETTINGS } from './src/constants';
 import { CalloutProcessor } from './src/processor';
-import { findMetadataSpan } from './src/parser';
-import { CustomCalloutSuggester } from './src/modals/SuggesterModal';
+import { findMetadataSpan, clearMetadataCache } from './src/parser';
+import { CustomCalloutSuggester, ColumnSuggesterModal } from './src/modals/SuggesterModal';
 import { SpecialCalloutsSettingTab } from './src/settings/SettingsTab';
 import { IconPickerModal } from './src/modals/IconPickerModal';
 import { InsertCalloutModal } from './src/modals/InsertCalloutModal';
 import { MultiColumnBuilderModal } from './src/modals/MultiColumnBuilderModal';
-
-class ColumnSuggesterModal extends FuzzySuggestModal<string> {
-    items: string[];
-    callback: (item: string) => void;
-
-    constructor(app: App, items: string[], callback: (item: string) => void) {
-        super(app);
-        this.items = items;
-        this.callback = callback;
-    }
-
-    getItems(): string[] {
-        return this.items;
-    }
-
-    getItemText(item: string): string {
-        return item;
-    }
-
-    onChooseItem(item: string, evt: MouseEvent | KeyboardEvent): void {
-        this.callback(item);
-    }
-}
 
 /**
  * Formats the "Default Callout Metadata" setting into the parenthesised form the renderer
@@ -88,19 +65,16 @@ export default class SpecialCallouts extends Plugin {
             this.app.workspace.on('editor-menu', (menu: Menu, editor: Editor) => {
                 menu.addItem((item) => {
                     item
-                        .setTitle('Insert Special Callout...')
-                        .setIcon('palette')
-                        .onClick(() => {
-                            new InsertCalloutModal(this.app, this.settings, editor).open();
-                        });
-                });
-
-                menu.addItem((item) => {
-                    item
-                        .setTitle('Multi-Column Dashboard Builder...')
+                        .setTitle('Special Callout Studio (Create / Edit)...')
                         .setIcon('layout-grid')
                         .onClick(() => {
-                            new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+                            const selection = editor.getSelection();
+                            const line = editor.getLine(editor.getCursor().line);
+                            if ((selection && selection.includes('[!multi-callout]')) || /^\s*>\s*\[!multi-callout\]/i.test(line)) {
+                                new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+                            } else {
+                                new InsertCalloutModal(this.app, this.settings, editor).open();
+                            }
                         });
                 });
             })
@@ -111,21 +85,18 @@ export default class SpecialCallouts extends Plugin {
      * Registers all plugin commands based on usage scenarios
      */
     private registerCommands(): void {
-        // All-in-One Customizer Modal Command
+        // Unified Callout Studio Command (Single & Multi-Column Dashboard)
         this.addCommand({
-            id: 'insert-and-customize-callout',
-            name: 'Insert & Customize Callout (All-in-One)...',
+            id: 'open-special-callout-studio',
+            name: 'Special Callout Studio (Create / Edit Single & Multi)...',
             editorCallback: (editor) => {
-                new InsertCalloutModal(this.app, this.settings, editor).open();
-            }
-        });
-
-        // Multi-Column Dashboard Builder (Insert or Edit)
-        this.addCommand({
-            id: 'open-multi-column-builder',
-            name: 'Multi-Column Dashboard Builder (Insert or Edit)...',
-            editorCallback: (editor) => {
-                new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+                const selection = editor.getSelection();
+                const line = editor.getLine(editor.getCursor().line);
+                if ((selection && selection.includes('[!multi-callout]')) || /^\s*>\s*\[!multi-callout\]/i.test(line)) {
+                    new MultiColumnBuilderModal(this.app, this.settings, editor).open();
+                } else {
+                    new InsertCalloutModal(this.app, this.settings, editor).open();
+                }
             }
         });
 
@@ -286,6 +257,9 @@ export default class SpecialCallouts extends Plugin {
         const saved = ((await this.loadData()) || {}) as Partial<SpecialCalloutsSettings>;
 
         this.settings = Object.assign({}, DEFAULT_SETTINGS, saved);
+        this.settings.customStyles = Array.isArray(saved.customStyles) ? saved.customStyles : (DEFAULT_SETTINGS.customStyles || []);
+        this.settings.customColors = Array.isArray(saved.customColors) ? saved.customColors : (DEFAULT_SETTINGS.customColors || []);
+        this.settings.customLayouts = Array.isArray(saved.customLayouts) ? saved.customLayouts : (DEFAULT_SETTINGS.customLayouts || []);
         this.settings.standardStyles = Object.assign({}, DEFAULT_SETTINGS.standardStyles, saved.standardStyles);
         this.settings.standardColors = Object.assign({}, DEFAULT_SETTINGS.standardColors, saved.standardColors);
     }
@@ -293,8 +267,6 @@ export default class SpecialCallouts extends Plugin {
     async saveSettings(): Promise<void> {
         await this.saveData(this.settings);
         this.registerStyleCommands();
-        // Clear metadata cache and update processor with new settings
-        const { clearMetadataCache } = await import('./src/parser');
         clearMetadataCache();
         if (this.processor) {
             this.processor.updateSettings(this.settings);

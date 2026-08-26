@@ -3,7 +3,7 @@
  * Adheres to DRY principles and Obsidian UI guidelines (no static style assignments)
  */
 
-import { Setting, setIcon, App } from 'obsidian';
+import { Setting, setIcon, App, Component, MarkdownRenderer } from 'obsidian';
 import { CalloutStyle, CalloutConfig } from '../types';
 import { FONT_FAMILIES, FONT_SIZES } from '../constants';
 import { normalizeHex, toPx, neonStyles } from '../utils';
@@ -28,6 +28,291 @@ export const FONT_OPTIONS = [
     { value: 'hand', label: 'Handwritten' },
     { value: 'marker', label: 'Marker' }
 ];
+
+export interface MarkdownEditorOptions {
+    container: HTMLElement;
+    app: App;
+    initialValue: string;
+    placeholder?: string;
+    rows?: number;
+    onChange: (val: string) => void;
+}
+
+export function createMarkdownEditorWithToolbar(options: MarkdownEditorOptions): {
+    wrapper: HTMLElement;
+    textArea: HTMLTextAreaElement;
+    getValue: () => string;
+    setValue: (val: string) => void;
+    closeSuggester: () => void;
+} {
+    const { container, app, initialValue, placeholder, rows = 4, onChange } = options;
+    const wrapper = container.createDiv({ cls: 'sc-markdown-editor-wrap' });
+
+    // Toolbar
+    const toolbar = wrapper.createDiv({ cls: 'sc-editor-toolbar' });
+
+    const textArea = wrapper.createEl('textarea', { cls: 'sc-markdown-textarea' });
+    textArea.value = initialValue || '';
+    textArea.placeholder = placeholder || 'Write callout content (supports markdown, [[links]], #tags)...';
+    textArea.rows = rows;
+
+    let suggestEl: HTMLElement | null = null;
+    let suggestItems: string[] = [];
+    let selectedIndex = 0;
+    let suggestType: 'link' | 'tag' | null = null;
+    let suggestStart = -1;
+
+    const closeSuggester = () => {
+        if (suggestEl) {
+            suggestEl.remove();
+            suggestEl = null;
+        }
+        suggestType = null;
+        suggestStart = -1;
+    };
+
+    const wrapText = (prefix: string, suffix: string, cursorOffset = 0) => {
+        const start = textArea.selectionStart;
+        const end = textArea.selectionEnd;
+        const selected = textArea.value.substring(start, end);
+        const before = textArea.value.substring(0, start);
+        const after = textArea.value.substring(end);
+
+        textArea.value = before + prefix + selected + suffix + after;
+
+        if (cursorOffset > 0) {
+            const newPos = start + cursorOffset;
+            textArea.setSelectionRange(newPos, newPos);
+        } else {
+            textArea.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
+        }
+
+        onChange(textArea.value);
+        textArea.focus();
+    };
+
+    const addBtn = (iconName: string, tooltipText: string, action: () => void) => {
+        const btn = toolbar.createEl('button', { cls: 'sc-toolbar-btn', title: tooltipText });
+        setIcon(btn, iconName);
+        btn.onclick = (e) => {
+            e.preventDefault();
+            action();
+        };
+    };
+
+    addBtn('bold', 'Bold (Ctrl+B)', () => wrapText('**', '**'));
+    addBtn('italic', 'Italic (Ctrl+I)', () => wrapText('*', '*'));
+    addBtn('strikethrough', 'Strikethrough', () => wrapText('~~', '~~'));
+    addBtn('highlighter', 'Highlight', () => wrapText('==', '=='));
+    addBtn('code', 'Inline Code', () => wrapText('`', '`'));
+    addBtn('file-code-2', 'Code Block', () => wrapText('\n```\n', '\n```\n'));
+    addBtn('link', 'Markdown Link (Ctrl+K)', () => wrapText('[', ']()', 1 + (textArea.selectionEnd - textArea.selectionStart) + 2));
+    addBtn('link-2', 'Internal Wikilink [[', () => wrapText('[[', ']]'));
+    addBtn('list', 'Bullet List', () => wrapText('\n- ', ''));
+    addBtn('check-square', 'Task List', () => wrapText('\n- [ ] ', ''));
+
+    // Clipboard unblocking
+    const stopNative = (e: Event) => e.stopPropagation();
+    textArea.addEventListener('copy', stopNative);
+    textArea.addEventListener('cut', stopNative);
+    textArea.addEventListener('paste', stopNative);
+
+    const renderSuggest = () => {
+        if (!suggestEl) {
+            suggestEl = activeDocument.body.createDiv({ cls: 'sc-suggestion-container' });
+            const sub = suggestEl.createDiv({ cls: 'sc-suggestion' });
+            suggestItems.forEach((item, idx) => {
+                const el = sub.createDiv({ cls: `sc-suggestion-item ${idx === selectedIndex ? 'is-selected' : ''}` });
+                const icon = el.createSpan();
+                setIcon(icon, suggestType === 'link' ? 'file-text' : 'tag');
+                el.createSpan({ cls: 'sc-suggestion-content', text: item });
+                el.onclick = () => selectItem(idx);
+            });
+
+            const rect = textArea.getBoundingClientRect();
+            suggestEl.addClass('sc-var-left', 'sc-var-top');
+            suggestEl.setCssProps({
+                '--sc-dyn-left': `${Math.max(10, rect.left + 10)}px`,
+                '--sc-dyn-top': `${Math.min(window.innerHeight - 230, rect.top + 30)}px`
+            });
+        } else {
+            const sub = suggestEl.querySelector('.sc-suggestion');
+            if (sub) {
+                sub.empty();
+                suggestItems.forEach((item, idx) => {
+                    const el = sub.createDiv({ cls: `sc-suggestion-item ${idx === selectedIndex ? 'is-selected' : ''}` });
+                    const icon = el.createSpan();
+                    setIcon(icon, suggestType === 'link' ? 'file-text' : 'tag');
+                    el.createSpan({ cls: 'sc-suggestion-content', text: item });
+                    el.onclick = () => selectItem(idx);
+                });
+            }
+        }
+    };
+
+    const selectItem = (idx: number) => {
+        const item = suggestItems[idx];
+        const before = textArea.value.substring(0, suggestStart);
+        const after = textArea.value.substring(textArea.selectionStart);
+
+        const inserted = suggestType === 'link' ? `${item}]]` : `${item} `;
+        textArea.value = before + inserted + after;
+        textArea.focus();
+        const newPos = before.length + inserted.length;
+        textArea.setSelectionRange(newPos, newPos);
+
+        onChange(textArea.value);
+        closeSuggester();
+    };
+
+    textArea.onkeydown = (e) => {
+        e.stopPropagation();
+
+        if (suggestType && suggestItems.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                selectedIndex = (selectedIndex + 1) % suggestItems.length;
+                renderSuggest();
+                return;
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                selectedIndex = (selectedIndex - 1 + suggestItems.length) % suggestItems.length;
+                renderSuggest();
+                return;
+            } else if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                selectItem(selectedIndex);
+                return;
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeSuggester();
+                return;
+            }
+        }
+
+        if (e.ctrlKey || e.metaKey) {
+            const key = e.key.toLowerCase();
+            if (key === 'b') {
+                e.preventDefault();
+                wrapText('**', '**');
+            } else if (key === 'i') {
+                e.preventDefault();
+                wrapText('*', '*');
+            } else if (key === 'k') {
+                e.preventDefault();
+                wrapText('[', ']()', 1 + (textArea.selectionEnd - textArea.selectionStart) + 2);
+            }
+        }
+    };
+
+    textArea.oninput = () => {
+        const val = textArea.value;
+        const pos = textArea.selectionStart;
+        onChange(val);
+
+        if (suggestType) {
+            const triggerIntact = suggestType === 'link'
+                ? (suggestStart >= 2 && val.substring(suggestStart - 2, suggestStart) === '[[')
+                : (suggestStart >= 1 && val.substring(suggestStart - 1, suggestStart) === '#');
+
+            if (pos < suggestStart || !triggerIntact) {
+                closeSuggester();
+            }
+        }
+
+        const lastTwo = val.substring(pos - 2, pos);
+        const lastOne = val.substring(pos - 1, pos);
+
+        if (lastTwo === '[[') {
+            suggestType = 'link';
+            suggestStart = pos;
+            selectedIndex = 0;
+        } else if (lastOne === '#' && !suggestType) {
+            suggestType = 'tag';
+            suggestStart = pos;
+            selectedIndex = 0;
+        }
+
+        if (suggestType) {
+            const query = val.substring(suggestStart, pos).toLowerCase();
+            if (query.includes(' ') || query.includes('\n')) {
+                closeSuggester();
+            } else {
+                let all: string[] = [];
+                if (suggestType === 'link') {
+                    all = app.vault.getMarkdownFiles().map(f => f.basename);
+                } else {
+                    const tagsCache = (app.metadataCache as any)?.getTags?.() || {};
+                    all = Object.keys(tagsCache).map(t => t.startsWith('#') ? t.substring(1) : t);
+                }
+
+                suggestItems = all.filter(item => item.toLowerCase().includes(query)).slice(0, 10);
+                if (suggestItems.length === 0) {
+                    closeSuggester();
+                } else {
+                    renderSuggest();
+                }
+            }
+        }
+    };
+
+    textArea.onblur = () => {
+        window.setTimeout(() => closeSuggester(), 200);
+    };
+
+    return {
+        wrapper,
+        textArea,
+        getValue: () => textArea.value,
+        setValue: (val: string) => {
+            textArea.value = val;
+            onChange(val);
+        },
+        closeSuggester
+    };
+}
+
+/**
+ * Renders a sticky Live Callout Preview card into a container
+ */
+export function renderLiveCalloutPreview(
+    container: HTMLElement,
+    titleText: string,
+    contentText: string,
+    app?: App,
+    component?: Component
+): {
+    previewCard: HTMLElement;
+    titleInner: HTMLElement;
+    iconEl: HTMLElement;
+    bodyEl: HTMLElement;
+    updateContent: (content: string) => void;
+} {
+    const previewContainer = container.createDiv({ cls: 'sc-live-preview-container' });
+    const previewCard = previewContainer.createDiv({ cls: 'callout' });
+    previewCard.setAttribute('data-callout', 'note');
+
+    const titleEl = previewCard.createDiv({ cls: 'callout-title' });
+    const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+    setIcon(iconEl, 'pencil');
+    const titleInner = titleEl.createDiv({ cls: 'callout-title-inner', text: titleText });
+
+    const bodyEl = previewCard.createDiv({ cls: 'callout-content' });
+
+    const updateContent = (content: string) => {
+        bodyEl.empty();
+        if (app && component) {
+            void MarkdownRenderer.render(app, content || 'Type callout content...', bodyEl, '', component);
+        } else {
+            const p = bodyEl.createEl('p');
+            p.createSpan({ text: content || 'Type callout content...' });
+        }
+    };
+
+    updateContent(contentText);
+
+    return { previewCard, titleInner, iconEl, bodyEl, updateContent };
+}
 
 /**
  * Creates a dual Text + Native ColorPicker setting row with 2-way live sync
@@ -161,29 +446,6 @@ export function createFontSizeSetting(
 }
 
 /**
- * Renders a sticky Live Callout Preview card into a container
- */
-export function renderLiveCalloutPreview(
-    container: HTMLElement,
-    titleText: string,
-    contentText: string
-): { previewCard: HTMLElement; titleInner: HTMLElement; iconEl: HTMLElement; bodyEl: HTMLElement } {
-    const previewContainer = container.createDiv({ cls: 'sc-live-preview-container' });
-    const previewCard = previewContainer.createDiv({ cls: 'callout' });
-    previewCard.setAttribute('data-callout', 'note');
-
-    const titleEl = previewCard.createDiv({ cls: 'callout-title' });
-    const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-    setIcon(iconEl, 'pencil');
-    const titleInner = titleEl.createDiv({ cls: 'callout-title-inner', text: titleText });
-
-    const bodyEl = previewCard.createDiv({ cls: 'callout-content' });
-    bodyEl.createEl('p', { text: contentText });
-
-    return { previewCard, titleInner, iconEl, bodyEl };
-}
-
-/**
  * Updates a Live Callout Preview DOM element with style properties safely
  */
 export function applyStyleToLivePreview(
@@ -209,6 +471,7 @@ export function applyStyleToLivePreview(
     previewCard.removeAttribute('data-sc-title-color');
     previewCard.removeAttribute('data-sc-icon-color');
     previewCard.removeAttribute('data-sc-text');
+    previewCard.removeAttribute('data-link-color');
 
     if (style.bg) {
         cssProps['--sc-bg-color'] = createTransparentBg(style.bg, 15);
@@ -218,6 +481,15 @@ export function applyStyleToLivePreview(
     if (style.text) {
         cssProps['--sc-text-color'] = style.text;
         previewCard.setAttribute('data-sc-text', '');
+    }
+
+    if (style.link) {
+        cssProps['--link-color'] = style.link;
+        cssProps['--link-color-hover'] = style.link;
+        cssProps['--link-internal-color'] = style.link;
+        cssProps['--link-external-color'] = style.link;
+        cssProps['--sc-link-color'] = style.link;
+        previewCard.setAttribute('data-link-color', style.link);
     }
 
     if (style.titleColor) {

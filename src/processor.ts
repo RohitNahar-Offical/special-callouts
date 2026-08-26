@@ -231,6 +231,10 @@ export class CalloutProcessor {
 
         if (config.link) {
             cssProps['--link-color'] = config.link;
+            cssProps['--link-color-hover'] = config.link;
+            cssProps['--link-internal-color'] = config.link;
+            cssProps['--link-external-color'] = config.link;
+            cssProps['--sc-link-color'] = config.link;
             calloutEl.setAttribute('data-link-color', config.link);
         }
 
@@ -673,6 +677,9 @@ export class CalloutProcessor {
         this.activeObservers.add(observer);
     }
 
+    private animatedSvgObserver: IntersectionObserver | null = null;
+    private svgTemplates: WeakMap<SVGElement, SVGElement> = new WeakMap();
+
     /**
      * Safely applies an icon bypassing Obsidian's native override
      */
@@ -680,6 +687,37 @@ export class CalloutProcessor {
         iconEl.empty();
         setIcon(iconEl, iconName);
         iconEl.removeClass('sc-hidden');
+
+        // SMIL animated SVG scroll recovery support
+        const svg = iconEl.querySelector('svg');
+        if (svg && svg.querySelector('animate, animateTransform, set')) {
+            this.trackAnimatedSvg(svg as unknown as SVGElement);
+        }
+    }
+
+    private trackAnimatedSvg(svg: SVGElement): void {
+        if (!this.animatedSvgObserver && typeof IntersectionObserver !== 'undefined') {
+            this.animatedSvgObserver = new IntersectionObserver((entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        const targetSvg = entry.target as SVGElement;
+                        const template = this.svgTemplates.get(targetSvg);
+                        if (template && targetSvg.parentElement) {
+                            const fresh = template.cloneNode(true) as SVGElement;
+                            this.svgTemplates.set(fresh, template);
+                            this.animatedSvgObserver?.unobserve(targetSvg);
+                            targetSvg.parentElement.replaceChild(fresh, targetSvg);
+                            this.animatedSvgObserver?.observe(fresh);
+                        }
+                    }
+                });
+            }, { root: null, threshold: 0.1 });
+        }
+
+        if (!this.svgTemplates.has(svg)) {
+            this.svgTemplates.set(svg, svg.cloneNode(true) as SVGElement);
+        }
+        this.animatedSvgObserver?.observe(svg);
     }
 
     /**
@@ -690,5 +728,9 @@ export class CalloutProcessor {
         this.activeObservers.clear();
         this.allPendingTimeouts.forEach(id => window.clearTimeout(id));
         this.allPendingTimeouts.clear();
+        if (this.animatedSvgObserver) {
+            this.animatedSvgObserver.disconnect();
+            this.animatedSvgObserver = null;
+        }
     }
 }
