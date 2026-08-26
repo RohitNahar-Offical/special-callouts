@@ -362,15 +362,17 @@ export class CalloutProcessor {
      * Gets the direct wrapper of the callout under .callout-content
      */
     private getDirectWrapper(calloutEl: HTMLElement): HTMLElement {
-        let current: HTMLElement | null = calloutEl;
-        let parent = current.parentElement;
-        
-        while (parent && !parent.classList.contains('callout-content')) {
-            current = parent;
-            parent = parent.parentElement;
+        const parentContent = calloutEl.closest('.callout-content') as HTMLElement | null;
+        if (!parentContent || !parentContent.contains(calloutEl) || parentContent === calloutEl) {
+            return calloutEl;
         }
-        
-        return current || calloutEl;
+
+        let current: HTMLElement = calloutEl;
+        while (current.parentElement && current.parentElement !== parentContent) {
+            current = current.parentElement;
+        }
+
+        return current;
     }
 
     /**
@@ -574,13 +576,18 @@ export class CalloutProcessor {
         });
     }
 
+    private allPendingTimeouts: Set<number> = new Set();
+
     /**
      * Schedules retry attempts for column layout with timeout lifecycle management
      */
     private scheduleColumnRetry(calloutEl: HTMLElement, colCount: number): void {
         const existingTimers = this.activeTimeouts.get(calloutEl);
         if (existingTimers) {
-            existingTimers.forEach(id => window.clearTimeout(id));
+            existingTimers.forEach(id => {
+                window.clearTimeout(id);
+                this.allPendingTimeouts.delete(id);
+            });
         }
 
         const retryDelays = [100, 300, 600, 1000, 2000];
@@ -588,8 +595,12 @@ export class CalloutProcessor {
 
         retryDelays.forEach(delay => {
             const id = window.setTimeout(() => {
+                this.allPendingTimeouts.delete(id);
                 if (!calloutEl.isConnected) {
-                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    timerIds.forEach(tId => {
+                        window.clearTimeout(tId);
+                        this.allPendingTimeouts.delete(tId);
+                    });
                     this.activeTimeouts.delete(calloutEl);
                     return;
                 }
@@ -600,11 +611,15 @@ export class CalloutProcessor {
                 const lists = contentEl.querySelectorAll(LIST_SELECTOR);
                 if (lists.length > 0) {
                     this.applyColumnsToContainer(calloutEl, colCount);
-                    timerIds.forEach(tId => window.clearTimeout(tId));
+                    timerIds.forEach(tId => {
+                        window.clearTimeout(tId);
+                        this.allPendingTimeouts.delete(tId);
+                    });
                     this.activeTimeouts.delete(calloutEl);
                 }
             }, delay);
             timerIds.push(id);
+            this.allPendingTimeouts.add(id);
         });
 
         this.activeTimeouts.set(calloutEl, timerIds);
@@ -673,5 +688,7 @@ export class CalloutProcessor {
     cleanup(): void {
         this.activeObservers.forEach(o => o.disconnect());
         this.activeObservers.clear();
+        this.allPendingTimeouts.forEach(id => window.clearTimeout(id));
+        this.allPendingTimeouts.clear();
     }
 }

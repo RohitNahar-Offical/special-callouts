@@ -36,7 +36,7 @@ export function throttle<T extends (...args: unknown[]) => void>(
     }) as T;
 }
 
-const HEX_REGEX = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+const HEX_REGEX = /^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
 const NUMERIC_REGEX = /^-?\d*\.?\d+$/;
 
 /**
@@ -45,7 +45,7 @@ const NUMERIC_REGEX = /^-?\d*\.?\d+$/;
  * @returns true if valid hex code
  */
 export function isValidHex(hex: string): boolean {
-    return HEX_REGEX.test(hex);
+    return HEX_REGEX.test(hex.trim());
 }
 
 /**

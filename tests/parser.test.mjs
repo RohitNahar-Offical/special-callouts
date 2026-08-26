@@ -482,7 +482,7 @@ describe('serializeMetadata and lossless roundtripping', () => {
             'bg:red, border:blue, dense, 1:3',
             'style:ocean, text:(white, dark-border), link:teal, bw:2px, bs:dashed',
             'title:(center, green, light-border), no-icon, radius:8px',
-            'gradient:linear-gradient(90deg, #ff0000, #0000ff), font:mono, font-size:4, col:2',
+            'gradient:linear-gradient(90deg, #ff0000, #0000ff), font:mono, font-size:4, col:2, span:2',
             'neon:purple, icon:zap, icon-color:yellow, compact',
             'center, bg:grey, border:red, bw:3px',
             'center, title:center',
@@ -509,6 +509,18 @@ describe('performance heuristics and caching', () => {
     test('extractMetadata skips unadorned titles in O(1)', () => {
         assert.equal(extractMetadata('Plain Title With No Parens'), null);
         assert.equal(extractMetadata('Another standard note title'), null);
+    });
+
+    test('extractMetadata extracts multi-parentheses metadata', () => {
+        const res1 = extractMetadata('(bg:red) (col:2) Multi Title');
+        assert.ok(res1);
+        assert.equal(res1.title, 'Multi Title');
+        assert.equal(res1.content, 'bg:red, col:2');
+
+        const res2 = extractMetadata('(bg:red) Middle Title (col:2)');
+        assert.ok(res2);
+        assert.equal(res2.title, 'Middle Title');
+        assert.equal(res2.content, 'bg:red, col:2');
     });
 
     test('repeated parse calls return identical config structure via cache', () => {

@@ -224,6 +224,10 @@
     grid-row: var(--sc-grid-row-start, auto) / span var(--sc-grid-row-span, 1) !important;
     width: 100% !important;
     box-sizing: border-box !important;
+    min-width: 0;
+    margin: 0 !important;
+    display: flex;
+    flex-direction: column;
 }
 
 blockquote.sc-wrapper-bq {
@@ -378,18 +382,6 @@ p.sc-wrapper-p,
 }
 
 /* Grid item wrappers */
-.sc-grid-item-wrapper {
-    flex: 0 0 var(--sc-flex-width);
-    /* Flex items default to min-width:auto, and min wins over max — so a long unbroken
-       word could hold a panel wider than its computed share and knock the row out of
-       alignment. */
-    min-width: 0;
-    width: var(--sc-flex-width);
-    max-width: var(--sc-flex-width);
-    margin: 0 !important;
-    display: flex;
-    flex-direction: column;
-}
 .sc-grid-item-wrapper > .callout,
 .sc-wrapper-bq > .callout,
 .sc-wrapper-p > .callout {

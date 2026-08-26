@@ -384,6 +384,10 @@ export function serializeMetadata(
         tokens.push(`col:${config.col}`);
     }
 
+    if (config.span !== null && config.span !== undefined) {
+        tokens.push(`span:${config.span}`);
+    }
+
     if (config.dense) {
         tokens.push('dense');
     } else if (config.compact) {
@@ -413,6 +417,10 @@ export function parseGridLayout(param: string): GridConfig | null {
     const columns = parseInt(match[3], 10);
     const rowStart = match[4] ? parseInt(match[4], 10) : 1;
     const rowEnd = match[5] ? parseInt(match[5], 10) : rowStart;
+
+    if (isNaN(colStart) || isNaN(columns) || colStart < 1 || columns < 1 || rowStart < 1) {
+        return null;
+    }
 
     let colSpan = match[6] ? parseInt(match[6], 10) : (colEnd - colStart + 1);
     let rowSpan = match[7] ? parseInt(match[7], 10) : (rowEnd - rowStart + 1);
@@ -478,9 +486,22 @@ export function extractMetadata(fullText: string, customLayoutNames: string[] = 
     if (trimmedText.startsWith('(')) {
         const span = findMetadataSpan(trimmedText, 0);
         if (span) {
+            const firstContent = span.content;
+            const remaining = trimmedText.substring(span.end + 1).trim();
+
+            if (remaining && (remaining.startsWith('(') || remaining.endsWith(')'))) {
+                const second = extractMetadata(remaining, customLayoutNames);
+                if (second) {
+                    return {
+                        content: `${firstContent}, ${second.content}`,
+                        title: second.title
+                    };
+                }
+            }
+
             return {
-                content: span.content,
-                title: trimmedText.substring(span.end + 1).trim()
+                content: firstContent,
+                title: remaining
             };
         }
         return null;
@@ -504,9 +525,19 @@ export function extractMetadata(fullText: string, customLayoutNames: string[] = 
         if (startIndex !== -1) {
             const candidate = trimmedText.substring(startIndex + 1, trimmedText.length - 1).trim();
             if (isLikelyMetadata(candidate, customLayoutNames)) {
+                const remainingTitle = trimmedText.substring(0, startIndex).trim();
+                if (remainingTitle && remainingTitle.startsWith('(')) {
+                    const leading = extractMetadata(remainingTitle, customLayoutNames);
+                    if (leading) {
+                        return {
+                            content: `${leading.content}, ${candidate}`,
+                            title: leading.title
+                        };
+                    }
+                }
                 return {
                     content: candidate,
-                    title: trimmedText.substring(0, startIndex).trim()
+                    title: remainingTitle
                 };
             }
         }

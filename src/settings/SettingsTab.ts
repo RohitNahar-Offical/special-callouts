@@ -393,15 +393,15 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         const ctrlRow = container.createDiv({ cls: 'sc-flex-row sc-margin-bottom' });
         ctrlRow.createEl('strong', { text: 'Grid Size:' });
 
-        const colsInput = ctrlRow.createEl('input', { type: 'number', value: this.builderCols.toString() });
-        colsInput.style.width = '60px';
+        const colsInput = ctrlRow.createEl('input', { type: 'number', value: this.builderCols.toString(), cls: 'sc-var-width' });
+        colsInput.setCssProps({ '--sc-dyn-width': '60px' });
         colsInput.min = '1';
         colsInput.max = '6';
 
         ctrlRow.createSpan({ text: '×' });
 
-        const rowsInput = ctrlRow.createEl('input', { type: 'number', value: this.builderRows.toString() });
-        rowsInput.style.width = '60px';
+        const rowsInput = ctrlRow.createEl('input', { type: 'number', value: this.builderRows.toString(), cls: 'sc-var-width' });
+        rowsInput.setCssProps({ '--sc-dyn-width': '60px' });
         rowsInput.min = '1';
         rowsInput.max = '6';
 

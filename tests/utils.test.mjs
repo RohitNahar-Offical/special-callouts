@@ -81,11 +81,13 @@ describe('resolveColor', () => {
 });
 
 describe('hex helpers', () => {
-    test('isValidHex accepts 3 and 6 digit forms', () => {
+    test('isValidHex accepts 3 and 6 digit forms with or without hash', () => {
         assert.equal(isValidHex('#fff'), true);
         assert.equal(isValidHex('#ffffff'), true);
-        assert.equal(isValidHex('fff'), false);
+        assert.equal(isValidHex('fff'), true);
+        assert.equal(isValidHex('ffffff'), true);
         assert.equal(isValidHex('#gggggg'), false);
+        assert.equal(isValidHex('gggggg'), false);
     });
 
     test('normalizeHex expands the short form and uppercases', () => {

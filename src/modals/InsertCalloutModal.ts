@@ -4,7 +4,7 @@
  */
 
 import { App, Modal, Editor, Setting, setIcon, Notice } from 'obsidian';
-import { SpecialCalloutsSettings, CalloutStyle } from '../types';
+import { SpecialCalloutsSettings, CalloutStyle, CalloutConfig } from '../types';
 import { DEFAULT_STANDARD_STYLES } from '../constants';
 import { serializeMetadata } from '../parser';
 import {
@@ -199,6 +199,8 @@ export class InsertCalloutModal extends Modal {
                             this.titleColor = custom.titleColor || '';
                             this.iconColor = custom.iconColor || '';
                             this.iconName = custom.icon || 'pencil';
+                            this.font = custom.font || '';
+                            this.fontSize = custom.fontSize ?? 3;
                             this.borderWidth = custom.borderWidth || '1px';
                             this.borderStyle = custom.borderStyle || 'solid';
                             this.borderRadius = custom.borderRadius || '8px';
@@ -387,7 +389,7 @@ export class InsertCalloutModal extends Modal {
     }
 
     private insertCallout(): void {
-        const styleConfig: Partial<CalloutStyle> = {
+        const config: Partial<CalloutConfig> = {
             bg: this.bgColor,
             border: this.borderColor,
             text: this.textColor,
@@ -395,18 +397,19 @@ export class InsertCalloutModal extends Modal {
             iconColor: this.iconColor,
             icon: this.iconName,
             font: this.font,
-            fontSize: this.fontSize !== 3 ? this.fontSize : undefined,
-            borderWidth: this.borderWidth !== '1px' ? this.borderWidth : undefined,
-            borderStyle: this.borderStyle !== 'solid' ? this.borderStyle : undefined,
-            borderRadius: this.borderRadius !== '8px' ? this.borderRadius : undefined,
+            fontSize: this.fontSize !== 3 ? this.fontSize : null,
+            borderWidth: this.borderWidth !== '1px' ? this.borderWidth : '',
+            borderStyle: this.borderStyle !== 'solid' ? this.borderStyle : '',
+            radius: this.borderRadius !== '8px' ? this.borderRadius : '',
             neon: this.neon,
+            col: this.colCount,
             compact: this.compact,
             center: this.center,
             titleCenter: this.titleCenter,
             noIcon: this.noIcon
         };
 
-        const serialized = serializeMetadata(styleConfig as any);
+        const serialized = serializeMetadata(config);
         const metaStr = serialized ? ` (${serialized})` : '';
         const header = `> [!${this.calloutType}]${metaStr} ${this.titleText}\n`;
         const body = this.contentText
