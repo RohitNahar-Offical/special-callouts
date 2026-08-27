@@ -1,6 +1,6 @@
-# Special Callouts — Comprehensive Technical Documentation
+# Special Callouts Enhanced — Comprehensive Technical Documentation
 
-Welcome to the comprehensive architecture and operational guide for the **Special Callouts** Obsidian plugin (v2.0.0+). This documentation explains **how the plugin works, why it was engineered this way, and how all its subsystems interact**.
+Welcome to the comprehensive architecture and operational guide for the **Special Callouts Enhanced** Obsidian plugin (v2.0.0+). This documentation explains **how the plugin works, why it was engineered this way, and how all its subsystems interact**.
 
 ---
 

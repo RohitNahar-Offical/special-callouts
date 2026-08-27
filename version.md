@@ -1,8 +1,8 @@
-# Special Callouts 2.0.0 — Release Notes & Changelog
+# Special Callouts Enhanced 2.0.0 — Release Notes & Changelog
 
 ## 🚀 Major Version 2.0.0 Release
 
-Version 2.0.0 brings a massive overhaul to Special Callouts, unifying the visual design Studio for single callouts and multi-column grid dashboards, introducing vault-wide universal defaults, enhancing performance and responsiveness, and polishing UI interactions.
+Version 2.0.0 brings a massive overhaul to Special Callouts Enhanced, unifying the visual design Studio for single callouts and multi-column grid dashboards, introducing vault-wide universal defaults, enhancing performance and responsiveness, and polishing UI interactions.
 
 ---
 

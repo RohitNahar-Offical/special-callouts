@@ -14,7 +14,7 @@
   <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/RohitNahar-Offical/special-callouts/issues">Report Bug</a> · <a href="https://github.com/sponsors/RohitNahar-Offical">❤️ Sponsor</a>
 </p>
 
-# Special Callouts (Enhanced Fork)
+# Special Callouts Enhanced
 
 > [!NOTE]
 > **Fork Information**:
