@@ -11,6 +11,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.0] - 2026-08-27
+
+### Added
+- **Special Callout Studio**: Unified modal for designing single callouts and multi-column dashboards with visual matrix canvas, cell merge/split, and instant live previews.
+- **Universal Callout Defaults**: Configurable vault-wide defaults in General Settings (Borders, Corner Radius, List Columns, Compact Mode, Center Text, Hide Icon) paired with real-time interactive preview.
+- **Save as Preset**: Save both single callouts and multi-column layouts directly as reusable presets from the Studio.
+- **Command Palette Streamlining**: Commands for custom callouts and presets now default to disabled (`showInCommandPalette: false`) with individual toggles in settings.
+
+### Fixed
+- **Center Alignment**: Unified icon and title text centering together as a cohesive unit.
+- **Gradient Borders**: Restored outline borders and glow effects when combined with multi-color CSS gradients.
+- **Visual Matrix Stability**: Fixed canvas clicking so configuring blocks stays in layout mode until clicking `✓ Done`.
+- **Live Preview Icon Rendering**: Added Lucide icon fallbacks for empty style icon definitions.
+
+### Performance
+- **Zero-Lag Engine**: RAF-debounced DOM mutation batching and O(1) early node rejection eliminating vault reload and startup micro-stutters.
+- **Zero-Allocation LRU Caching**: Fast-path metadata tokenizer with 500-entry in-memory LRU cache.
+
+---
+
 ## [1.0.9] - 2026-08-24
 
 A stabilisation release. Nothing here changes how a callout is written; a good deal of it
