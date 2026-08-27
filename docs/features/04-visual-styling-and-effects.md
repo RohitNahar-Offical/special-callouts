@@ -22,9 +22,9 @@ This guarantees 100% compatibility across standard color keywords, HSL, RGB, and
 
 ---
 
-## 2. Gradients (`gradient:`)
+## 2. Gradients & Gradient Borders (`gradient:`)
 
-Special Callouts supports two gradient modes:
+Special Callouts supports full linear gradients and multi-color blends:
 
 1. **Inline 2-Stop Shorthand**:
    - Format: `gradient:color1-color2` (e.g. `gradient:purple-blue`, `gradient:#ff007f-#7928ca`).
@@ -32,10 +32,20 @@ Special Callouts supports two gradient modes:
 2. **Full CSS Linear Gradients**:
    - Format: `gradient:linear-gradient(90deg, #f12711, #f5af19)`.
    - Passed directly into `--sc-gradient`.
+3. **Gradient + Custom Border Support**:
+   - Callouts with gradients can simultaneously declare custom borders, glows, and corner radii via `--sc-border`, `--sc-radius`, and `--sc-neon-border`.
 
 ---
 
-## 3. Background Tints vs Solid Fills (`bg:`)
+## 3. Center Alignment Grouping & Fold Arrow Anchoring
+
+When `title:center` or `center` is active:
+- **Unified Center Unit**: The header icon and title text center together as an atomic group (`[ Icon  Title ]`) in both Reading View and Live Preview.
+- **Right-Anchored Collapse Toggle**: The fold arrow is anchored to the right edge (`order: 100; margin-left: auto;`) so fold state toggles remain easily reachable without shifting the centered title block.
+
+---
+
+## 4. Background Tints vs Solid Fills (`bg:`)
 
 In Obsidian callouts, background colors are traditionally rendered as **15% transparent tints** over the note background so dark/light theme contrast is preserved:
 
@@ -51,23 +61,22 @@ If a user desires a solid, fully opaque background, `gradient:color-color` can b
 
 ---
 
-## 4. Typography & Fonts (`font:` & `fontSize:`)
+## 5. Typography & Fonts (`font:` & `fontSize:`)
 
 ### Font Families
-The `font:` parameter maps friendly names to system/web font stacks:
+The `font:` parameter maps friendly names to Obsidian's theme-aware CSS font variables and web stacks:
 
-| Name | Resolved Font Stack |
+| Name | Resolved Font Family |
 | :--- | :--- |
-| `cinzel` | `'Cinzel', serif` |
-| `fira` / `firacode` | `'Fira Code', monospace` |
-| `playfair` | `'Playfair Display', serif` |
-| `outfit` | `'Outfit', sans-serif` |
-| `inter` | `'Inter', sans-serif` |
-| `jet` / `jetbrains` | `'JetBrains Mono', monospace` |
+| `mono` | `var(--font-monospace)` |
+| `serif` | `var(--font-interface-theme), ui-serif, serif` |
+| `sans` | `var(--font-interface), ui-sans-serif, sans-serif` |
+| `hand` | `"Comic Sans MS", "Chalkboard SE", "Comic Neue", cursive` |
+| `marker` | `"Permanent Marker", "Segoe Print", "Chalkboard", cursive` |
 
 ### Font Sizes (`fontSize:1` to `5`)
 - `fontSize:1`: `0.85em` (Compact notes)
 - `fontSize:2`: `0.92em`
 - `fontSize:3`: `1em` (Default)
-- `fontSize:4`: `1.15em`
-- `fontSize:5`: `1.3em` (Hero headers)
+- `fontSize:4`: `1.2em`
+- `fontSize:5`: `1.5em` (Hero banners)
