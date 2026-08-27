@@ -4,7 +4,8 @@
 	"version": "2.0.0",
 	"minAppVersion": "0.15.0",
 	"description": "Customize callouts with metadata in the title (colors, borders, layout, neon effects). and multi-column support.",
-	"author": "ahseyg",
-	"authorUrl": "https://github.com/ahseyg",
+	"author": "ROHIT-NAHAR",
+	"authorUrl": "https://github.com/RohitNahar-Offical",
+	"fundingUrl": "https://github.com/sponsors/RohitNahar-Offical",
 	"isDesktopOnly": false
 }

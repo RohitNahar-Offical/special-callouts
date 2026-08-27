@@ -5244,6 +5244,34 @@ var SpecialCalloutsSettingTab = class extends import_obsidian6.PluginSettingTab 
         this.renderSettings();
       }
     });
+    new import_obsidian6.Setting(container).setName("Support Development").setDesc("If you enjoy using Special Callouts and want to support its continued development, please consider becoming a sponsor!").setHeading();
+    const sponsorCard = container.createDiv({ cls: "sc-card-item" });
+    sponsorCard.style.display = "flex";
+    sponsorCard.style.alignItems = "center";
+    sponsorCard.style.justifyContent = "space-between";
+    sponsorCard.style.padding = "14px 18px";
+    sponsorCard.style.marginTop = "10px";
+    sponsorCard.style.background = "var(--background-secondary)";
+    sponsorCard.style.border = "1px solid var(--interactive-accent)";
+    sponsorCard.style.borderRadius = "8px";
+    const sponsorText = sponsorCard.createDiv();
+    sponsorText.createEl("div", { text: "\u2764\uFE0F Support Special Callouts", cls: "sc-card-title" });
+    sponsorText.createEl("div", { text: "Your support helps fund active development, feature expansions, and rapid bug fixes.", cls: "sc-section-desc" });
+    const sponsorBtn = sponsorCard.createEl("a", {
+      text: "\u2764\uFE0F Sponsor on GitHub",
+      cls: "mod-cta",
+      attr: {
+        href: "https://github.com/sponsors/RohitNahar-Offical",
+        target: "_blank",
+        rel: "noopener"
+      }
+    });
+    sponsorBtn.style.padding = "8px 16px";
+    sponsorBtn.style.borderRadius = "6px";
+    sponsorBtn.style.textDecoration = "none";
+    sponsorBtn.style.display = "inline-block";
+    sponsorBtn.style.fontWeight = "bold";
+    sponsorBtn.style.cursor = "pointer";
   }
   // =========================================================================
   // MODAL OPENERS

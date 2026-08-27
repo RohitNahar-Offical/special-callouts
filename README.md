@@ -1,5 +1,6 @@
 <p align="center">
   <a href="https://community.obsidian.md/plugins/special-callouts"><img src="https://img.shields.io/badge/Obsidian-Install-7c3aed?logo=obsidian&logoColor=white" alt="Install from Obsidian"/></a>
+  <a href="https://github.com/sponsors/RohitNahar-Offical"><img src="https://img.shields.io/badge/Sponsor-RohitNahar--Offical-ea4aaa?style=flat&logo=github-sponsors" alt="Sponsor RohitNahar-Offical"/></a>
   <img src="https://img.shields.io/github/stars/RohitNahar-Offical/special-callouts?style=flat&color=3498db" alt="Stars"/>
   <img src="https://img.shields.io/github/issues/RohitNahar-Offical/special-callouts?style=flat&color=e74c3c" alt="Issues"/>
   <img src="https://img.shields.io/github/license/RohitNahar-Offical/special-callouts?style=flat&color=2ecc71" alt="License"/>
@@ -10,7 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/RohitNahar-Offical/special-callouts/issues">Report Bug</a></p>
+  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/RohitNahar-Offical/special-callouts/issues">Report Bug</a> · <a href="https://github.com/sponsors/RohitNahar-Offical">❤️ Sponsor</a>
+</p>
 
 # Special Callouts (Enhanced Fork)
 
@@ -221,11 +223,16 @@ If you find this plugin useful, consider giving it a [star](https://github.com/a
 
 ---
 
+## ❤️ Support Development
+
+If you enjoy using Special Callouts and want to support its continued development, please consider becoming a sponsor!
+
+<a href="https://github.com/sponsors/RohitNahar-Offical">
+  <img src="https://img.shields.io/badge/Sponsor-RohitNahar--Offical-ea4aaa?style=for-the-badge&logo=github-sponsors" alt="Sponsor RohitNahar-Offical" />
+</a>
+
+---
+
 ## License
 
 MIT — See [LICENSE](LICENSE) for details.
-
----
-<p align="center">
-  Developed by <a href="https://github.com/ahseyg">ahseyg</a>
-</p>

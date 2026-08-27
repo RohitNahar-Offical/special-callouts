@@ -18,7 +18,8 @@
         "layout",
         "grid"
     ],
-    "author": "ahseyg",
+    "author": "ROHIT-NAHAR",
+    "funding": "https://github.com/sponsors/RohitNahar-Offical",
     "license": "MIT",
     "devDependencies": {
         "@types/node": "^16.11.6",
