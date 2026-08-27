@@ -1,16 +1,16 @@
 <p align="center">
   <a href="https://community.obsidian.md/plugins/special-callouts"><img src="https://img.shields.io/badge/Obsidian-Install-7c3aed?logo=obsidian&logoColor=white" alt="Install from Obsidian"/></a>
-  <img src="https://img.shields.io/github/stars/ahseyg/special-callouts?style=flat&color=3498db" alt="Stars"/>
-  <img src="https://img.shields.io/github/issues/ahseyg/special-callouts?style=flat&color=e74c3c" alt="Issues"/>
-  <img src="https://img.shields.io/github/license/ahseyg/special-callouts?style=flat&color=2ecc71" alt="License"/>
-  <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?style=flat&color=f39c12" alt="Version"/>
-  <img src="https://img.shields.io/github/v/release/ahseyg/special-callouts?include_prereleases&label=BRAT%20beta&style=flat&color=ff69b4" alt="BRAT Beta Version"/>
-  <img src="https://img.shields.io/github/downloads/ahseyg/special-callouts/total?style=flat&color=blueviolet" alt="Downloads"/>
+  <img src="https://img.shields.io/github/stars/RohitNahar-Offical/special-callouts?style=flat&color=3498db" alt="Stars"/>
+  <img src="https://img.shields.io/github/issues/RohitNahar-Offical/special-callouts?style=flat&color=e74c3c" alt="Issues"/>
+  <img src="https://img.shields.io/github/license/RohitNahar-Offical/special-callouts?style=flat&color=2ecc71" alt="License"/>
+  <img src="https://img.shields.io/github/v/release/RohitNahar-Offical/special-callouts?style=flat&color=f39c12" alt="Version"/>
+  <img src="https://img.shields.io/github/v/release/RohitNahar-Offical/special-callouts?include_prereleases&label=BRAT%20beta&style=flat&color=ff69b4" alt="BRAT Beta Version"/>
+  <img src="https://img.shields.io/github/downloads/RohitNahar-Offical/special-callouts/total?style=flat&color=blueviolet" alt="Downloads"/>
   <a href="skills/special-callouts/"><img src="https://img.shields.io/badge/AI%20Agent%20Skill-ready-8b5cf6?style=flat" alt="AI Agent Skill"/></a>
 </p>
 
 <p align="center">
-  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/ahseyg/special-callouts/issues">Report Bug</a></p>
+  <a href="USAGE_GUIDE.md">Usage Guide</a> · <a href="skills/special-callouts/">AI Agent Skill</a> · <a href="README_TR.md">Türkçe</a> · <a href="https://github.com/RohitNahar-Offical/special-callouts/issues">Report Bug</a></p>
 
 # Special Callouts (Enhanced Fork)
 
