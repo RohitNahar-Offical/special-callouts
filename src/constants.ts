@@ -95,6 +95,20 @@ export function resolveCalloutType(calloutType: string): string {
 }
 
 /**
+ * Universal default layout and box configuration
+ */
+export const DEFAULT_UNIVERSAL_DEFAULTS: import('./types').UniversalDefaults = {
+    borderWidth: '',
+    borderStyle: '',
+    borderRadius: '8px',
+    col: 1,
+    compact: false,
+    center: false,
+    titleCenter: false,
+    noIcon: false
+};
+
+/**
  * Default plugin settings
  */
 export const DEFAULT_SETTINGS: SpecialCalloutsSettings = {
@@ -103,7 +117,8 @@ export const DEFAULT_SETTINGS: SpecialCalloutsSettings = {
     customStyles: [],
     standardStyles: { ...DEFAULT_STANDARD_STYLES },
     customLayouts: [],
-    defaultMetadata: ''
+    defaultMetadata: '',
+    universalDefaults: { ...DEFAULT_UNIVERSAL_DEFAULTS }
 };
 
 /**

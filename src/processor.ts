@@ -326,11 +326,13 @@ export class CalloutProcessor {
         if (config.border) {
             if (config.border === 'none') {
                 calloutEl.setAttribute('data-sc-no-border', '');
+                calloutEl.removeAttribute('data-sc-border');
             } else {
                 const style = config.borderStyle || 'solid';
                 const width = config.borderWidth ? toPx(config.borderWidth) : '1px';
                 cssProps['--sc-border'] = `${width} ${style} ${config.border}`;
                 calloutEl.setAttribute('data-sc-border', '');
+                calloutEl.removeAttribute('data-sc-no-border');
             }
         }
 
@@ -359,7 +361,6 @@ export class CalloutProcessor {
             if (grad) {
                 cssProps['--sc-gradient'] = grad;
                 calloutEl.setAttribute('data-sc-gradient', '');
-                calloutEl.setAttribute('data-sc-no-border', '');
             }
         }
 
@@ -568,7 +569,7 @@ export class CalloutProcessor {
         this.applyConfig(calloutEl, {
             ...DEFAULT_CALLOUT_CONFIG,
             bg: bgIsGradient ? '' : (style.bg || ''),
-            gradient: bgIsGradient ? style.bg : '',
+            gradient: bgIsGradient ? style.bg : (style.gradient || ''),
             text: style.text || '',
             link: style.link || '',
             titleColor: style.titleColor || '',

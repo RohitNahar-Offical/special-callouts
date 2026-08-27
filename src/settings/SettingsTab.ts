@@ -16,27 +16,28 @@ import { SpecialCalloutsSettings, CalloutStyle, CustomLayout } from '../types';
 import {
     DEFAULT_STANDARD_STYLES,
     DEFAULT_STANDARD_COLORS,
+    DEFAULT_UNIVERSAL_DEFAULTS,
     FONT_FAMILIES,
     FONT_SIZES,
     QUICK_START_PRESETS
 } from '../constants';
 import { isValidHex, normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
-import { createGradientSetting } from '../ui/UIComponents';
+import { createGradientSetting, renderUnifiedCalloutNode } from '../ui/UIComponents';
 import { IconPickerModal } from '../modals/IconPickerModal';
 import { MultiColumnBuilderModal } from '../modals/MultiColumnBuilderModal';
-import { showHowToUse } from '../modals/HowToModal';
-import { showMetadataReference } from '../modals/MetadataModal';
 
 interface PluginWithSettings {
     settings: SpecialCalloutsSettings;
     saveSettings(): Promise<void>;
 }
 
-type SettingsTabId = 'styles' | 'standard' | 'layouts' | 'commands' | 'guide' | 'general';
+type SettingsTabId = 'presets' | 'standard' | 'commands' | 'guide' | 'general';
+type PresetsSubTabId = 'single' | 'multi';
 
 export class SpecialCalloutsSettingTab extends PluginSettingTab {
     plugin: PluginWithSettings;
-    activeTab: SettingsTabId = 'styles';
+    activeTab: SettingsTabId = 'presets';
+    presetsSubTab: PresetsSubTabId = 'single';
 
     // Search query for filtering styles
     searchQuery: string = '';
@@ -55,20 +56,16 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('special-callouts-ui');
 
-        this.renderHeader(containerEl);
         this.renderNavTabs(containerEl);
 
         const tabContentContainer = containerEl.createDiv({ cls: 'sc-tab-content' });
 
         switch (this.activeTab) {
-            case 'styles':
-                this.renderCustomStylesTab(tabContentContainer);
+            case 'presets':
+                this.renderPresetsTab(tabContentContainer);
                 break;
             case 'standard':
                 this.renderStandardStylesTab(tabContentContainer);
-                break;
-            case 'layouts':
-                this.renderLayoutPresetsTab(tabContentContainer);
                 break;
             case 'commands':
                 this.renderCommandPaletteTab(tabContentContainer);
@@ -82,37 +79,12 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         }
     }
 
-    private renderHeader(container: HTMLElement): void {
-        const banner = container.createDiv({ cls: 'sc-header-banner' });
-        const left = banner.createDiv();
-        left.createEl('h2', { text: 'Special Callouts', cls: 'sc-header-title' });
-        left.createEl('p', {
-            text: 'Visual styling, multi-column dashboards, and custom callout presets for Obsidian',
-            cls: 'sc-header-subtitle'
-        });
-
-        const right = banner.createDiv();
-        right.style.display = 'flex';
-        right.style.gap = '8px';
-
-        new ButtonComponent(right)
-            .setButtonText('📖 Cheat Sheet')
-            .onClick(() => showMetadataReference(this.app));
-
-        const newBtn = new ButtonComponent(right)
-            .setButtonText('+ New Style')
-            .setCta()
-            .onClick(() => this.openStyleEditorModal());
-        newBtn.buttonEl.style.fontWeight = '600';
-    }
-
     private renderNavTabs(container: HTMLElement): void {
         const nav = container.createDiv({ cls: 'sc-nav-tabs' });
 
         const tabs: { id: SettingsTabId; label: string; icon: string }[] = [
-            { id: 'styles', label: 'Custom Styles', icon: 'palette' },
+            { id: 'presets', label: 'Custom Presets', icon: 'palette' },
             { id: 'standard', label: 'Standard Callouts', icon: 'bookmark' },
-            { id: 'layouts', label: 'Layout Presets', icon: 'layout-grid' },
             { id: 'commands', label: 'Command Palette', icon: 'terminal' },
             { id: 'guide', label: 'Guide & Syntax', icon: 'book-open' },
             { id: 'general', label: 'General & Defaults', icon: 'settings' }
@@ -131,6 +103,40 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                 this.renderSettings();
             };
         });
+    }
+
+    // =========================================================================
+    // TAB 1: CUSTOM PRESETS (SINGLE & MULTI SUB-TABS)
+    // =========================================================================
+    private renderPresetsTab(container: HTMLElement): void {
+        const subNav = container.createDiv({ cls: 'sc-sub-tabs' });
+
+        const subTabs: { id: PresetsSubTabId; label: string; icon: string }[] = [
+            { id: 'single', label: 'Single Callout', icon: 'palette' },
+            { id: 'multi', label: 'Multi Callout', icon: 'layout-grid' }
+        ];
+
+        subTabs.forEach(sub => {
+            const btn = subNav.createEl('button', {
+                cls: `sc-sub-tab ${this.presetsSubTab === sub.id ? 'is-active' : ''}`
+            });
+            const iconSpan = btn.createSpan();
+            setIcon(iconSpan, sub.icon);
+            btn.createSpan({ text: sub.label });
+
+            btn.onclick = () => {
+                this.presetsSubTab = sub.id;
+                this.renderSettings();
+            };
+        });
+
+        const subContent = container.createDiv({ cls: 'sc-subtab-content' });
+
+        if (this.presetsSubTab === 'single') {
+            this.renderCustomStylesTab(subContent);
+        } else {
+            this.renderLayoutPresetsTab(subContent);
+        }
     }
 
     // =========================================================================
@@ -166,9 +172,11 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
         rightBtns.style.display = 'flex';
         rightBtns.style.gap = '8px';
 
-        new ButtonComponent(rightBtns)
-            .setButtonText('How to Use')
-            .onClick(() => showHowToUse(this.app));
+        const newBtn = new ButtonComponent(rightBtns)
+            .setButtonText('+ New Style')
+            .setCta()
+            .onClick(() => this.openStyleEditorModal());
+        newBtn.buttonEl.style.fontWeight = '600';
 
         new ButtonComponent(rightBtns)
             .setButtonText('Add Starter Presets')
@@ -184,7 +192,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                             link: '',
                             icon: preset.icon,
                             titleColor: preset.title,
-                            showInCommandPalette: true
+                            showInCommandPalette: false
                         });
                         addedCount++;
                     }
@@ -308,12 +316,10 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             const delBtn = actions.createEl('button', { cls: 'sc-action-btn is-danger', title: 'Delete Style' });
             setIcon(delBtn, 'trash');
             delBtn.onclick = async () => {
-                if (confirm(`Delete custom style "${style.name}"?`)) {
-                    this.plugin.settings.customStyles.splice(actualIndex, 1);
-                    await this.plugin.saveSettings();
-                    new Notice(`Deleted style "${style.name}"`);
-                    this.renderCustomStylesCards(container);
-                }
+                this.plugin.settings.customStyles.splice(actualIndex, 1);
+                await this.plugin.saveSettings();
+                new Notice(`Deleted style "${style.name}"`);
+                this.renderCustomStylesCards(container);
             };
         });
     }
@@ -688,12 +694,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
             .setHeading();
 
         const coreCommands = [
-            { name: 'Special Callout Studio (Create / Edit Single & Multi)...', desc: 'Unified Studio dialog for editing or inserting single callouts and multi-column dashboards with live preview.' },
-            { name: 'Insert Special Callout (Single Mode)...', desc: 'Directly opens Single Callout inserter with full color, typography, and border controls.' },
-            { name: 'Insert Multi-Column Dashboard (Multi Mode)...', desc: 'Directly opens visual drag-and-drop matrix dashboard builder.' },
-            { name: 'Insert Callout from Style Palette...', desc: 'Searchable quick suggester modal listing all standard and custom callout presets.' },
-            { name: 'Insert Column Layout from Presets...', desc: 'Quick column suggester to divide note areas into 2-6 columns.' },
-            { name: 'Change Icon of Callout at Cursor...', desc: 'Searchable Lucide icon picker that replaces the active callout icon in place.' }
+            { name: 'Special Callout Studio (Create / Edit Single & Multi)...', desc: 'Unified Studio dialog for editing or inserting single callouts and multi-column dashboards with live preview.' }
         ];
 
         const coreTable = container.createDiv();
@@ -777,7 +778,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
 
                 const right = row.createDiv();
                 new ToggleComponent(right)
-                    .setValue(style.showInCommandPalette !== false)
+                    .setValue(style.showInCommandPalette === true)
                     .onChange(async (val) => {
                         style.showInCommandPalette = val;
                         await this.plugin.saveSettings();
@@ -844,62 +845,396 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
     }
 
     // =========================================================================
-    // TAB 6: GUIDE & SYNTAX
+    // TAB 5: GUIDE & SYNTAX (MERGED CHEAT SHEET & REFERENCE)
     // =========================================================================
     private renderGuideTab(container: HTMLElement): void {
         const topHeader = container.createDiv({ cls: 'sc-section-header' });
-        topHeader.createEl('h3', { text: '📚 Syntax Guide & Cheat Sheet' });
+        topHeader.createEl('h3', { text: '📚 Guide, Syntax & Parameter Cheat Sheet' });
         topHeader.createEl('p', {
-            text: 'Quick reference for inline metadata parameters and syntax rules.',
+            text: 'Comprehensive reference for inline metadata parameters, multi-column list reflow, and dashboard grids.',
             cls: 'sc-section-desc'
         });
 
-        const guideCards = [
-            {
-                title: 'Basic Metadata Syntax',
-                syntax: '> [!note] (bg:teal, border:none, compact) Title',
-                desc: 'Metadata parentheses must appear immediately after the callout bracket `]`, before title text.'
-            },
-            {
-                title: 'Multi-Column Lists',
-                syntax: '> [!todo] (col:3, compact) Sprint Backlog',
-                desc: 'Reflows list items (`ul`/`ol`) inside the callout into 2 to 6 vertical columns.'
-            },
-            {
-                title: 'Dashboard Grid Wrapper',
-                syntax: '> [!multi-callout]\n> > [!info] (1:2, compact) Left\n>\n> > [!tip] (2:2, compact) Right',
-                desc: 'Side-by-side flex grid tiles separated by a single `>` line.'
-            },
-            {
-                title: 'Neon & Gradient Cards',
-                syntax: '> [!danger] (gradient:#1a0000-#330000, neon:#ff0044, radius:10px) Alert',
-                desc: 'Full-opacity gradient background with glowing border and drop-shadow.'
-            }
-        ];
+        // 1. Canonical Markdown Syntax
+        this.createGuideCodeCard(
+            container,
+            '📝 Core Syntax & Placement Rule',
+            '> [!type] (param:value, param:value, flag) Title Text\n> Content lines...',
+            'Rule: Metadata parentheses (...) MUST appear immediately after the closing callout bracket "]" and before title text.'
+        );
 
-        guideCards.forEach(g => {
-            const card = container.createDiv({ cls: 'sc-card-item' });
-            card.style.background = 'var(--background-secondary)';
-            card.style.border = '1px solid var(--background-modifier-border)';
-            card.style.borderRadius = '8px';
-            card.style.padding = '14px';
-            card.style.marginBottom = '12px';
+        // 2. Parameter Tables
+        this.createGuideTable(container, '🎨 Colors & Backgrounds', [
+            ['bg:red or bg:#ff0000', 'Background color tint (mixed at 15% opacity)'],
+            ['border:red or border:none', 'Border color, or remove callout borders entirely'],
+            ['title:cyan or title:#00e5ff', 'Title text color and default icon color'],
+            ['text:white or text:#ffffff', 'Content body text color'],
+            ['icon-color:gold', 'Override icon color independently from title'],
+            ['link:orange or link:#ff9800', 'Color for internal [[links]] and external [links](url)'],
+            ['gradient:#667eea-#764ba2', 'Full-opacity solid CSS linear gradient background'],
+            ['neon:#00f2ff', 'Cyber illuminated neon border with radiant glow & drop-shadow']
+        ]);
 
-            card.createEl('h4', { text: g.title, attr: { style: 'margin: 0 0 6px 0;' } });
-            const pre = card.createEl('pre');
-            pre.style.padding = '8px 12px';
-            pre.style.background = 'var(--background-primary)';
-            pre.style.borderRadius = '6px';
-            pre.style.fontSize = '0.82rem';
-            pre.createEl('code', { text: g.syntax });
-            card.createEl('p', { text: g.desc, attr: { style: 'margin: 6px 0 0 0; font-size: 0.8rem; color: var(--text-muted);' } });
+        this.createGuideTable(container, '🔤 Typography & Readability', [
+            ['font:mono / serif / sans / code', 'Change typography font family'],
+            ['font-size:1 to 5', 'Relative font size multiplier (1=0.85em, 3=1.0em default, 5=1.35em)'],
+            ['text:dark-border / light-border', 'Readability outline stroke around content text'],
+            ['text:(white, dark-border)', 'Grouped syntax: text color + outline stroke'],
+            ['title:(cyan, dark-border)', 'Grouped syntax for callout title']
+        ]);
+
+        this.createGuideTable(container, '🖼️ Borders & Visual Effects', [
+            ['bw:2 or border-width:4px', 'Custom border thickness in pixels'],
+            ['bs:dashed / dotted / double / solid', 'CSS border line style'],
+            ['radius:12px or radius:8', 'Corner curvature in pixels (0 to 30px)'],
+            ['no-icon', 'Hide the callout icon completely'],
+            ['icon:sparkles or icon:flame', 'Custom Lucide icon identifier']
+        ]);
+
+        this.createGuideTable(container, '📊 Layout, Padding & Multi-Column Lists', [
+            ['compact', 'Tighter padding (removes extra vertical margin; ideal for dashboards)'],
+            ['dense', 'Compact padding + tighter line-height for dense note lists'],
+            ['center', 'Center align title and body content'],
+            ['title:center', 'Center align title only while keeping content left-aligned'],
+            ['col:2 to col:6', 'Automatically reflow bullet and numbered lists into 2 to 6 columns'],
+            ['style:your-style-name', 'Inherit properties from a saved custom preset']
+        ]);
+
+        // 3. Multi-Column Lists Example
+        this.createGuideCodeCard(
+            container,
+            '📋 Multi-Column List Reflow (col:2 to col:6)',
+            '> [!todo] (col:3, compact) Sprint Backlog\n> - Task 1\n> - Task 2\n> - Task 3\n> - Task 4\n> - Task 5\n> - Task 6',
+            'Reflows long bullet or numbered lists into 2 to 6 vertical columns inside a single callout.'
+        );
+
+        // 4. Multi-Column Dashboard Grid
+        this.createGuideCodeCard(
+            container,
+            '📐 Multi-Column Dashboard Grid (multi-callout)',
+            '> [!multi-callout]\n> > [!info] (1:3, compact) Metric A\n> > **1,280**\n> > +12% this week\n>\n> > [!success] (2:3, compact) Metric B\n> > **$42,500**\n> > On target\n>\n> > [!warning] (3:3, compact) Metric C\n> > **3 Pending**\n> > Requires review',
+            'Side-by-side flex grid tiles. Note: You MUST include a single empty quote line ">" between nested callouts.'
+        );
+
+        // 5. Quick Insert Methods & Hotkeys
+        const tipAlert = container.createDiv();
+        tipAlert.style.background = 'var(--background-secondary)';
+        tipAlert.style.border = '1px solid var(--interactive-accent)';
+        tipAlert.style.borderRadius = '8px';
+        tipAlert.style.padding = '12px 16px';
+        tipAlert.style.marginTop = '14px';
+
+        const tipTitle = tipAlert.createDiv();
+        tipTitle.style.fontWeight = '600';
+        tipTitle.style.marginBottom = '6px';
+        tipTitle.style.color = 'var(--interactive-accent)';
+        tipTitle.setText('⚡ Quick Creation & Hotkeys:');
+
+        const tipList = tipAlert.createEl('ul');
+        tipList.style.margin = '0';
+        tipList.style.paddingLeft = '20px';
+        tipList.style.fontSize = '0.85rem';
+
+        const l1 = tipList.createEl('li');
+        l1.createEl('strong', { text: 'Studio Modal: ' });
+        l1.appendText('Press Ctrl/Cmd+P → run "Special Callout Studio (Create / Edit Single & Multi)" for visual design.');
+
+        const l2 = tipList.createEl('li');
+        l2.createEl('strong', { text: 'Direct Shorthand: ' });
+        l2.appendText('Use any saved custom style directly as ');
+        l2.createEl('code', { text: '>[!my-style-name]' });
+        l2.appendText('.');
+
+        const l3 = tipList.createEl('li');
+        l3.createEl('strong', { text: 'Hotkeys: ' });
+        l3.appendText('Bind custom keyboard shortcuts in Settings → Hotkeys → Special Callouts.');
+    }
+
+    private createGuideTable(container: HTMLElement, title: string, rows: [string, string][]): void {
+        const section = container.createDiv({ cls: 'sc-guide-section' });
+        section.style.background = 'var(--background-secondary)';
+        section.style.border = '1px solid var(--background-modifier-border)';
+        section.style.borderRadius = '8px';
+        section.style.padding = '14px 16px';
+        section.style.marginBottom = '14px';
+
+        const h4 = section.createEl('h4', { text: title });
+        h4.style.margin = '0 0 10px 0';
+        h4.style.fontSize = '0.95rem';
+        h4.style.color = 'var(--text-normal)';
+
+        const table = section.createEl('table');
+        table.style.width = '100%';
+        table.style.borderCollapse = 'collapse';
+
+        rows.forEach(([param, desc], i) => {
+            const tr = table.createEl('tr');
+            const isLast = i === rows.length - 1;
+
+            const td1 = tr.createEl('td');
+            td1.style.padding = '6px 10px 6px 0';
+            td1.style.verticalAlign = 'top';
+            td1.style.whiteSpace = 'nowrap';
+            td1.style.width = '240px';
+            if (!isLast) td1.style.borderBottom = '1px solid var(--background-modifier-border)';
+            const code = td1.createEl('code', { text: param });
+            code.style.fontSize = '0.82rem';
+            code.style.color = 'var(--text-accent)';
+
+            const td2 = tr.createEl('td');
+            td2.style.padding = '6px 0';
+            td2.style.verticalAlign = 'middle';
+            td2.style.fontSize = '0.84rem';
+            td2.style.color = 'var(--text-muted)';
+            if (!isLast) td2.style.borderBottom = '1px solid var(--background-modifier-border)';
+            td2.setText(desc);
         });
+    }
+
+    private createGuideCodeCard(container: HTMLElement, title: string, syntax: string, desc: string): void {
+        const card = container.createDiv({ cls: 'sc-card-item' });
+        card.style.background = 'var(--background-secondary)';
+        card.style.border = '1px solid var(--background-modifier-border)';
+        card.style.borderRadius = '8px';
+        card.style.padding = '14px 16px';
+        card.style.marginBottom = '14px';
+
+        const h4 = card.createEl('h4', { text: title });
+        h4.style.margin = '0 0 8px 0';
+        h4.style.fontSize = '0.95rem';
+
+        const pre = card.createEl('pre');
+        pre.style.padding = '8px 12px';
+        pre.style.background = 'var(--background-primary)';
+        pre.style.borderRadius = '6px';
+        pre.style.fontSize = '0.82rem';
+        pre.style.margin = '0 0 8px 0';
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.createEl('code', { text: syntax });
+
+        const p = card.createEl('p', { text: desc });
+        p.style.margin = '0';
+        p.style.fontSize = '0.82rem';
+        p.style.color = 'var(--text-muted)';
     }
 
     // =========================================================================
     // TAB 7: GENERAL & DEFAULTS
     // =========================================================================
     private renderGeneralTab(container: HTMLElement): void {
+        const u = this.plugin.settings.universalDefaults || { ...DEFAULT_UNIVERSAL_DEFAULTS };
+
+        // 1. Live Preview Card Container
+        const previewSection = container.createDiv({ cls: 'sc-preview-section' });
+        previewSection.style.marginBottom = '2rem';
+
+        const previewLabel = previewSection.createDiv();
+        previewLabel.style.fontSize = '0.75rem';
+        previewLabel.style.fontWeight = '700';
+        previewLabel.style.letterSpacing = '0.08em';
+        previewLabel.style.textTransform = 'uppercase';
+        previewLabel.style.color = 'var(--text-muted)';
+        previewLabel.style.marginBottom = '0.5rem';
+        previewLabel.setText('LIVE CALLOUT PREVIEW');
+
+        const livePreviewWrapper = previewSection.createDiv({ cls: 'sc-live-preview-wrapper' });
+        livePreviewWrapper.style.padding = '12px 16px';
+        livePreviewWrapper.style.background = 'var(--background-secondary)';
+        livePreviewWrapper.style.border = '1px solid var(--background-modifier-border)';
+        livePreviewWrapper.style.borderRadius = '8px';
+
+        const updateLivePreview = () => {
+            livePreviewWrapper.empty();
+            const sampleStyle: Partial<CalloutStyle> = {
+                icon: 'pencil',
+                borderWidth: u.borderWidth,
+                borderStyle: u.borderStyle,
+                borderRadius: u.borderRadius || '8px',
+                compact: u.compact,
+                center: u.center,
+                titleCenter: u.titleCenter,
+                noIcon: u.noIcon
+            };
+
+            const sampleContent = u.col && u.col > 1
+                ? '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6'
+                : 'Callout content goes here...';
+
+            renderUnifiedCalloutNode({
+                app: this.app,
+                component: this,
+                container: livePreviewWrapper,
+                style: sampleStyle,
+                type: 'note',
+                title: 'Note',
+                content: sampleContent,
+                col: u.col
+            });
+        };
+
+        updateLivePreview();
+
+        // 2. Universal Defaults Section
+        new Setting(container)
+            .setName('Universal Callout Defaults')
+            .setDesc('Configure the default layout, borders, and alignment applied when creating callouts')
+            .setHeading();
+
+        // Border Width & Style
+        new Setting(container)
+            .setName('Border Width & Style')
+            .setDesc('Default outline border thickness and pattern')
+            .addDropdown(drop => {
+                drop.addOption('', 'Default Width');
+                ['1px', '2px', '3px', '4px', '5px', '6px'].forEach(w => drop.addOption(w, w));
+                drop.setValue(u.borderWidth || '');
+                drop.onChange(async (val) => {
+                    u.borderWidth = val;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            })
+            .addDropdown(drop => {
+                drop.addOption('', 'Default');
+                ['solid', 'dashed', 'dotted', 'double', 'groove', 'none'].forEach(s => drop.addOption(s, s.charAt(0).toUpperCase() + s.slice(1)));
+                drop.setValue(u.borderStyle || '');
+                drop.onChange(async (val) => {
+                    u.borderStyle = val;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Corner Radius
+        new Setting(container)
+            .setName('Corner Radius')
+            .setDesc('Default roundedness for callout boxes (0 to 24px)')
+            .addSlider(slider => {
+                const currentNum = parseInt(u.borderRadius || '8', 10) || 8;
+                slider
+                    .setLimits(0, 24, 1)
+                    .setValue(currentNum)
+                    .setDynamicTooltip()
+                    .onChange(async (val) => {
+                        u.borderRadius = `${val}px`;
+                        this.plugin.settings.universalDefaults = u;
+                        await this.plugin.saveSettings();
+                        updateLivePreview();
+                    });
+            });
+
+        // List Columns
+        new Setting(container)
+            .setName('List Columns')
+            .setDesc('Divide lists inside this callout box into columns')
+            .addDropdown(drop => {
+                drop.addOption('1', 'Normal (1 Column)');
+                drop.addOption('2', '2 Columns');
+                drop.addOption('3', '3 Columns');
+                drop.addOption('4', '4 Columns');
+                drop.addOption('5', '5 Columns');
+                drop.addOption('6', '6 Columns');
+                drop.setValue((u.col || 1).toString());
+                drop.onChange(async (val) => {
+                    u.col = parseInt(val, 10) || 1;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Compact Mode
+        new Setting(container)
+            .setName('Compact Mode')
+            .setDesc('Tighter padding inside this box')
+            .addToggle(toggle => {
+                toggle.setValue(!!u.compact);
+                toggle.onChange(async (val) => {
+                    u.compact = val;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Center Text (center)
+        new Setting(container)
+            .setName('Center Text (center)')
+            .setDesc('Center align all text inside this callout box')
+            .addToggle(toggle => {
+                toggle.setValue(!!u.center);
+                toggle.onChange(async (val) => {
+                    u.center = val;
+                    if (val) u.titleCenter = false;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Center Title Only (title:center)
+        new Setting(container)
+            .setName('Center Title Only (title:center)')
+            .setDesc('Center align only the box title header')
+            .addToggle(toggle => {
+                toggle.setValue(!!u.titleCenter);
+                toggle.onChange(async (val) => {
+                    u.titleCenter = val;
+                    if (val) u.center = false;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Hide Icon
+        new Setting(container)
+            .setName('Hide Icon')
+            .setDesc('Hide icon completely')
+            .addToggle(toggle => {
+                toggle.setValue(!!u.noIcon);
+                toggle.onChange(async (val) => {
+                    u.noIcon = val;
+                    this.plugin.settings.universalDefaults = u;
+                    await this.plugin.saveSettings();
+                    updateLivePreview();
+                });
+            });
+
+        // Reset Universal Defaults Button
+        new Setting(container)
+            .setName('Reset Universal Defaults')
+            .setDesc('Restore universal defaults to original values')
+            .addButton(btn => {
+                btn.setButtonText('Reset Defaults')
+                    .onClick(async () => {
+                        this.plugin.settings.universalDefaults = { ...DEFAULT_UNIVERSAL_DEFAULTS };
+                        await this.plugin.saveSettings();
+                        new Notice('Universal defaults reset.');
+                        this.renderSettings();
+                    });
+            });
+
+        // 3. Command Insertion Defaults
+        new Setting(container)
+            .setName('Command Insertion Defaults')
+            .setDesc('Metadata automatically appended when inserting callouts via command palette')
+            .setHeading();
+
+        new Setting(container)
+            .setName('Default Callout Metadata')
+            .setDesc('Metadata string (e.g. "compact, col:2")')
+            .addText(text => text
+                .setPlaceholder('compact, col:2')
+                .setValue(this.plugin.settings.defaultMetadata || '')
+                .onChange(async (value) => {
+                    this.plugin.settings.defaultMetadata = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // 4. Backup & Data Management
         new Setting(container)
             .setName('Backup & Data Management')
             .setDesc('Export or import your Special Callouts configuration as JSON')
@@ -936,6 +1271,7 @@ export class SpecialCalloutsSettingTab extends PluginSettingTab {
                     this.plugin.settings.standardColors = { ...DEFAULT_STANDARD_COLORS };
                     this.plugin.settings.standardStyles = { ...DEFAULT_STANDARD_STYLES };
                     this.plugin.settings.defaultMetadata = '';
+                    this.plugin.settings.universalDefaults = { ...DEFAULT_UNIVERSAL_DEFAULTS };
                     await this.plugin.saveSettings();
                     new Notice('Settings reset to defaults.');
                     this.renderSettings();
@@ -1008,7 +1344,7 @@ export class StyleEditorModal extends Modal {
             compact: false,
             center: false,
             titleCenter: false,
-            showInCommandPalette: true
+            showInCommandPalette: false
         };
     }
 
@@ -1097,6 +1433,15 @@ export class StyleEditorModal extends Modal {
                         .onChange(val => {
                             this.style.name = val.toLowerCase().replace(/\s+/g, '-');
                             this.updateLivePreview(liveCallout);
+                        }));
+
+                new Setting(container)
+                    .setName('Show in Command Palette')
+                    .setDesc('Register an "Insert ..." command in Obsidian command palette for this style')
+                    .addToggle(t => t
+                        .setValue(this.style.showInCommandPalette === true)
+                        .onChange(val => {
+                            this.style.showInCommandPalette = val;
                         }));
                 break;
 
@@ -1286,6 +1631,16 @@ export class StyleEditorModal extends Modal {
                         }));
 
                 new Setting(container)
+                    .setName('Center Title Only (title:center)')
+                    .setDesc('Center align only the box title header')
+                    .addToggle(t => t
+                        .setValue(!!this.style.titleCenter)
+                        .onChange(val => {
+                            this.style.titleCenter = val;
+                            this.updateLivePreview(liveCallout);
+                        }));
+
+                new Setting(container)
                     .setName('Hide Icon')
                     .addToggle(t => t
                         .setValue(!!this.style.noIcon)
@@ -1301,6 +1656,17 @@ export class StyleEditorModal extends Modal {
         liveCallout.empty();
         liveCallout.setAttribute('data-callout', this.style.name || 'custom');
 
+        if (this.style.center) {
+            liveCallout.setAttribute('data-center', 'true');
+            liveCallout.removeAttribute('data-title-center');
+        } else if (this.style.titleCenter) {
+            liveCallout.setAttribute('data-title-center', 'true');
+            liveCallout.removeAttribute('data-center');
+        } else {
+            liveCallout.removeAttribute('data-center');
+            liveCallout.removeAttribute('data-title-center');
+        }
+
         if (this.style.gradient) {
             let grad = this.style.gradient.trim();
             if (!isCssGradient(grad)) {
@@ -1310,10 +1676,18 @@ export class StyleEditorModal extends Modal {
                 }
             }
             liveCallout.style.background = grad;
-            liveCallout.style.border = this.style.border ? `${this.style.borderWidth || '1px'} ${this.style.borderStyle || 'solid'} ${this.style.border}` : 'none';
         } else {
             liveCallout.style.backgroundColor = this.style.bg ? `color-mix(in srgb, ${this.style.bg} 15%, transparent)` : 'var(--background-secondary)';
-            liveCallout.style.borderColor = this.style.border || 'var(--text-accent)';
+        }
+
+        if (this.style.border && this.style.border !== 'none') {
+            liveCallout.style.borderColor = this.style.border;
+            liveCallout.style.borderWidth = this.style.borderWidth || '1px';
+            liveCallout.style.borderStyle = this.style.borderStyle || 'solid';
+        } else if (this.style.border === 'none') {
+            liveCallout.style.border = 'none';
+        } else {
+            liveCallout.style.borderColor = 'var(--text-accent)';
             liveCallout.style.borderWidth = this.style.borderWidth || '1px';
             liveCallout.style.borderStyle = this.style.borderStyle || 'solid';
         }
@@ -1330,7 +1704,7 @@ export class StyleEditorModal extends Modal {
         }
 
         const titleRow = liveCallout.createDiv({ cls: 'callout-title' });
-        if (this.style.center) titleRow.style.justifyContent = 'center';
+        if (this.style.center || this.style.titleCenter) titleRow.style.justifyContent = 'center';
 
         if (!this.style.noIcon && this.style.icon) {
             const iconEl = titleRow.createDiv({ cls: 'callout-icon' });

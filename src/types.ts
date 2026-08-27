@@ -42,6 +42,20 @@ export interface CustomLayout {
 }
 
 /**
+ * Universal default configuration applied across new callouts
+ */
+export interface UniversalDefaults {
+    borderWidth?: string;
+    borderStyle?: string;
+    borderRadius?: string;
+    col?: number;
+    compact?: boolean;
+    center?: boolean;
+    titleCenter?: boolean;
+    noIcon?: boolean;
+}
+
+/**
  * Plugin settings structure
  */
 export interface SpecialCalloutsSettings {
@@ -50,8 +64,8 @@ export interface SpecialCalloutsSettings {
     customStyles: Array<CalloutStyle>;
     standardStyles: Record<string, CalloutStyle>;
     customLayouts: Array<CustomLayout>;
-    // AI_CONTEXT: Kullanıcının "Insert Custom Callout" komutunda son kullandığı veya tercih ettiği varsayılan metadata şablonu
     defaultMetadata?: string;
+    universalDefaults?: UniversalDefaults;
 }
 
 /**

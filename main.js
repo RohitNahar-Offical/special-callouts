@@ -27,7 +27,7 @@ __export(main_exports, {
   default: () => SpecialCallouts
 });
 module.exports = __toCommonJS(main_exports);
-var import_obsidian10 = require("obsidian");
+var import_obsidian7 = require("obsidian");
 
 // src/constants.ts
 var BG_TINT_OPACITY = 15;
@@ -78,13 +78,24 @@ function resolveCalloutType(calloutType) {
   const lowered = calloutType.toLowerCase();
   return CALLOUT_TYPE_ALIASES[lowered] || lowered;
 }
+var DEFAULT_UNIVERSAL_DEFAULTS = {
+  borderWidth: "",
+  borderStyle: "",
+  borderRadius: "8px",
+  col: 1,
+  compact: false,
+  center: false,
+  titleCenter: false,
+  noIcon: false
+};
 var DEFAULT_SETTINGS = {
   customColors: [],
   standardColors: { ...DEFAULT_STANDARD_COLORS },
   customStyles: [],
   standardStyles: { ...DEFAULT_STANDARD_STYLES },
   customLayouts: [],
-  defaultMetadata: ""
+  defaultMetadata: "",
+  universalDefaults: { ...DEFAULT_UNIVERSAL_DEFAULTS }
 };
 var DEFAULT_CALLOUT_CONFIG = {
   bg: "",
@@ -962,11 +973,13 @@ var CalloutProcessor = class {
     if (config.border) {
       if (config.border === "none") {
         calloutEl.setAttribute("data-sc-no-border", "");
+        calloutEl.removeAttribute("data-sc-border");
       } else {
         const style = config.borderStyle || "solid";
         const width = config.borderWidth ? toPx(config.borderWidth) : "1px";
         cssProps["--sc-border"] = `${width} ${style} ${config.border}`;
         calloutEl.setAttribute("data-sc-border", "");
+        calloutEl.removeAttribute("data-sc-no-border");
       }
     }
     if (config.borderWidth) {
@@ -990,7 +1003,6 @@ var CalloutProcessor = class {
       if (grad) {
         cssProps["--sc-gradient"] = grad;
         calloutEl.setAttribute("data-sc-gradient", "");
-        calloutEl.setAttribute("data-sc-no-border", "");
       }
     }
     if (config.font && FONT_FAMILIES[config.font]) {
@@ -1167,7 +1179,7 @@ var CalloutProcessor = class {
     this.applyConfig(calloutEl, {
       ...DEFAULT_CALLOUT_CONFIG,
       bg: bgIsGradient ? "" : style.bg || "",
-      gradient: bgIsGradient ? style.bg : "",
+      gradient: bgIsGradient ? style.bg : style.gradient || "",
       text: style.text || "",
       link: style.link || "",
       titleColor: style.titleColor || "",
@@ -1368,74 +1380,16 @@ var CalloutProcessor = class {
   }
 };
 
-// src/modals/SuggesterModal.ts
-var import_obsidian2 = require("obsidian");
-var CustomCalloutSuggester = class extends import_obsidian2.SuggestModal {
-  constructor(app, styles, onSelect) {
-    super(app);
-    this.modalEl.addClass("special-callouts-ui");
-    this.styles = styles;
-    this.onSelect = onSelect;
-    this.setPlaceholder("Select a custom callout style...");
-  }
-  getSuggestions(query) {
-    return this.styles.filter(
-      (s) => s.name.toLowerCase().includes(query.toLowerCase())
-    );
-  }
-  renderSuggestion(style, el) {
-    el.addClass("sc-suggester-item");
-    const swatch = el.createDiv();
-    swatch.addClass("sc-suggester-swatch");
-    swatch.setCssProps({
-      "--sc-swatch-bg": style.bg || "var(--interactive-accent)",
-      "--sc-swatch-border": `2px solid ${style.border || style.bg || "var(--background-modifier-border)"}`
-    });
-    const info = el.createDiv();
-    info.addClass("sc-suggester-info");
-    const nameEl = info.createDiv({ text: style.name });
-    nameEl.addClass("sc-suggester-name");
-    const metaEl = info.createDiv();
-    const parts = [];
-    if (style.bg) parts.push(`bg: ${style.bg}`);
-    if (style.neon) parts.push("neon");
-    if (style.compact) parts.push("compact");
-    if (style.noIcon) parts.push("no-icon");
-    metaEl.textContent = parts.length > 0 ? parts.join(" \xB7 ") : "Custom Style";
-    metaEl.addClass("sc-suggester-meta");
-  }
-  onChooseSuggestion(style) {
-    this.onSelect(style);
-  }
-};
-var ColumnSuggesterModal = class extends import_obsidian2.SuggestModal {
-  constructor(app, items, onChoose) {
-    super(app);
-    this.items = items;
-    this.onChoose = onChoose;
-    this.setPlaceholder("Select column count...");
-  }
-  getSuggestions(query) {
-    return this.items.filter((item) => item.toLowerCase().includes(query.toLowerCase()));
-  }
-  renderSuggestion(item, el) {
-    el.setText(item);
-  }
-  onChooseSuggestion(item) {
-    this.onChoose(item);
-  }
-};
-
 // src/settings/SettingsTab.ts
-var import_obsidian9 = require("obsidian");
+var import_obsidian6 = require("obsidian");
 
 // src/ui/UIComponents.ts
-var import_obsidian4 = require("obsidian");
+var import_obsidian3 = require("obsidian");
 
 // src/modals/IconPickerModal.ts
-var import_obsidian3 = require("obsidian");
+var import_obsidian2 = require("obsidian");
 var cachedIconIds = null;
-var IconPickerModal = class extends import_obsidian3.FuzzySuggestModal {
+var IconPickerModal = class extends import_obsidian2.FuzzySuggestModal {
   constructor(app, onChoose) {
     super(app);
     this.onChoose = onChoose;
@@ -1443,7 +1397,7 @@ var IconPickerModal = class extends import_obsidian3.FuzzySuggestModal {
   }
   getItems() {
     if (!cachedIconIds) {
-      cachedIconIds = (0, import_obsidian3.getIconIds)();
+      cachedIconIds = (0, import_obsidian2.getIconIds)();
     }
     return cachedIconIds;
   }
@@ -1455,7 +1409,7 @@ var IconPickerModal = class extends import_obsidian3.FuzzySuggestModal {
     el.addClass("sc-icon-item");
     const iconContainer = el.createDiv();
     iconContainer.addClass("sc-icon-container");
-    (0, import_obsidian3.setIcon)(iconContainer, icon);
+    (0, import_obsidian2.setIcon)(iconContainer, icon);
     const textDiv = el.createDiv({ text: icon });
     textDiv.addClass("sc-font-sm");
   }
@@ -1516,7 +1470,7 @@ function createMarkdownEditorWithToolbar(options) {
   };
   const addBtn = (iconName, tooltipText, action) => {
     const btn = toolbar.createEl("button", { cls: "sc-toolbar-btn", title: tooltipText });
-    (0, import_obsidian4.setIcon)(btn, iconName);
+    (0, import_obsidian3.setIcon)(btn, iconName);
     btn.onclick = (e) => {
       e.preventDefault();
       action();
@@ -1543,7 +1497,7 @@ function createMarkdownEditorWithToolbar(options) {
       suggestItems.forEach((item, idx) => {
         const el = sub.createDiv({ cls: `sc-suggestion-item ${idx === selectedIndex ? "is-selected" : ""}` });
         const icon = el.createSpan();
-        (0, import_obsidian4.setIcon)(icon, suggestType === "link" ? "file-text" : "tag");
+        (0, import_obsidian3.setIcon)(icon, suggestType === "link" ? "file-text" : "tag");
         el.createSpan({ cls: "sc-suggestion-content", text: item });
         el.onclick = () => selectItem(idx);
       });
@@ -1560,7 +1514,7 @@ function createMarkdownEditorWithToolbar(options) {
         suggestItems.forEach((item, idx) => {
           const el = sub.createDiv({ cls: `sc-suggestion-item ${idx === selectedIndex ? "is-selected" : ""}` });
           const icon = el.createSpan();
-          (0, import_obsidian4.setIcon)(icon, suggestType === "link" ? "file-text" : "tag");
+          (0, import_obsidian3.setIcon)(icon, suggestType === "link" ? "file-text" : "tag");
           el.createSpan({ cls: "sc-suggestion-content", text: item });
           el.onclick = () => selectItem(idx);
         });
@@ -1682,7 +1636,7 @@ function createMarkdownEditorWithToolbar(options) {
 function createColorSetting(container, name, desc, currentValue, defaultColor, onChange) {
   let textComp = null;
   let pickerComp = null;
-  const setting = new import_obsidian4.Setting(container).setName(name).setDesc(desc).addText((text) => {
+  const setting = new import_obsidian3.Setting(container).setName(name).setDesc(desc).addText((text) => {
     textComp = text;
     text.setPlaceholder(defaultColor).setValue(currentValue).onChange((val) => {
       const normalized = normalizeHex(val);
@@ -1703,7 +1657,7 @@ function createColorSetting(container, name, desc, currentValue, defaultColor, o
   return setting;
 }
 function createIconSetting(container, app, name, desc, currentIcon, onSelect) {
-  const setting = new import_obsidian4.Setting(container).setName(name).setDesc(desc);
+  const setting = new import_obsidian3.Setting(container).setName(name).setDesc(desc);
   setting.addButton((btn) => {
     btn.setButtonText(currentIcon ? `Icon: ${currentIcon}` : "Choose Icon...");
     if (currentIcon) {
@@ -1720,14 +1674,14 @@ function createIconSetting(container, app, name, desc, currentIcon, onSelect) {
   return setting;
 }
 function createFontSetting(container, currentFont, onChange) {
-  return new import_obsidian4.Setting(container).setName("Font Family").setDesc("Typography style for callout text").addDropdown((drop) => {
+  return new import_obsidian3.Setting(container).setName("Font Family").setDesc("Typography style for callout text").addDropdown((drop) => {
     FONT_OPTIONS.forEach((f) => drop.addOption(f.value, f.label));
     drop.setValue(currentFont || "");
     drop.onChange((val) => onChange(val));
   });
 }
 function createFontSizeSetting(container, currentSize, onChange) {
-  return new import_obsidian4.Setting(container).setName("Font Size").setDesc("Scale text size (1: Tiny \u2192 5: Huge)").addSlider((slider) => slider.setLimits(1, 5, 1).setValue(currentSize || 3).setDynamicTooltip().onChange((val) => onChange(val)));
+  return new import_obsidian3.Setting(container).setName("Font Size").setDesc("Scale text size (1: Tiny \u2192 5: Huge)").addSlider((slider) => slider.setLimits(1, 5, 1).setValue(currentSize || 3).setDynamicTooltip().onChange((val) => onChange(val)));
 }
 var GRADIENT_PRESETS = [
   { name: "Sunset", from: "#ff512f", to: "#dd2476" },
@@ -1751,7 +1705,7 @@ function createGradientSetting(container, currentGradient, onChange) {
     }
   }
   const isEnabled = !!currentGradient;
-  new import_obsidian4.Setting(wrap).setName("Gradient Background").setDesc("Enable 100% opacity linear gradient background").addToggle((toggle) => toggle.setValue(isEnabled).onChange((val) => {
+  new import_obsidian3.Setting(wrap).setName("Gradient Background").setDesc("Enable 100% opacity linear gradient background").addToggle((toggle) => toggle.setValue(isEnabled).onChange((val) => {
     if (val) {
       controlsDiv.removeClass("sc-hidden");
       onChange(`${color1}-${color2}`);
@@ -1844,7 +1798,6 @@ function applyStyleToLivePreview(previewCard, iconEl, titleInner, style) {
     }
     cssProps["--sc-gradient"] = grad;
     previewCard.setAttribute("data-sc-gradient", "true");
-    previewCard.setAttribute("data-sc-no-border", "true");
   } else if (style.bg) {
     cssProps["--sc-bg-color"] = createTransparentBg2(style.bg, 15);
     previewCard.setAttribute("data-sc-bg", "");
@@ -1869,11 +1822,15 @@ function applyStyleToLivePreview(previewCard, iconEl, titleInner, style) {
     cssProps["--sc-icon-color"] = style.iconColor;
     previewCard.setAttribute("data-sc-icon-color", "");
   }
-  if (style.border && !style.gradient) {
+  if (style.border && style.border !== "none") {
     const width = style.borderWidth ? toPx(style.borderWidth) : "1px";
     const borderPattern = style.borderStyle || "solid";
     cssProps["--sc-border"] = `${width} ${borderPattern} ${style.border}`;
     previewCard.setAttribute("data-sc-border", "");
+    previewCard.removeAttribute("data-sc-no-border");
+  } else if (style.border === "none") {
+    previewCard.setAttribute("data-sc-no-border", "true");
+    previewCard.removeAttribute("data-sc-border");
   }
   if (style.borderWidth) {
     cssProps["--sc-border-width"] = toPx(style.borderWidth);
@@ -1906,22 +1863,88 @@ function applyStyleToLivePreview(previewCard, iconEl, titleInner, style) {
   }
   if (style.center) {
     previewCard.setAttribute("data-center", "true");
+    previewCard.removeAttribute("data-title-center");
   } else if (style.titleCenter) {
     previewCard.setAttribute("data-title-center", "true");
+    previewCard.removeAttribute("data-center");
+  } else {
+    previewCard.removeAttribute("data-center");
+    previewCard.removeAttribute("data-title-center");
   }
   if (style.noIcon) {
     iconEl.addClass("sc-hidden");
   } else {
     iconEl.removeClass("sc-hidden");
-    if (style.icon) {
-      iconEl.empty();
-      (0, import_obsidian4.setIcon)(iconEl, style.icon);
-    }
+    const iconName = style.icon || "pencil";
+    iconEl.empty();
+    (0, import_obsidian3.setIcon)(iconEl, iconName);
   }
   previewCard.setCssProps(cssProps);
 }
 function createTransparentBg2(color, opacity) {
   return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+function renderUnifiedCalloutNode(options) {
+  const {
+    app,
+    component,
+    container,
+    style,
+    type = "note",
+    title = "Callout",
+    content = "",
+    col,
+    isSelected = false,
+    areaId,
+    gridPlacement,
+    onClick
+  } = options;
+  const calloutEl = container.createDiv({ cls: "callout sc-live-callout" });
+  calloutEl.setAttribute("data-callout", type);
+  if (areaId) {
+    calloutEl.dataset.areaId = areaId;
+  }
+  const layoutCssProps = {};
+  if (gridPlacement) {
+    layoutCssProps["grid-row"] = `${gridPlacement.minRow + 1} / ${gridPlacement.maxRow + 2}`;
+    layoutCssProps["grid-column"] = `${gridPlacement.minCol + 1} / ${gridPlacement.maxCol + 2}`;
+  }
+  const titleEl = calloutEl.createDiv({ cls: "callout-title" });
+  const iconEl = titleEl.createDiv({ cls: "callout-icon" });
+  const titleInnerEl = titleEl.createSpan({ cls: "callout-title-inner", text: title || "Callout" });
+  const bodyEl = calloutEl.createDiv({ cls: "callout-content" });
+  if (col && col > 1) {
+    calloutEl.setAttribute("data-col", col.toString());
+    calloutEl.setCssProps({ "--smart-list-cols": col.toString() });
+  } else {
+    calloutEl.removeAttribute("data-col");
+    calloutEl.setCssProps({ "--smart-list-cols": "" });
+  }
+  const defaultListContent = "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6";
+  const rawContent = content ? content : col && col > 1 ? defaultListContent : "Type callout content...";
+  void import_obsidian3.MarkdownRenderer.render(app, rawContent, bodyEl, "", component).then(() => {
+    if (col && col > 1 && bodyEl) {
+      formatListColumns(bodyEl, col);
+    }
+  });
+  applyStyleToLivePreview(calloutEl, iconEl, titleInnerEl, style);
+  if (isSelected) {
+    calloutEl.addClass("is-selected");
+    if (style.neon) {
+      const neon = neonStyles(style.neon);
+      layoutCssProps["box-shadow"] = `0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent), ${neon["--sc-neon-shadow"]}`;
+    } else {
+      layoutCssProps["box-shadow"] = "0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent)";
+    }
+  }
+  if (Object.keys(layoutCssProps).length > 0) {
+    calloutEl.setCssProps(layoutCssProps);
+  }
+  if (onClick) {
+    calloutEl.addClass("sc-interactive-card");
+    calloutEl.onclick = onClick;
+  }
+  return { calloutEl, titleInnerEl, bodyEl };
 }
 function formatListColumns(container, colCount) {
   if (!container) return;
@@ -1967,18 +1990,15 @@ function formatListColumns(container, colCount) {
 }
 
 // src/modals/MultiColumnBuilderModal.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 
 // src/modals/InsertCalloutModal.ts
-var import_obsidian5 = require("obsidian");
-var InsertCalloutModal = class extends import_obsidian5.Modal {
+var import_obsidian4 = require("obsidian");
+var InsertCalloutModal = class extends import_obsidian4.Modal {
   constructor(app, settings, editor) {
     super(app);
     this.activeSection = "content";
-    this.liveCalloutEl = null;
-    this.titleInnerEl = null;
-    this.iconEl = null;
-    this.bodyEl = null;
+    this.liveCalloutWrapper = null;
     this.closeSuggesterFn = null;
     // Existing Callout Detection State
     this.existingRange = null;
@@ -2015,6 +2035,17 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
       this.isEditingExisting = true;
     } else {
       this.contentText = this.selectedText || "Callout content goes here...";
+      if (this.settings.universalDefaults) {
+        const u = this.settings.universalDefaults;
+        if (u.borderWidth !== void 0 && u.borderWidth !== "") this.borderWidth = u.borderWidth;
+        if (u.borderStyle !== void 0 && u.borderStyle !== "") this.borderStyle = u.borderStyle;
+        if (u.borderRadius !== void 0 && u.borderRadius !== "") this.borderRadius = u.borderRadius;
+        if (u.col && u.col > 1) this.colCount = u.col;
+        if (u.compact !== void 0) this.compact = u.compact;
+        if (u.center !== void 0) this.center = u.center;
+        if (u.titleCenter !== void 0) this.titleCenter = u.titleCenter;
+        if (u.noIcon !== void 0) this.noIcon = u.noIcon;
+      }
     }
   }
   findCalloutAtCursor() {
@@ -2162,13 +2193,13 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
       cls: "sc-mode-btn is-active"
     });
     const singleIcon = singleBtn.createSpan();
-    (0, import_obsidian5.setIcon)(singleIcon, "file-text");
+    (0, import_obsidian4.setIcon)(singleIcon, "file-text");
     singleBtn.createSpan({ text: "Single Callout" });
     const multiBtn = modeWrap.createEl("button", {
       cls: "sc-mode-btn"
     });
     const multiIcon = multiBtn.createSpan();
-    (0, import_obsidian5.setIcon)(multiIcon, "layout-grid");
+    (0, import_obsidian4.setIcon)(multiIcon, "layout-grid");
     multiBtn.createSpan({ text: "Multi-Column Dashboard" });
     multiBtn.onclick = () => {
       if (this.closeSuggesterFn) this.closeSuggesterFn();
@@ -2185,7 +2216,7 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
     sections.forEach((sec) => {
       const btn = nav.createEl("button", { cls: `sc-nav-tab ${this.activeSection === sec.id ? "is-active" : ""}` });
       const iconSpan = btn.createSpan();
-      (0, import_obsidian5.setIcon)(iconSpan, sec.icon);
+      (0, import_obsidian4.setIcon)(iconSpan, sec.icon);
       btn.createSpan({ text: sec.label });
       btn.onclick = () => {
         this.activeSection = sec.id;
@@ -2199,20 +2230,76 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
     const previewContainer = contentEl.createDiv({ cls: "sc-live-preview-container sc-sticky-preview" });
     const previewHeader = previewContainer.createDiv({ cls: "sc-live-preview-header" });
     previewHeader.createSpan({ text: "Live Callout Preview" });
-    this.liveCalloutEl = previewContainer.createDiv({ cls: "callout sc-live-callout" });
-    this.liveCalloutEl.setAttribute("data-callout", this.calloutType);
-    const titleEl = this.liveCalloutEl.createDiv({ cls: "callout-title" });
-    this.iconEl = titleEl.createDiv({ cls: "callout-icon" });
-    this.titleInnerEl = titleEl.createDiv({ cls: "callout-title-inner", text: this.titleText });
-    this.bodyEl = this.liveCalloutEl.createDiv({ cls: "callout-content" });
-    this.bodyEl.createEl("p", { text: this.contentText });
+    this.liveCalloutWrapper = previewContainer.createDiv({ cls: "sc-live-preview-wrap" });
     this.updateLivePreview();
     const sectionContainer = contentEl.createDiv({ cls: "sc-section-content" });
     this.renderSectionContent(sectionContainer);
-    new import_obsidian5.Setting(contentEl).addButton((btn) => btn.setButtonText(this.isEditingExisting ? "Update Callout" : "Insert Into Note").setCta().onClick(() => {
+    new import_obsidian4.Setting(contentEl).addButton((btn) => btn.setButtonText("\u{1F4BE} Save as Preset").onClick(() => {
+      const defaultName = this.calloutType && !["note", "tip", "info", "warning", "danger", "success", "question", "quote", "bug", "example", "summary", "important", "caution", "todo"].includes(this.calloutType.toLowerCase()) ? this.calloutType : "";
+      new SavePresetDialogModal(
+        this.app,
+        defaultName,
+        async (name) => {
+          await this.saveCurrentAsPreset(name);
+        },
+        {
+          title: "\u{1F4BE} Save Callout Style Preset",
+          desc: "Enter a name for this custom callout style to reuse it via > [!your-preset] and in settings.",
+          placeholder: "my-custom-style"
+        }
+      ).open();
+    })).addButton((btn) => btn.setButtonText(this.isEditingExisting ? "Update Callout" : "Insert Into Note").setCta().onClick(() => {
       this.insertCallout();
       this.close();
     })).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
+  }
+  async saveCurrentAsPreset(name) {
+    var _a, _b;
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!cleanName) {
+      new import_obsidian4.Notice("Please enter a valid preset name.");
+      return;
+    }
+    const newStyle = {
+      name: cleanName,
+      bg: this.bgColor,
+      border: this.borderColor,
+      text: this.textColor || "",
+      link: this.linkColor || "",
+      titleColor: this.titleColor || "",
+      iconColor: this.iconColor || "",
+      icon: this.iconName || "pencil",
+      font: this.font || "",
+      fontSize: this.fontSize,
+      borderWidth: this.borderWidth,
+      borderStyle: this.borderStyle,
+      borderRadius: this.borderRadius,
+      neon: this.neon || "",
+      gradient: this.gradient || "",
+      compact: !!this.compact,
+      center: !!this.center,
+      titleCenter: !!this.titleCenter,
+      noIcon: !!this.noIcon,
+      showInCommandPalette: false
+    };
+    if (!this.settings.customStyles) {
+      this.settings.customStyles = [];
+    }
+    const existingIdx = this.settings.customStyles.findIndex((s) => s.name.toLowerCase() === cleanName);
+    if (existingIdx >= 0) {
+      this.settings.customStyles[existingIdx] = newStyle;
+      new import_obsidian4.Notice(`Updated custom style preset "${cleanName}"!`);
+    } else {
+      this.settings.customStyles.push(newStyle);
+      new import_obsidian4.Notice(`Saved custom style preset "${cleanName}"!`);
+    }
+    const plugin = (_b = (_a = this.app.plugins) == null ? void 0 : _a.getPlugin) == null ? void 0 : _b.call(_a, "special-callouts");
+    if (plugin && typeof plugin.saveSettings === "function") {
+      await plugin.saveSettings();
+    }
+    this.calloutType = cleanName;
+    this.updateLivePreview();
+    this.renderModal();
   }
   renderSectionContent(container) {
     container.empty();
@@ -2379,56 +2466,41 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
     });
   }
   renderLayoutSection(container) {
-    new import_obsidian5.Setting(container).setName("Border Width & Style").addDropdown((drop) => drop.addOption("", "Default Width").addOption("1px", "1px (Thin)").addOption("2px", "2px (Medium)").addOption("4px", "4px (Thick)").setValue(this.borderWidth || "").onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Border Width & Style").addDropdown((drop) => drop.addOption("", "Default Width").addOption("1px", "1px (Thin)").addOption("2px", "2px (Medium)").addOption("4px", "4px (Thick)").setValue(this.borderWidth || "").onChange((val) => {
       this.borderWidth = val;
       this.updateLivePreview();
     })).addDropdown((drop) => drop.addOption("solid", "Solid").addOption("dashed", "Dashed").addOption("dotted", "Dotted").addOption("double", "Double").addOption("groove", "Groove").addOption("ridge", "Ridge").addOption("inset", "Inset").addOption("outset", "Outset").addOption("none", "None").setValue(this.borderStyle || "solid").onChange((val) => {
       this.borderStyle = val;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("Corner Radius").addSlider((slider) => slider.setLimits(0, 30, 1).setValue(parseInt(this.borderRadius || "8") || 8).onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Corner Radius").addSlider((slider) => slider.setLimits(0, 30, 1).setValue(parseInt(this.borderRadius || "8") || 8).onChange((val) => {
       this.borderRadius = `${val}px`;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("List Columns").setDesc("Split list items inside callout into columns").addDropdown((drop) => drop.addOption("", "None").addOption("2", "2 Columns").addOption("3", "3 Columns").addOption("4", "4 Columns").setValue(this.colCount ? this.colCount.toString() : "").onChange((val) => {
+    new import_obsidian4.Setting(container).setName("List Columns").setDesc("Split list items inside callout into columns").addDropdown((drop) => drop.addOption("", "None").addOption("2", "2 Columns").addOption("3", "3 Columns").addOption("4", "4 Columns").setValue(this.colCount ? this.colCount.toString() : "").onChange((val) => {
       this.colCount = val ? parseInt(val) : null;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("Compact Mode").setDesc("Tighter padding for lists & dense notes").addToggle((toggle) => toggle.setValue(this.compact).onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Compact Mode").setDesc("Tighter padding for lists & dense notes").addToggle((toggle) => toggle.setValue(this.compact).onChange((val) => {
       this.compact = val;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("Center Text (center)").setDesc("Center align both title and body text").addToggle((toggle) => toggle.setValue(this.center).onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Center Text (center)").setDesc("Center align both title and body text").addToggle((toggle) => toggle.setValue(this.center).onChange((val) => {
       this.center = val;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the title header").addToggle((toggle) => toggle.setValue(this.titleCenter).onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the title header").addToggle((toggle) => toggle.setValue(this.titleCenter).onChange((val) => {
       this.titleCenter = val;
       this.updateLivePreview();
     }));
-    new import_obsidian5.Setting(container).setName("Hide Icon (no-icon)").setDesc("Hide icon completely").addToggle((toggle) => toggle.setValue(this.noIcon).onChange((val) => {
+    new import_obsidian4.Setting(container).setName("Hide Icon (no-icon)").setDesc("Hide icon completely").addToggle((toggle) => toggle.setValue(this.noIcon).onChange((val) => {
       this.noIcon = val;
       this.updateLivePreview();
     }));
   }
   updateLivePreview() {
-    if (!this.liveCalloutEl || !this.iconEl || !this.titleInnerEl || !this.bodyEl) return;
-    this.titleInnerEl.textContent = this.titleText || "Callout";
-    this.bodyEl.empty();
-    if (this.colCount && this.colCount > 1) {
-      this.liveCalloutEl.setAttribute("data-col", this.colCount.toString());
-      this.liveCalloutEl.setCssProps({ "--smart-list-cols": this.colCount.toString() });
-    } else {
-      this.liveCalloutEl.removeAttribute("data-col");
-      this.liveCalloutEl.setCssProps({ "--smart-list-cols": "" });
-    }
-    const defaultListContent = "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6";
-    const rawContent = this.contentText ? this.contentText : this.colCount && this.colCount > 1 ? defaultListContent : "Type callout content...";
-    void import_obsidian5.MarkdownRenderer.render(this.app, rawContent, this.bodyEl, "", this).then(() => {
-      if (this.colCount && this.colCount > 1 && this.bodyEl) {
-        formatListColumns(this.bodyEl, this.colCount);
-      }
-    });
+    if (!this.liveCalloutWrapper) return;
+    this.liveCalloutWrapper.empty();
     const styleObj = {
       bg: this.bgColor,
       border: this.borderColor,
@@ -2449,7 +2521,16 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
       titleCenter: this.titleCenter,
       noIcon: this.noIcon
     };
-    applyStyleToLivePreview(this.liveCalloutEl, this.iconEl, this.titleInnerEl, styleObj);
+    renderUnifiedCalloutNode({
+      app: this.app,
+      component: this,
+      container: this.liveCalloutWrapper,
+      style: styleObj,
+      type: this.calloutType,
+      title: this.titleText,
+      content: this.contentText,
+      col: this.colCount
+    });
   }
   insertCallout() {
     const config = {
@@ -2482,10 +2563,10 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
 `;
     if (this.existingRange) {
       this.editor.replaceRange(fullBlock.trimEnd() + "\n", this.existingRange.from, this.existingRange.to);
-      new import_obsidian5.Notice("Callout updated!");
+      new import_obsidian4.Notice("Callout updated!");
     } else {
       this.editor.replaceSelection(fullBlock);
-      new import_obsidian5.Notice("Inserted Callout!");
+      new import_obsidian4.Notice("Inserted Callout!");
     }
   }
   onClose() {
@@ -2493,28 +2574,28 @@ var InsertCalloutModal = class extends import_obsidian5.Modal {
       this.closeSuggesterFn();
       this.closeSuggesterFn = null;
     }
-    this.liveCalloutEl = null;
-    this.titleInnerEl = null;
-    this.iconEl = null;
-    this.bodyEl = null;
+    this.liveCalloutWrapper = null;
     this.contentEl.empty();
   }
 };
 
 // src/modals/MultiColumnBuilderModal.ts
-var SavePresetDialogModal = class extends import_obsidian6.Modal {
-  constructor(app, initialName, onSave) {
+var SavePresetDialogModal = class extends import_obsidian5.Modal {
+  constructor(app, initialName, onSave, opts) {
     super(app);
     this.initialName = initialName;
     this.onSave = onSave;
+    this.modalTitle = (opts == null ? void 0 : opts.title) || "\u{1F4BE} Save Layout Preset";
+    this.modalDesc = (opts == null ? void 0 : opts.desc) || "Enter a name for this custom preset to reuse it across notes and in settings.";
+    this.placeholder = (opts == null ? void 0 : opts.placeholder) || "my-preset";
   }
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("special-callouts-ui");
-    contentEl.createEl("h3", { text: "\u{1F4BE} Save Layout Preset" });
+    contentEl.createEl("h3", { text: this.modalTitle });
     contentEl.createEl("p", {
-      text: "Enter a name for this custom layout preset to reuse it across notes and in the settings layout manager.",
+      text: this.modalDesc,
       cls: "sc-section-desc"
     });
     let presetName = this.initialName || "";
@@ -2523,8 +2604,8 @@ var SavePresetDialogModal = class extends import_obsidian6.Modal {
     errorEl.style.fontSize = "0.85rem";
     errorEl.style.margin = "4px 0 8px 0";
     errorEl.style.display = "none";
-    new import_obsidian6.Setting(contentEl).setName("Preset Name").setDesc("e.g. hero-dashboard, 3-column-notes, team-workspace").addText((text) => {
-      text.setPlaceholder("my-layout-preset").setValue(presetName).onChange((val) => {
+    new import_obsidian5.Setting(contentEl).setName("Preset Name").setDesc("e.g. " + this.placeholder).addText((text) => {
+      text.setPlaceholder(this.placeholder).setValue(presetName).onChange((val) => {
         presetName = val;
         errorEl.style.display = "none";
       });
@@ -2539,20 +2620,20 @@ var SavePresetDialogModal = class extends import_obsidian6.Modal {
     const saveAction = async () => {
       const trimmed = presetName.trim();
       if (!trimmed) {
-        errorEl.innerText = "Please enter a name for the layout preset.";
+        errorEl.innerText = "Please enter a name for the preset.";
         errorEl.style.display = "block";
-        new import_obsidian6.Notice("Please enter a name for the layout preset.");
+        new import_obsidian5.Notice("Please enter a name for the preset.");
         return;
       }
       this.close();
       await this.onSave(trimmed);
     };
-    const footer = new import_obsidian6.Setting(contentEl);
+    const footer = new import_obsidian5.Setting(contentEl);
     footer.addButton((btn) => btn.setButtonText("Save Preset").setCta().onClick(saveAction));
     footer.addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
   }
 };
-var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
+var MultiColumnBuilderModal = class extends import_obsidian5.Modal {
   constructor(app, settings, editor, options) {
     var _a;
     super(app);
@@ -2604,12 +2685,12 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     var _a;
     let name = (customName == null ? void 0 : customName.trim()) || ((_a = this.presetLayoutName) == null ? void 0 : _a.trim());
     if (!name) {
-      new import_obsidian6.Notice("Please enter a name for the layout preset.");
+      new import_obsidian5.Notice("Please enter a name for the layout preset.");
       return false;
     }
     name = name.toLowerCase().replace(/\s+/g, "-");
     if (!name) {
-      new import_obsidian6.Notice("Please provide a valid layout name.");
+      new import_obsidian5.Notice("Please provide a valid layout name.");
       return false;
     }
     const areaRows = [];
@@ -2626,7 +2707,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       cols: this.gridCols,
       rows: this.gridRows,
       gridAreas,
-      showInCommandPalette: true
+      showInCommandPalette: false
     };
     if (!this.settings.customLayouts) {
       this.settings.customLayouts = [];
@@ -2642,7 +2723,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     } else if (this.pluginInstance && this.pluginInstance.saveSettings) {
       await this.pluginInstance.saveSettings();
     }
-    new import_obsidian6.Notice(`Saved layout preset "${name}"!`);
+    new import_obsidian5.Notice(`Saved layout preset "${name}"!`);
     return true;
   }
   findMultiCalloutAtCursor() {
@@ -3254,7 +3335,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
         cls: "sc-mode-btn"
       });
       const singleIcon = singleBtn.createSpan();
-      (0, import_obsidian6.setIcon)(singleIcon, "file-text");
+      (0, import_obsidian5.setIcon)(singleIcon, "file-text");
       singleBtn.createSpan({ text: "Single Callout" });
       singleBtn.onclick = () => {
         if (this.closeSuggesterFn) this.closeSuggesterFn();
@@ -3265,7 +3346,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
         cls: "sc-mode-btn is-active"
       });
       const multiIcon = multiBtn.createSpan();
-      (0, import_obsidian6.setIcon)(multiIcon, "layout-grid");
+      (0, import_obsidian5.setIcon)(multiIcon, "layout-grid");
       multiBtn.createSpan({ text: "Multi-Column Dashboard" });
     } else {
       const nameRow = contentEl.createDiv({ cls: "sc-preset-name-row" });
@@ -3313,7 +3394,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     tabs.forEach((tab) => {
       const btn = nav.createEl("button", { cls: `sc-nav-tab ${this.activeTab === tab.id ? "is-active" : ""}` });
       const iconSpan = btn.createSpan();
-      (0, import_obsidian6.setIcon)(iconSpan, tab.icon);
+      (0, import_obsidian5.setIcon)(iconSpan, tab.icon);
       btn.createSpan({ text: tab.label });
       btn.onclick = () => {
         this.activeTab = tab.id;
@@ -3324,7 +3405,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
         });
       };
     });
-    const footer = new import_obsidian6.Setting(contentEl);
+    const footer = new import_obsidian5.Setting(contentEl);
     if (this.isPresetMode) {
       footer.addButton((btn) => btn.setButtonText("Save Layout Preset").setCta().onClick(async () => {
         if (!this.presetLayoutName.trim()) {
@@ -3401,7 +3482,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     btnGroup.style.gap = "6px";
     const changeLayoutBtn = btnGroup.createEl("button", { cls: "sc-action-btn" });
     const layoutIcon = changeLayoutBtn.createSpan();
-    (0, import_obsidian6.setIcon)(layoutIcon, "layout-grid");
+    (0, import_obsidian5.setIcon)(layoutIcon, "layout-grid");
     changeLayoutBtn.createSpan({ text: "Change Layout / Grid" });
     changeLayoutBtn.onclick = () => {
       this.isViewingLayoutPicker = true;
@@ -3521,7 +3602,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       card.style.cursor = "pointer";
       card.style.transition = "all 0.15s ease";
       const iconDiv = card.createDiv();
-      (0, import_obsidian6.setIcon)(iconDiv, p.icon);
+      (0, import_obsidian5.setIcon)(iconDiv, p.icon);
       iconDiv.style.marginBottom = "4px";
       const titleDiv = card.createDiv();
       titleDiv.style.fontWeight = "600";
@@ -3539,7 +3620,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       };
       card.onclick = () => {
         this.applyPresetLayout(p.key);
-        this.isViewingLayoutPicker = false;
+        this.updateLivePreview();
         this.renderModal();
       };
     });
@@ -3685,7 +3766,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       block.onclick = (e) => {
         e.stopPropagation();
         this.selectedAreaId = area.id;
-        this.isViewingLayoutPicker = false;
+        this.updateLivePreview();
         this.renderModal();
       };
       block.onmousedown = (e) => {
@@ -3916,7 +3997,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     });
     let bgTextComp;
-    new import_obsidian6.Setting(container).setName("Background Color (Tint)").setDesc("Translucent 15% background tint (used when gradient is disabled)").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Background Color (Tint)").setDesc("Translucent 15% background tint (used when gradient is disabled)").addText((text) => {
       bgTextComp = text;
       text.setValue(area.bgColor || "").setPlaceholder("#448aff or blue").onChange((val) => {
         area.bgColor = val;
@@ -3928,7 +4009,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let borderTextComp;
-    new import_obsidian6.Setting(container).setName("Border Color").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Border Color").addText((text) => {
       borderTextComp = text;
       text.setValue(area.borderColor || "").setPlaceholder("#448aff or blue").onChange((val) => {
         area.borderColor = val;
@@ -3940,7 +4021,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let titleTextComp;
-    new import_obsidian6.Setting(container).setName("Title Color").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Title Color").addText((text) => {
       titleTextComp = text;
       text.setPlaceholder("Auto (follows theme)").setValue(area.titleColor || "").onChange((val) => {
         area.titleColor = val;
@@ -3952,7 +4033,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let iconTextComp;
-    new import_obsidian6.Setting(container).setName("Icon Color").setDesc("Leave blank to follow title color").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Icon Color").setDesc("Leave blank to follow title color").addText((text) => {
       iconTextComp = text;
       text.setPlaceholder("Auto (follows title)").setValue(area.iconColor || "").onChange((val) => {
         area.iconColor = val;
@@ -3964,7 +4045,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let textColorComp;
-    new import_obsidian6.Setting(container).setName("Body Text Color").setDesc("Callout text color (leave blank for theme default)").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Body Text Color").setDesc("Callout text color (leave blank for theme default)").addText((text) => {
       textColorComp = text;
       text.setPlaceholder("theme default").setValue(area.textColor || "").onChange((val) => {
         area.textColor = val;
@@ -3976,7 +4057,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let linkTextComp;
-    new import_obsidian6.Setting(container).setName("Link Color").setDesc("Link color (leave blank for theme default)").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Link Color").setDesc("Link color (leave blank for theme default)").addText((text) => {
       linkTextComp = text;
       text.setPlaceholder("theme default").setValue(area.linkColor || "").onChange((val) => {
         area.linkColor = val;
@@ -3988,7 +4069,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       this.updateLivePreview();
     }));
     let neonTextComp;
-    new import_obsidian6.Setting(container).setName("Neon Glow Effect").setDesc("Color of glowing cyber neon border").addText((text) => {
+    new import_obsidian5.Setting(container).setName("Neon Glow Effect").setDesc("Color of glowing cyber neon border").addText((text) => {
       neonTextComp = text;
       text.setPlaceholder("#00f2ff or cyan").setValue(area.neon || "").onChange((val) => {
         area.neon = val;
@@ -4006,23 +4087,23 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
   renderIconSection(container) {
     const area = this.areas.get(this.selectedAreaId);
     if (!area) return;
-    const iconSetting = new import_obsidian6.Setting(container).setName(`Box Icon (${area.iconName || "pencil"})`).setDesc("Select Lucide icon for this box");
+    const iconSetting = new import_obsidian5.Setting(container).setName(`Box Icon (${area.iconName || "pencil"})`).setDesc("Select Lucide icon for this box");
     const iconSpan = iconSetting.nameEl.createSpan();
     iconSpan.style.marginLeft = "10px";
-    (0, import_obsidian6.setIcon)(iconSpan, area.iconName || "pencil");
+    (0, import_obsidian5.setIcon)(iconSpan, area.iconName || "pencil");
     iconSetting.addButton((btn) => btn.setButtonText("Change Icon").onClick(() => {
       new IconPickerModal(this.app, (selected) => {
         area.iconName = selected;
         iconSpan.empty();
-        (0, import_obsidian6.setIcon)(iconSpan, selected);
+        (0, import_obsidian5.setIcon)(iconSpan, selected);
         this.updateLivePreview();
       }).open();
     }));
-    new import_obsidian6.Setting(container).setName("Font Family").addDropdown((drop) => drop.addOption("", "Default").addOption("mono", "Monospace").addOption("serif", "Serif").addOption("sans", "Sans-Serif").addOption("hand", "Handwritten").addOption("marker", "Chalkboard Marker").setValue(area.font || "").onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Font Family").addDropdown((drop) => drop.addOption("", "Default").addOption("mono", "Monospace").addOption("serif", "Serif").addOption("sans", "Sans-Serif").addOption("hand", "Handwritten").addOption("marker", "Chalkboard Marker").setValue(area.font || "").onChange((val) => {
       area.font = val;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Font Size").addDropdown((drop) => drop.addOption("1", "1 - Smallest").addOption("2", "2 - Small").addOption("3", "3 - Default").addOption("4", "4 - Large").addOption("5", "5 - Largest").setValue((area.fontSize || 3).toString()).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Font Size").addDropdown((drop) => drop.addOption("1", "1 - Smallest").addOption("2", "2 - Small").addOption("3", "3 - Default").addOption("4", "4 - Large").addOption("5", "5 - Largest").setValue((area.fontSize || 3).toString()).onChange((val) => {
       area.fontSize = parseInt(val);
       this.updateLivePreview();
     }));
@@ -4033,41 +4114,40 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
   renderLayoutSection(container) {
     const area = this.areas.get(this.selectedAreaId);
     if (!area) return;
-    new import_obsidian6.Setting(container).setName("Border Width & Style").addDropdown((drop) => drop.addOption("", "Default Width").addOption("1px", "1px (Thin)").addOption("2px", "2px (Medium)").addOption("4px", "4px (Thick)").setValue(area.borderWidth || "").onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Border Width & Style").addDropdown((drop) => drop.addOption("", "Default Width").addOption("1px", "1px (Thin)").addOption("2px", "2px (Medium)").addOption("4px", "4px (Thick)").setValue(area.borderWidth || "").onChange((val) => {
       area.borderWidth = val;
       this.updateLivePreview();
     })).addDropdown((drop) => drop.addOption("solid", "Solid").addOption("dashed", "Dashed").addOption("dotted", "Dotted").addOption("double", "Double").addOption("groove", "Groove").addOption("ridge", "Ridge").addOption("inset", "Inset").addOption("outset", "Outset").addOption("none", "None").setValue(area.borderStyle || "solid").onChange((val) => {
       area.borderStyle = val;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Corner Radius").addSlider((slider) => slider.setLimits(0, 30, 1).setValue(parseInt(area.borderRadius || "8") || 8).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Corner Radius").addSlider((slider) => slider.setLimits(0, 30, 1).setValue(parseInt(area.borderRadius || "8") || 8).onChange((val) => {
       area.borderRadius = `${val}px`;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("List Columns").setDesc("Divide lists inside this callout box into columns").addDropdown((drop) => drop.addOption("", "Normal (1 Column)").addOption("2", "2 Columns").addOption("3", "3 Columns").addOption("4", "4 Columns").setValue(area.col ? area.col.toString() : "").onChange((val) => {
+    new import_obsidian5.Setting(container).setName("List Columns").setDesc("Divide lists inside this callout box into columns").addDropdown((drop) => drop.addOption("", "Normal (1 Column)").addOption("2", "2 Columns").addOption("3", "3 Columns").addOption("4", "4 Columns").setValue(area.col ? area.col.toString() : "").onChange((val) => {
       area.col = val ? parseInt(val) : void 0;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Compact Mode").setDesc("Tighter padding inside this box").addToggle((toggle) => toggle.setValue(area.compact || false).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Compact Mode").setDesc("Tighter padding inside this box").addToggle((toggle) => toggle.setValue(area.compact || false).onChange((val) => {
       area.compact = val;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Center Text (center)").setDesc("Center align all text inside this callout box").addToggle((toggle) => toggle.setValue(area.center || false).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Center Text (center)").setDesc("Center align all text inside this callout box").addToggle((toggle) => toggle.setValue(area.center || false).onChange((val) => {
       area.center = val;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the box title header").addToggle((toggle) => toggle.setValue(area.titleCenter || false).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the box title header").addToggle((toggle) => toggle.setValue(area.titleCenter || false).onChange((val) => {
       area.titleCenter = val;
       this.updateLivePreview();
     }));
-    new import_obsidian6.Setting(container).setName("Hide Icon").addToggle((toggle) => toggle.setValue(area.noIcon || false).onChange((val) => {
+    new import_obsidian5.Setting(container).setName("Hide Icon").addToggle((toggle) => toggle.setValue(area.noIcon || false).onChange((val) => {
       area.noIcon = val;
       this.updateLivePreview();
     }));
   }
   // ==========================================
   // LIVE STICKY DASHBOARD PREVIEW & MARKDOWN OUTPUT
-  // ==========================================
   updateLivePreview(targetEl) {
     const el = targetEl || this.liveDashboardEl;
     if (!el) return;
@@ -4092,119 +4172,49 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     const uniqueAreas = Array.from(this.areas.values());
     uniqueAreas.forEach((area, idx) => {
       const isSelected = area.id === this.selectedAreaId;
-      const subCallout = grid.createDiv({ cls: "callout" });
-      subCallout.setAttribute("data-callout", area.type || "note");
-      subCallout.style.gridRow = `${area.minRow + 1} / ${area.maxRow + 2}`;
-      subCallout.style.gridColumn = `${area.minCol + 1} / ${area.maxCol + 2}`;
-      const borderStyleVal = area.borderStyle || "solid";
-      const borderWidthVal = toPx(area.borderWidth || "1px");
-      const borderColorVal = area.borderColor || "var(--interactive-accent)";
-      const normalBorder = borderStyleVal === "none" ? "none" : `${borderWidthVal} ${borderStyleVal} ${borderColorVal}`;
-      if (area.gradient) {
-        let grad = area.gradient.trim();
-        if (!isCssGradient(grad)) {
-          const parts = grad.split("-");
-          if (parts.length >= 2) {
-            grad = `linear-gradient(90deg, ${parts[0]}, ${parts.slice(1).join("-")})`;
-          }
-        }
-        subCallout.style.background = grad;
-        subCallout.style.border = area.borderColor && borderStyleVal !== "none" ? `${borderWidthVal} ${borderStyleVal} ${area.borderColor}` : "none";
-      } else {
-        const bg = area.bgColor ? `color-mix(in srgb, ${area.bgColor} 15%, transparent)` : "var(--background-secondary)";
-        subCallout.style.backgroundColor = bg;
-        subCallout.style.border = normalBorder;
-      }
-      subCallout.dataset.areaId = area.id;
-      subCallout.style.outline = "none";
-      subCallout.style.overflow = "hidden";
-      subCallout.style.boxSizing = "border-box";
-      subCallout.style.borderRadius = area.borderRadius ? toPx(area.borderRadius) : "6px";
-      subCallout.style.padding = area.compact ? "8px 12px" : "12px 16px";
-      subCallout.style.textAlign = area.center ? "center" : "left";
-      subCallout.style.cursor = "pointer";
-      subCallout.onclick = () => {
-        this.selectedAreaId = area.id;
-        this.isViewingLayoutPicker = false;
-        this.renderModal();
+      const styleObj = {
+        bg: area.bgColor,
+        border: area.borderColor,
+        text: area.textColor,
+        link: area.linkColor,
+        titleColor: area.titleColor,
+        iconColor: area.iconColor,
+        icon: area.iconName || this.getDefaultIconForType(area.type),
+        font: area.font,
+        fontSize: area.fontSize,
+        borderWidth: area.borderWidth,
+        borderStyle: area.borderStyle,
+        borderRadius: area.borderRadius,
+        neon: area.neon,
+        gradient: area.gradient,
+        compact: area.compact,
+        center: area.center,
+        titleCenter: area.titleCenter,
+        noIcon: area.noIcon
       };
-      if (area.font && FONT_FAMILIES[area.font]) {
-        subCallout.style.fontFamily = FONT_FAMILIES[area.font];
-      }
-      if (area.fontSize && FONT_SIZES[area.fontSize]) {
-        subCallout.style.fontSize = FONT_SIZES[area.fontSize];
-      }
-      if (area.neon) {
-        const neon = neonStyles(area.neon);
-        subCallout.style.boxShadow = isSelected ? `0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent), ${neon["--sc-neon-shadow"]}` : neon["--sc-neon-shadow"];
-      } else if (isSelected) {
-        subCallout.style.boxShadow = "0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent)";
-      } else {
-        subCallout.style.boxShadow = "none";
-      }
-      if (area.center) {
-        subCallout.setAttribute("data-center", "true");
-        subCallout.removeAttribute("data-title-center");
-      } else if (area.titleCenter) {
-        subCallout.setAttribute("data-title-center", "true");
-        subCallout.removeAttribute("data-center");
-      } else {
-        subCallout.removeAttribute("data-center");
-        subCallout.removeAttribute("data-title-center");
-      }
-      const titleEl = subCallout.createDiv({ cls: "callout-title" });
-      titleEl.style.display = "flex";
-      titleEl.style.alignItems = "center";
-      titleEl.style.gap = "6px";
-      titleEl.style.width = "100%";
-      titleEl.style.justifyContent = area.center || area.titleCenter ? "center" : "flex-start";
-      titleEl.style.fontWeight = "600";
-      titleEl.style.color = area.titleColor || area.borderColor || "var(--text-normal)";
-      if (!area.noIcon) {
-        const iconEl = titleEl.createDiv({ cls: "callout-icon" });
-        iconEl.style.color = area.iconColor || area.titleColor || area.borderColor || "inherit";
-        iconEl.empty();
-        (0, import_obsidian6.setIcon)(iconEl, area.iconName || this.getDefaultIconForType(area.type));
-      }
-      const titleSpan = titleEl.createSpan({ cls: "callout-title-inner", text: area.title || `Box ${idx + 1}` });
-      if (area.center || area.titleCenter) {
-        titleSpan.style.textAlign = "center";
-        titleSpan.style.flex = "0 1 auto";
-      }
-      const contentEl = subCallout.createDiv({ cls: "callout-content" });
-      contentEl.style.fontSize = "0.85em";
-      contentEl.style.marginTop = "4px";
-      contentEl.style.textAlign = area.center ? "center" : "left";
-      if (area.textColor) {
-        contentEl.style.color = area.textColor;
-        subCallout.setCssProps({ "--sc-text-color": area.textColor });
-        subCallout.setAttribute("data-sc-text", "");
-      } else {
-        subCallout.removeAttribute("data-sc-text");
-        contentEl.style.color = "";
-      }
-      if (area.linkColor) {
-        subCallout.setCssProps({
-          "--link-color": area.linkColor,
-          "--link-color-hover": area.linkColor,
-          "--link-internal-color": area.linkColor,
-          "--link-external-color": area.linkColor,
-          "--sc-link-color": area.linkColor
-        });
-        subCallout.setAttribute("data-link-color", area.linkColor);
-      }
-      if (area.col && area.col > 1) {
-        subCallout.setAttribute("data-col", area.col.toString());
-        subCallout.setCssProps({ "--smart-list-cols": area.col.toString() });
-      } else {
-        subCallout.removeAttribute("data-col");
-        subCallout.setCssProps({ "--smart-list-cols": "" });
-      }
       const defaultListContent = "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6";
       const rawContent = area.content ? area.content : area.col && area.col > 1 ? defaultListContent : `Main featured section for ${area.title || `Box ${idx + 1}`}...`;
-      void import_obsidian6.MarkdownRenderer.render(this.app, rawContent, contentEl, "", this).then(() => {
-        if (area.col && area.col > 1) {
-          formatListColumns(contentEl, area.col);
+      renderUnifiedCalloutNode({
+        app: this.app,
+        component: this,
+        container: grid,
+        style: styleObj,
+        type: area.type || "note",
+        title: area.title || `Box ${idx + 1}`,
+        content: rawContent,
+        col: area.col,
+        isSelected,
+        areaId: area.id,
+        gridPlacement: {
+          minRow: area.minRow,
+          maxRow: area.maxRow,
+          minCol: area.minCol,
+          maxCol: area.maxCol
+        },
+        onClick: () => {
+          this.selectedAreaId = area.id;
+          this.updateLivePreview();
+          this.renderModal();
         }
       });
     });
@@ -4226,7 +4236,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       } else if (area.bgColor) {
         metaParams.push(`bg:${area.bgColor}`);
       }
-      if (area.borderColor && area.borderColor !== area.bgColor) metaParams.push(`border:${area.borderColor}`);
+      if (area.borderColor && area.borderColor !== "none") metaParams.push(`border:${area.borderColor}`);
       if (area.titleColor) metaParams.push(`title:${area.titleColor}`);
       if (area.iconColor) metaParams.push(`icon-color:${area.iconColor}`);
       if (area.iconName) metaParams.push(`icon:${area.iconName}`);
@@ -4236,7 +4246,7 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
       if (area.font) metaParams.push(`font:${area.font}`);
       if (area.fontSize && area.fontSize !== 3) metaParams.push(`font-size:${area.fontSize}`);
       if (area.borderRadius) metaParams.push(`radius:${area.borderRadius}`);
-      if (area.borderWidth && area.borderWidth !== "1px") metaParams.push(`bw:${area.borderWidth}`);
+      if (area.borderWidth) metaParams.push(`bw:${area.borderWidth}`);
       if (area.borderStyle && area.borderStyle !== "solid") metaParams.push(`bs:${area.borderStyle}`);
       if (area.col) metaParams.push(`col:${area.col}`);
       if (area.compact) metaParams.push("compact");
@@ -4253,10 +4263,10 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
     });
     if (this.existingRange) {
       this.editor.replaceRange(multiMarkdown.trimEnd(), this.existingRange.from, this.existingRange.to);
-      new import_obsidian6.Notice("Multi-column grid dashboard updated!");
+      new import_obsidian5.Notice("Multi-column grid dashboard updated!");
     } else {
       this.editor.replaceSelection(multiMarkdown);
-      new import_obsidian6.Notice("Multi-column grid dashboard inserted!");
+      new import_obsidian5.Notice("Multi-column grid dashboard inserted!");
     }
   }
   onClose() {
@@ -4269,183 +4279,12 @@ var MultiColumnBuilderModal = class extends import_obsidian6.Modal {
   }
 };
 
-// src/modals/HowToModal.ts
-var import_obsidian7 = require("obsidian");
-function showHowToUse(app) {
-  new HowToModal(app).open();
-}
-var HowToModal = class extends import_obsidian7.Modal {
-  constructor(app) {
-    super(app);
-    this.titleEl.setText("How to Use Custom Styles");
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("special-callouts-ui");
-    this.createSection(contentEl, "\u2328\uFE0F Quick Insert via Command Palette", (section) => {
-      section.createEl("p", {
-        text: "Press Ctrl/Cmd+P and type:"
-      });
-      const ul = section.createEl("ul");
-      const li1 = ul.createEl("li");
-      li1.createEl("strong", { text: '"Insert Custom Callout"' });
-      li1.appendText(" - Browse all your saved styles");
-      const li2 = ul.createEl("li");
-      li2.createEl("strong", { text: '"Insert [style-name]"' });
-      li2.appendText(" - Directly insert a specific style");
-    });
-    this.createSection(contentEl, "\u{1F4DD} Manual Usage Methods", (section) => {
-      this.createMethodBox(section, "Method 1: Direct callout type", "> [!your-style-name]");
-      this.createMethodBox(section, "Method 2: Native Obsidian pipe", "> [!note|bg:red,icon:flame]");
-      this.createMethodBox(section, "Method 3: With metadata parentheses", "> [!note] (style:your-style-name)");
-    });
-    this.createSection(contentEl, "\u{1F4D0} Layout Systems", (section) => {
-      const p1 = section.createEl("p");
-      p1.createEl("strong", { text: "1. Inline Grid (Simple):" });
-      p1.appendText(" Quick alignments using ");
-      p1.createEl("code", { text: "(position:cols)" });
-      const code1 = section.createEl("pre");
-      code1.setText("> [!multi-callout]\n> > [!info] (1:2)\n> > [!tip] (2:2)");
-      const p2 = section.createEl("p");
-      p2.createEl("strong", { text: "2. Visual Layout Builder (Advanced):" });
-      p2.appendText(" Create merged grids in settings, then use their name!");
-      const code2 = section.createEl("pre");
-      code2.setText("> [!multi-callout] (my_dashboard)\n> > [!info]\n> > [!tip]");
-    });
-    this.createSection(contentEl, "\u{1F4A1} Pro Tips", (section) => {
-      const ul = section.createEl("ul");
-      const tip1 = ul.createEl("li");
-      tip1.appendText("Use ");
-      tip1.createEl("code", { text: "(title:red)" });
-      tip1.appendText(" to override title color");
-      const tip2 = ul.createEl("li");
-      tip2.appendText("Try ");
-      tip2.createEl("code", { text: "(no-icon)" });
-      tip2.appendText(" for a minimalist look");
-      ul.createEl("li", { text: 'Click "Cheat Sheet" in settings to see all available parameters' });
-    });
-    const banner = contentEl.createDiv();
-    banner.addClass("sc-modal-banner");
-    banner.createEl("strong", { text: "\u26A1 Quick Tip: " });
-    banner.appendText("Assign hotkeys to your favorite styles in Settings \u2192 Hotkeys \u2192 Special Callouts");
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-  createSection(container, title, fill) {
-    const section = container.createDiv();
-    section.addClass("sc-mb-1-5");
-    const h3 = section.createEl("h3", { text: title });
-    h3.addClass("sc-modal-h3");
-    fill(section);
-  }
-  createMethodBox(container, label, codeText) {
-    const box = container.createDiv();
-    box.addClass("sc-modal-method-box");
-    box.createEl("strong", { text: label });
-    const pre = box.createEl("pre");
-    pre.setText(codeText);
-  }
-};
-
-// src/modals/MetadataModal.ts
-var import_obsidian8 = require("obsidian");
-function showMetadataReference(app) {
-  new MetadataReferenceModal(app).open();
-}
-var MetadataReferenceModal = class extends import_obsidian8.Modal {
-  constructor(app) {
-    super(app);
-    this.titleEl.setText("Metadata Reference & Cheat Sheet");
-  }
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.addClass("special-callouts-ui");
-    contentEl.addClass("sc-metadata-modal");
-    this.createTable(contentEl, "\u{1F3A8} Colors", [
-      ["bg:red or bg:#ff0000", "Background color (tinted 15%)"],
-      ["text:white or text:#fff", "Content text color"],
-      ["title:cyan or title:#00e5ff", "Title text color"],
-      ["link:orange or link:#ff9800", "Link color inside callout"],
-      ["icon-color:gold", "Override icon color separately from title"]
-    ]);
-    this.createTable(contentEl, "Aa Typography", [
-      ["font:mono", "Monospace font family"],
-      ["font:serif", "Serif font family"],
-      ["font:hand", "Handwritten cursive font"],
-      ["font:marker", "Chalkboard marker font"],
-      ["font-size:1 to 5", "Font size multiplier (3 is default 1.0em)"]
-    ]);
-    this.createTable(contentEl, "\u2728 Text Outline & Readability Strokes", [
-      ["text:dark-border", "Dark readability stroke around text"],
-      ["text:light-border", "Light readability stroke around text"],
-      ["text:(white, dark-border)", "Grouped syntax: text color + outline stroke"],
-      ["title:(cyan, dark-border)", "Grouped syntax for callout title"]
-    ]);
-    this.createTable(contentEl, "\u{1F3A8} Borders & Visual Effects", [
-      ["border:red or border:#ff5722", "Border color"],
-      ["border:none", "Remove callout borders entirely"],
-      ["border-width:2 or border-width:4px", "Custom border thickness"],
-      ["border-style:dashed", "Border styles: dashed, dotted, double, solid"],
-      ["radius:16", "Corner roundness in pixels (0 to 30px)"],
-      ["neon:#00f2ff", "Cyber illuminated neon border with radiant glow"],
-      ["no-icon", "Hide the callout icon completely"]
-    ]);
-    this.createTable(contentEl, "\u{1F4CA} Layout & Columns", [
-      ["col:2 or col:3", "Multi-column list layout inside callout"],
-      ["compact", "Tighter padding for lists & dense notes"],
-      ["dense", "Compact padding + tighter line height"],
-      ["center", "Center align all content and title"],
-      ["title:center", "Center align title only while keeping content left-aligned"],
-      ["1:2 or 1:3", "Inline Dashboard Grid (position : columns)"],
-      ["1:3:2", "Grid layout: position 1 of 3 columns, row 2"]
-    ]);
-    const exampleBox = contentEl.createDiv();
-    exampleBox.addClass("sc-modal-info-box");
-    exampleBox.createEl("strong", { text: "\u{1F4A1} Example Usage:" });
-    const exPre = exampleBox.createEl("pre");
-    exPre.setText("> [!note|bg:#1a1a2e,neon:#00f2ff,radius:12,compact] Cyber Note\n> > [!tip] (1:2)\n> > Left Column\n> > [!warning] (2:2)\n> > Right Column");
-    const tipBox = contentEl.createDiv();
-    tipBox.addClass("sc-modal-info-box");
-    tipBox.createEl("strong", { text: "\u26A1 Pro Tip: " });
-    tipBox.appendText("You can use metadata inside native pipes ");
-    tipBox.createEl("code", { text: ">[!note|bg:red]" });
-    tipBox.appendText(" or anywhere in parentheses ");
-    tipBox.createEl("code", { text: ">[!note] Title (bg:red)" });
-    tipBox.appendText(".");
-  }
-  onClose() {
-    this.contentEl.empty();
-  }
-  createTable(container, title, rows) {
-    const section = container.createDiv();
-    section.addClass("sc-modal-section");
-    const h3 = section.createEl("h3", { text: title });
-    h3.addClass("sc-modal-section-title");
-    const table = section.createEl("table");
-    table.addClass("sc-modal-table");
-    rows.forEach(([param, desc], i) => {
-      const tr = table.createEl("tr");
-      const isLast = i === rows.length - 1;
-      const td1 = tr.createEl("td");
-      td1.addClass("sc-modal-table-td1");
-      if (!isLast) td1.addClass("sc-modal-table-row-border");
-      td1.createEl("code", { text: param });
-      const td2 = tr.createEl("td");
-      td2.addClass("sc-modal-table-td2");
-      if (!isLast) td2.addClass("sc-modal-table-row-border");
-      td2.setText(desc);
-    });
-  }
-};
-
 // src/settings/SettingsTab.ts
-var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab {
+var SpecialCalloutsSettingTab = class extends import_obsidian6.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
-    this.activeTab = "styles";
+    this.activeTab = "presets";
+    this.presetsSubTab = "single";
     // Search query for filtering styles
     this.searchQuery = "";
     this.plugin = plugin;
@@ -4457,18 +4296,14 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("special-callouts-ui");
-    this.renderHeader(containerEl);
     this.renderNavTabs(containerEl);
     const tabContentContainer = containerEl.createDiv({ cls: "sc-tab-content" });
     switch (this.activeTab) {
-      case "styles":
-        this.renderCustomStylesTab(tabContentContainer);
+      case "presets":
+        this.renderPresetsTab(tabContentContainer);
         break;
       case "standard":
         this.renderStandardStylesTab(tabContentContainer);
-        break;
-      case "layouts":
-        this.renderLayoutPresetsTab(tabContentContainer);
         break;
       case "commands":
         this.renderCommandPaletteTab(tabContentContainer);
@@ -4481,27 +4316,11 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         break;
     }
   }
-  renderHeader(container) {
-    const banner = container.createDiv({ cls: "sc-header-banner" });
-    const left = banner.createDiv();
-    left.createEl("h2", { text: "Special Callouts", cls: "sc-header-title" });
-    left.createEl("p", {
-      text: "Visual styling, multi-column dashboards, and custom callout presets for Obsidian",
-      cls: "sc-header-subtitle"
-    });
-    const right = banner.createDiv();
-    right.style.display = "flex";
-    right.style.gap = "8px";
-    new import_obsidian9.ButtonComponent(right).setButtonText("\u{1F4D6} Cheat Sheet").onClick(() => showMetadataReference(this.app));
-    const newBtn = new import_obsidian9.ButtonComponent(right).setButtonText("+ New Style").setCta().onClick(() => this.openStyleEditorModal());
-    newBtn.buttonEl.style.fontWeight = "600";
-  }
   renderNavTabs(container) {
     const nav = container.createDiv({ cls: "sc-nav-tabs" });
     const tabs = [
-      { id: "styles", label: "Custom Styles", icon: "palette" },
+      { id: "presets", label: "Custom Presets", icon: "palette" },
       { id: "standard", label: "Standard Callouts", icon: "bookmark" },
-      { id: "layouts", label: "Layout Presets", icon: "layout-grid" },
       { id: "commands", label: "Command Palette", icon: "terminal" },
       { id: "guide", label: "Guide & Syntax", icon: "book-open" },
       { id: "general", label: "General & Defaults", icon: "settings" }
@@ -4511,13 +4330,41 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         cls: `sc-nav-tab ${this.activeTab === tab.id ? "is-active" : ""}`
       });
       const iconSpan = btn.createSpan();
-      (0, import_obsidian9.setIcon)(iconSpan, tab.icon);
+      (0, import_obsidian6.setIcon)(iconSpan, tab.icon);
       btn.createSpan({ text: tab.label });
       btn.onclick = () => {
         this.activeTab = tab.id;
         this.renderSettings();
       };
     });
+  }
+  // =========================================================================
+  // TAB 1: CUSTOM PRESETS (SINGLE & MULTI SUB-TABS)
+  // =========================================================================
+  renderPresetsTab(container) {
+    const subNav = container.createDiv({ cls: "sc-sub-tabs" });
+    const subTabs = [
+      { id: "single", label: "Single Callout", icon: "palette" },
+      { id: "multi", label: "Multi Callout", icon: "layout-grid" }
+    ];
+    subTabs.forEach((sub) => {
+      const btn = subNav.createEl("button", {
+        cls: `sc-sub-tab ${this.presetsSubTab === sub.id ? "is-active" : ""}`
+      });
+      const iconSpan = btn.createSpan();
+      (0, import_obsidian6.setIcon)(iconSpan, sub.icon);
+      btn.createSpan({ text: sub.label });
+      btn.onclick = () => {
+        this.presetsSubTab = sub.id;
+        this.renderSettings();
+      };
+    });
+    const subContent = container.createDiv({ cls: "sc-subtab-content" });
+    if (this.presetsSubTab === "single") {
+      this.renderCustomStylesTab(subContent);
+    } else {
+      this.renderLayoutPresetsTab(subContent);
+    }
   }
   // =========================================================================
   // TAB 1: CUSTOM STYLES
@@ -4548,8 +4395,9 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
     const rightBtns = topBar.createDiv();
     rightBtns.style.display = "flex";
     rightBtns.style.gap = "8px";
-    new import_obsidian9.ButtonComponent(rightBtns).setButtonText("How to Use").onClick(() => showHowToUse(this.app));
-    new import_obsidian9.ButtonComponent(rightBtns).setButtonText("Add Starter Presets").onClick(async () => {
+    const newBtn = new import_obsidian6.ButtonComponent(rightBtns).setButtonText("+ New Style").setCta().onClick(() => this.openStyleEditorModal());
+    newBtn.buttonEl.style.fontWeight = "600";
+    new import_obsidian6.ButtonComponent(rightBtns).setButtonText("Add Starter Presets").onClick(async () => {
       let addedCount = 0;
       QUICK_START_PRESETS.forEach((preset) => {
         if (!this.plugin.settings.customStyles.some((s) => s.name.toLowerCase() === preset.name.toLowerCase())) {
@@ -4561,17 +4409,17 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
             link: "",
             icon: preset.icon,
             titleColor: preset.title,
-            showInCommandPalette: true
+            showInCommandPalette: false
           });
           addedCount++;
         }
       });
       if (addedCount > 0) {
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice(`Added ${addedCount} starter preset(s)!`);
+        new import_obsidian6.Notice(`Added ${addedCount} starter preset(s)!`);
         this.renderCustomStylesCards(cardsGrid);
       } else {
-        new import_obsidian9.Notice("All starter presets already exist.");
+        new import_obsidian6.Notice("All starter presets already exist.");
       }
     });
     const cardsGrid = container.createDiv({ cls: "sc-cards-grid" });
@@ -4605,7 +4453,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       emptyEl.style.textAlign = "center";
       emptyEl.style.color = "var(--text-muted)";
       emptyEl.createEl("p", { text: this.searchQuery ? "No matching custom styles found." : "No custom styles created yet." });
-      new import_obsidian9.ButtonComponent(emptyEl).setButtonText("+ Create First Style").setCta().onClick(() => this.openStyleEditorModal());
+      new import_obsidian6.ButtonComponent(emptyEl).setButtonText("+ Create First Style").setCta().onClick(() => this.openStyleEditorModal());
       return;
     }
     filtered.forEach((style, index) => {
@@ -4615,7 +4463,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       const titleEl = top.createDiv({ cls: "sc-card-title" });
       if (style.icon) {
         const iconSpan = titleEl.createSpan({ cls: "sc-card-icon" });
-        (0, import_obsidian9.setIcon)(iconSpan, style.icon);
+        (0, import_obsidian6.setIcon)(iconSpan, style.icon);
         if (style.iconColor) iconSpan.style.color = style.iconColor;
       }
       titleEl.createSpan({ text: style.name });
@@ -4643,33 +4491,31 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       const previewTitle = preview.createDiv({ cls: "callout-title" });
       if (!style.noIcon && style.icon) {
         const pIcon = previewTitle.createDiv({ cls: "callout-icon" });
-        (0, import_obsidian9.setIcon)(pIcon, style.icon);
+        (0, import_obsidian6.setIcon)(pIcon, style.icon);
         if (style.iconColor) pIcon.style.color = style.iconColor;
       }
       const pText = previewTitle.createDiv({ cls: "callout-title-inner", text: style.name });
       if (style.titleColor) pText.style.color = style.titleColor;
       const actions = card.createDiv({ cls: "sc-card-actions" });
       const editBtn = actions.createEl("button", { cls: "sc-action-btn", title: "Edit Style" });
-      (0, import_obsidian9.setIcon)(editBtn, "pencil");
+      (0, import_obsidian6.setIcon)(editBtn, "pencil");
       editBtn.onclick = () => this.openStyleEditorModal(style, actualIndex);
       const cloneBtn = actions.createEl("button", { cls: "sc-action-btn", title: "Clone Style" });
-      (0, import_obsidian9.setIcon)(cloneBtn, "copy");
+      (0, import_obsidian6.setIcon)(cloneBtn, "copy");
       cloneBtn.onclick = async () => {
         const cloned = { ...style, name: `${style.name}-copy` };
         this.plugin.settings.customStyles.push(cloned);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice(`Cloned "${style.name}" as "${cloned.name}"`);
+        new import_obsidian6.Notice(`Cloned "${style.name}" as "${cloned.name}"`);
         this.renderCustomStylesCards(container);
       };
       const delBtn = actions.createEl("button", { cls: "sc-action-btn is-danger", title: "Delete Style" });
-      (0, import_obsidian9.setIcon)(delBtn, "trash");
+      (0, import_obsidian6.setIcon)(delBtn, "trash");
       delBtn.onclick = async () => {
-        if (confirm(`Delete custom style "${style.name}"?`)) {
-          this.plugin.settings.customStyles.splice(actualIndex, 1);
-          await this.plugin.saveSettings();
-          new import_obsidian9.Notice(`Deleted style "${style.name}"`);
-          this.renderCustomStylesCards(container);
-        }
+        this.plugin.settings.customStyles.splice(actualIndex, 1);
+        await this.plugin.saveSettings();
+        new import_obsidian6.Notice(`Deleted style "${style.name}"`);
+        this.renderCustomStylesCards(container);
       };
     });
   }
@@ -4718,7 +4564,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       badge.style.minWidth = "80px";
       badge.style.textAlign = "center";
       const iconSpan = left.createSpan();
-      (0, import_obsidian9.setIcon)(iconSpan, (currentStyle == null ? void 0 : currentStyle.icon) || "pencil");
+      (0, import_obsidian6.setIcon)(iconSpan, (currentStyle == null ? void 0 : currentStyle.icon) || "pencil");
       iconSpan.style.color = (currentStyle == null ? void 0 : currentStyle.border) || "var(--text-accent)";
       const labelSpan = left.createSpan({ text: typeName.charAt(0).toUpperCase() + typeName.slice(1) });
       labelSpan.style.fontWeight = "600";
@@ -4726,13 +4572,13 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       right.style.display = "flex";
       right.style.alignItems = "center";
       right.style.gap = "8px";
-      new import_obsidian9.ButtonComponent(right).setButtonText("Customize").onClick(() => this.openStandardStyleEditorModal(typeName));
-      new import_obsidian9.ButtonComponent(right).setButtonText("Reset").onClick(async () => {
+      new import_obsidian6.ButtonComponent(right).setButtonText("Customize").onClick(() => this.openStandardStyleEditorModal(typeName));
+      new import_obsidian6.ButtonComponent(right).setButtonText("Reset").onClick(async () => {
         const defaultDef = DEFAULT_STANDARD_STYLES[typeName];
         if (defaultDef) {
           this.plugin.settings.standardStyles[typeName] = { ...defaultDef };
           await this.plugin.saveSettings();
-          new import_obsidian9.Notice(`Reset "${typeName}" to defaults.`);
+          new import_obsidian6.Notice(`Reset "${typeName}" to defaults.`);
           this.renderSettings();
         }
       });
@@ -4748,7 +4594,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       text: 'Customize the standard color palette and register custom named colors for markdown use (e.g. "bg:brand").',
       cls: "sc-section-desc"
     });
-    new import_obsidian9.Setting(container).setName("Standard Palette Colors").setDesc("Default hex values for built-in color names (red, blue, green, purple, etc.)").setHeading();
+    new import_obsidian6.Setting(container).setName("Standard Palette Colors").setDesc("Default hex values for built-in color names (red, blue, green, purple, etc.)").setHeading();
     const stdGrid = container.createDiv();
     stdGrid.style.display = "grid";
     stdGrid.style.gridTemplateColumns = "repeat(auto-fit, minmax(200px, 1fr))";
@@ -4778,10 +4624,10 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         const val = e.target.value;
         this.plugin.settings.standardColors[name] = val;
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice(`Updated palette color "${name}"`);
+        new import_obsidian6.Notice(`Updated palette color "${name}"`);
       };
     });
-    new import_obsidian9.Setting(container).setName("Custom Named Colors").setDesc("Add your own reusable color keywords (e.g. brand: #6366f1)").setHeading();
+    new import_obsidian6.Setting(container).setName("Custom Named Colors").setDesc("Add your own reusable color keywords (e.g. brand: #6366f1)").setHeading();
     const addRow = container.createDiv();
     addRow.style.display = "flex";
     addRow.style.gap = "8px";
@@ -4796,18 +4642,18 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
     newHexInput.style.padding = "6px 10px";
     newHexInput.style.borderRadius = "6px";
     newHexInput.style.border = "1px solid var(--background-modifier-border)";
-    new import_obsidian9.ButtonComponent(addRow).setButtonText("+ Add Color").setCta().onClick(async () => {
+    new import_obsidian6.ButtonComponent(addRow).setButtonText("+ Add Color").setCta().onClick(async () => {
       const name = newNameInput.value.trim().toLowerCase().replace(/\s+/g, "-");
       const hex = newHexInput.value.trim();
       if (!name || !isValidHex(hex)) {
-        new import_obsidian9.Notice("Please enter a valid color name and hex code (e.g. #6366f1).");
+        new import_obsidian6.Notice("Please enter a valid color name and hex code (e.g. #6366f1).");
         return;
       }
       this.plugin.settings.customColors.push({ name, hex });
       await this.plugin.saveSettings();
       newNameInput.value = "";
       newHexInput.value = "";
-      new import_obsidian9.Notice(`Added custom color "${name}"!`);
+      new import_obsidian6.Notice(`Added custom color "${name}"!`);
       this.renderSettings();
     });
     const customGrid = container.createDiv();
@@ -4835,11 +4681,11 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       dot.style.border = "1px solid var(--background-modifier-border)";
       left.createSpan({ text: c.name, attr: { style: "font-weight: 500;" } });
       const delBtn = item.createEl("button", { cls: "sc-action-btn is-danger", title: "Delete" });
-      (0, import_obsidian9.setIcon)(delBtn, "trash");
+      (0, import_obsidian6.setIcon)(delBtn, "trash");
       delBtn.onclick = async () => {
         this.plugin.settings.customColors.splice(idx, 1);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice(`Deleted color "${c.name}"`);
+        new import_obsidian6.Notice(`Deleted color "${c.name}"`);
         this.renderSettings();
       };
     });
@@ -4884,7 +4730,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       const emptyIcon = emptyCard.createDiv();
       emptyIcon.style.margin = "0 auto 12px auto";
       emptyIcon.style.opacity = "0.6";
-      (0, import_obsidian9.setIcon)(emptyIcon, "layout-grid");
+      (0, import_obsidian6.setIcon)(emptyIcon, "layout-grid");
       emptyCard.createEl("h4", { text: "No Custom Layout Presets Saved" });
       emptyCard.createEl("p", {
         text: 'Click "+ New Layout Preset" above to visually design a dashboard matrix with live preview!',
@@ -4923,7 +4769,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       codeSnippet.style.display = "block";
       const actions = card.createDiv({ cls: "sc-card-actions" });
       const editBtn = actions.createEl("button", { cls: "sc-action-btn", title: "Edit Layout" });
-      (0, import_obsidian9.setIcon)(editBtn, "pencil");
+      (0, import_obsidian6.setIcon)(editBtn, "pencil");
       editBtn.onclick = () => {
         new MultiColumnBuilderModal(this.app, this.plugin.settings, null, {
           isPresetMode: true,
@@ -4936,11 +4782,11 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         }).open();
       };
       const delBtn = actions.createEl("button", { cls: "sc-action-btn is-danger", title: "Delete Layout" });
-      (0, import_obsidian9.setIcon)(delBtn, "trash");
+      (0, import_obsidian6.setIcon)(delBtn, "trash");
       delBtn.onclick = async () => {
         customLayouts.splice(idx, 1);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice(`Deleted layout preset "${l.name}"`);
+        new import_obsidian6.Notice(`Deleted layout preset "${l.name}"`);
         this.renderSettings();
       };
     });
@@ -4965,23 +4811,18 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
     tipAlert.style.alignItems = "center";
     tipAlert.style.gap = "10px";
     const tipIcon = tipAlert.createSpan();
-    (0, import_obsidian9.setIcon)(tipIcon, "zap");
+    (0, import_obsidian6.setIcon)(tipIcon, "zap");
     tipIcon.style.color = "var(--interactive-accent)";
     const tipText = tipAlert.createDiv();
     tipText.style.fontSize = "0.85rem";
     tipText.innerHTML = "<strong>Pro-Tip:</strong> Any command enabled below can be bound to custom keyboard shortcuts under <code>Settings \u2192 Hotkeys \u2192 Special Callouts</code>.";
-    new import_obsidian9.Setting(container).setName("Default Callout Metadata").setDesc('Metadata automatically appended when inserting callouts via command palette (e.g. "compact, col:2").').addText((text) => text.setPlaceholder("compact, col:2").setValue(this.plugin.settings.defaultMetadata || "").onChange(async (value) => {
+    new import_obsidian6.Setting(container).setName("Default Callout Metadata").setDesc('Metadata automatically appended when inserting callouts via command palette (e.g. "compact, col:2").').addText((text) => text.setPlaceholder("compact, col:2").setValue(this.plugin.settings.defaultMetadata || "").onChange(async (value) => {
       this.plugin.settings.defaultMetadata = value;
       await this.plugin.saveSettings();
     }));
-    new import_obsidian9.Setting(container).setName("Core Plugin Commands").setDesc("Standard studio and builder commands registered globally in the palette").setHeading();
+    new import_obsidian6.Setting(container).setName("Core Plugin Commands").setDesc("Standard studio and builder commands registered globally in the palette").setHeading();
     const coreCommands = [
-      { name: "Special Callout Studio (Create / Edit Single & Multi)...", desc: "Unified Studio dialog for editing or inserting single callouts and multi-column dashboards with live preview." },
-      { name: "Insert Special Callout (Single Mode)...", desc: "Directly opens Single Callout inserter with full color, typography, and border controls." },
-      { name: "Insert Multi-Column Dashboard (Multi Mode)...", desc: "Directly opens visual drag-and-drop matrix dashboard builder." },
-      { name: "Insert Callout from Style Palette...", desc: "Searchable quick suggester modal listing all standard and custom callout presets." },
-      { name: "Insert Column Layout from Presets...", desc: "Quick column suggester to divide note areas into 2-6 columns." },
-      { name: "Change Icon of Callout at Cursor...", desc: "Searchable Lucide icon picker that replaces the active callout icon in place." }
+      { name: "Special Callout Studio (Create / Edit Single & Multi)...", desc: "Unified Studio dialog for editing or inserting single callouts and multi-column dashboards with live preview." }
     ];
     const coreTable = container.createDiv();
     coreTable.style.background = "var(--background-secondary)";
@@ -5003,17 +4844,17 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
       badge.style.marginLeft = "12px";
     });
     const customStyles = this.plugin.settings.customStyles || [];
-    const customHeader = new import_obsidian9.Setting(container).setName(`Custom Styles Commands (${customStyles.length} Styles)`).setDesc("Toggle individual palette commands for each custom callout style").setHeading();
+    const customHeader = new import_obsidian6.Setting(container).setName(`Custom Styles Commands (${customStyles.length} Styles)`).setDesc("Toggle individual palette commands for each custom callout style").setHeading();
     if (customStyles.length > 0) {
       customHeader.addButton((btn) => btn.setButtonText("Enable All").onClick(async () => {
         customStyles.forEach((s) => s.showInCommandPalette = true);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Enabled all custom style commands. Reload Obsidian to register new commands.");
+        new import_obsidian6.Notice("Enabled all custom style commands. Reload Obsidian to register new commands.");
         this.renderSettings();
       })).addButton((btn) => btn.setButtonText("Disable All").onClick(async () => {
         customStyles.forEach((s) => s.showInCommandPalette = false);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Disabled all custom style commands.");
+        new import_obsidian6.Notice("Disabled all custom style commands.");
         this.renderSettings();
       }));
       const stylesList = container.createDiv();
@@ -5035,32 +4876,32 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         left.style.gap = "8px";
         if (style.icon) {
           const iconSpan = left.createSpan();
-          (0, import_obsidian9.setIcon)(iconSpan, style.icon);
+          (0, import_obsidian6.setIcon)(iconSpan, style.icon);
           iconSpan.style.color = style.iconColor || style.border || "var(--text-accent)";
         }
         const info = left.createDiv();
         info.createDiv({ text: `Insert "${style.name}" Callout`, attr: { style: "font-weight: 600; font-size: 0.88rem;" } });
         info.createDiv({ text: `Command ID: insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`, attr: { style: "font-size: 0.75rem; color: var(--text-muted);" } });
         const right = row.createDiv();
-        new import_obsidian9.ToggleComponent(right).setValue(style.showInCommandPalette !== false).onChange(async (val) => {
+        new import_obsidian6.ToggleComponent(right).setValue(style.showInCommandPalette === true).onChange(async (val) => {
           style.showInCommandPalette = val;
           await this.plugin.saveSettings();
-          new import_obsidian9.Notice(`"${style.name}" command ${val ? "enabled" : "disabled"}. Reload Obsidian to update palette.`);
+          new import_obsidian6.Notice(`"${style.name}" command ${val ? "enabled" : "disabled"}. Reload Obsidian to update palette.`);
         });
       });
     }
     const customLayouts = this.plugin.settings.customLayouts || [];
-    const layoutHeader = new import_obsidian9.Setting(container).setName(`Custom Layouts Commands (${customLayouts.length} Layouts)`).setDesc("Toggle individual palette commands for each saved grid layout").setHeading();
+    const layoutHeader = new import_obsidian6.Setting(container).setName(`Custom Layouts Commands (${customLayouts.length} Layouts)`).setDesc("Toggle individual palette commands for each saved grid layout").setHeading();
     if (customLayouts.length > 0) {
       layoutHeader.addButton((btn) => btn.setButtonText("Enable All").onClick(async () => {
         customLayouts.forEach((l) => l.showInCommandPalette = true);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Enabled all custom layout commands. Reload Obsidian to register new commands.");
+        new import_obsidian6.Notice("Enabled all custom layout commands. Reload Obsidian to register new commands.");
         this.renderSettings();
       })).addButton((btn) => btn.setButtonText("Disable All").onClick(async () => {
         customLayouts.forEach((l) => l.showInCommandPalette = false);
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Disabled all custom layout commands.");
+        new import_obsidian6.Notice("Disabled all custom layout commands.");
         this.renderSettings();
       }));
       const layoutList = container.createDiv();
@@ -5080,82 +4921,316 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         left.createDiv({ text: `Insert "${layout.name}" Layout`, attr: { style: "font-weight: 600; font-size: 0.88rem;" } });
         left.createDiv({ text: `${layout.cols} Columns \xD7 ${layout.rows} Rows`, attr: { style: "font-size: 0.75rem; color: var(--text-muted);" } });
         const right = row.createDiv();
-        new import_obsidian9.ToggleComponent(right).setValue(layout.showInCommandPalette === true).onChange(async (val) => {
+        new import_obsidian6.ToggleComponent(right).setValue(layout.showInCommandPalette === true).onChange(async (val) => {
           layout.showInCommandPalette = val;
           await this.plugin.saveSettings();
-          new import_obsidian9.Notice(`"${layout.name}" layout command ${val ? "enabled" : "disabled"}. Reload Obsidian to update palette.`);
+          new import_obsidian6.Notice(`"${layout.name}" layout command ${val ? "enabled" : "disabled"}. Reload Obsidian to update palette.`);
         });
       });
     }
   }
   // =========================================================================
-  // TAB 6: GUIDE & SYNTAX
+  // TAB 5: GUIDE & SYNTAX (MERGED CHEAT SHEET & REFERENCE)
   // =========================================================================
   renderGuideTab(container) {
     const topHeader = container.createDiv({ cls: "sc-section-header" });
-    topHeader.createEl("h3", { text: "\u{1F4DA} Syntax Guide & Cheat Sheet" });
+    topHeader.createEl("h3", { text: "\u{1F4DA} Guide, Syntax & Parameter Cheat Sheet" });
     topHeader.createEl("p", {
-      text: "Quick reference for inline metadata parameters and syntax rules.",
+      text: "Comprehensive reference for inline metadata parameters, multi-column list reflow, and dashboard grids.",
       cls: "sc-section-desc"
     });
-    const guideCards = [
-      {
-        title: "Basic Metadata Syntax",
-        syntax: "> [!note] (bg:teal, border:none, compact) Title",
-        desc: "Metadata parentheses must appear immediately after the callout bracket `]`, before title text."
-      },
-      {
-        title: "Multi-Column Lists",
-        syntax: "> [!todo] (col:3, compact) Sprint Backlog",
-        desc: "Reflows list items (`ul`/`ol`) inside the callout into 2 to 6 vertical columns."
-      },
-      {
-        title: "Dashboard Grid Wrapper",
-        syntax: "> [!multi-callout]\n> > [!info] (1:2, compact) Left\n>\n> > [!tip] (2:2, compact) Right",
-        desc: "Side-by-side flex grid tiles separated by a single `>` line."
-      },
-      {
-        title: "Neon & Gradient Cards",
-        syntax: "> [!danger] (gradient:#1a0000-#330000, neon:#ff0044, radius:10px) Alert",
-        desc: "Full-opacity gradient background with glowing border and drop-shadow."
-      }
-    ];
-    guideCards.forEach((g) => {
-      const card = container.createDiv({ cls: "sc-card-item" });
-      card.style.background = "var(--background-secondary)";
-      card.style.border = "1px solid var(--background-modifier-border)";
-      card.style.borderRadius = "8px";
-      card.style.padding = "14px";
-      card.style.marginBottom = "12px";
-      card.createEl("h4", { text: g.title, attr: { style: "margin: 0 0 6px 0;" } });
-      const pre = card.createEl("pre");
-      pre.style.padding = "8px 12px";
-      pre.style.background = "var(--background-primary)";
-      pre.style.borderRadius = "6px";
-      pre.style.fontSize = "0.82rem";
-      pre.createEl("code", { text: g.syntax });
-      card.createEl("p", { text: g.desc, attr: { style: "margin: 6px 0 0 0; font-size: 0.8rem; color: var(--text-muted);" } });
+    this.createGuideCodeCard(
+      container,
+      "\u{1F4DD} Core Syntax & Placement Rule",
+      "> [!type] (param:value, param:value, flag) Title Text\n> Content lines...",
+      'Rule: Metadata parentheses (...) MUST appear immediately after the closing callout bracket "]" and before title text.'
+    );
+    this.createGuideTable(container, "\u{1F3A8} Colors & Backgrounds", [
+      ["bg:red or bg:#ff0000", "Background color tint (mixed at 15% opacity)"],
+      ["border:red or border:none", "Border color, or remove callout borders entirely"],
+      ["title:cyan or title:#00e5ff", "Title text color and default icon color"],
+      ["text:white or text:#ffffff", "Content body text color"],
+      ["icon-color:gold", "Override icon color independently from title"],
+      ["link:orange or link:#ff9800", "Color for internal [[links]] and external [links](url)"],
+      ["gradient:#667eea-#764ba2", "Full-opacity solid CSS linear gradient background"],
+      ["neon:#00f2ff", "Cyber illuminated neon border with radiant glow & drop-shadow"]
+    ]);
+    this.createGuideTable(container, "\u{1F524} Typography & Readability", [
+      ["font:mono / serif / sans / code", "Change typography font family"],
+      ["font-size:1 to 5", "Relative font size multiplier (1=0.85em, 3=1.0em default, 5=1.35em)"],
+      ["text:dark-border / light-border", "Readability outline stroke around content text"],
+      ["text:(white, dark-border)", "Grouped syntax: text color + outline stroke"],
+      ["title:(cyan, dark-border)", "Grouped syntax for callout title"]
+    ]);
+    this.createGuideTable(container, "\u{1F5BC}\uFE0F Borders & Visual Effects", [
+      ["bw:2 or border-width:4px", "Custom border thickness in pixels"],
+      ["bs:dashed / dotted / double / solid", "CSS border line style"],
+      ["radius:12px or radius:8", "Corner curvature in pixels (0 to 30px)"],
+      ["no-icon", "Hide the callout icon completely"],
+      ["icon:sparkles or icon:flame", "Custom Lucide icon identifier"]
+    ]);
+    this.createGuideTable(container, "\u{1F4CA} Layout, Padding & Multi-Column Lists", [
+      ["compact", "Tighter padding (removes extra vertical margin; ideal for dashboards)"],
+      ["dense", "Compact padding + tighter line-height for dense note lists"],
+      ["center", "Center align title and body content"],
+      ["title:center", "Center align title only while keeping content left-aligned"],
+      ["col:2 to col:6", "Automatically reflow bullet and numbered lists into 2 to 6 columns"],
+      ["style:your-style-name", "Inherit properties from a saved custom preset"]
+    ]);
+    this.createGuideCodeCard(
+      container,
+      "\u{1F4CB} Multi-Column List Reflow (col:2 to col:6)",
+      "> [!todo] (col:3, compact) Sprint Backlog\n> - Task 1\n> - Task 2\n> - Task 3\n> - Task 4\n> - Task 5\n> - Task 6",
+      "Reflows long bullet or numbered lists into 2 to 6 vertical columns inside a single callout."
+    );
+    this.createGuideCodeCard(
+      container,
+      "\u{1F4D0} Multi-Column Dashboard Grid (multi-callout)",
+      "> [!multi-callout]\n> > [!info] (1:3, compact) Metric A\n> > **1,280**\n> > +12% this week\n>\n> > [!success] (2:3, compact) Metric B\n> > **$42,500**\n> > On target\n>\n> > [!warning] (3:3, compact) Metric C\n> > **3 Pending**\n> > Requires review",
+      'Side-by-side flex grid tiles. Note: You MUST include a single empty quote line ">" between nested callouts.'
+    );
+    const tipAlert = container.createDiv();
+    tipAlert.style.background = "var(--background-secondary)";
+    tipAlert.style.border = "1px solid var(--interactive-accent)";
+    tipAlert.style.borderRadius = "8px";
+    tipAlert.style.padding = "12px 16px";
+    tipAlert.style.marginTop = "14px";
+    const tipTitle = tipAlert.createDiv();
+    tipTitle.style.fontWeight = "600";
+    tipTitle.style.marginBottom = "6px";
+    tipTitle.style.color = "var(--interactive-accent)";
+    tipTitle.setText("\u26A1 Quick Creation & Hotkeys:");
+    const tipList = tipAlert.createEl("ul");
+    tipList.style.margin = "0";
+    tipList.style.paddingLeft = "20px";
+    tipList.style.fontSize = "0.85rem";
+    const l1 = tipList.createEl("li");
+    l1.createEl("strong", { text: "Studio Modal: " });
+    l1.appendText('Press Ctrl/Cmd+P \u2192 run "Special Callout Studio (Create / Edit Single & Multi)" for visual design.');
+    const l2 = tipList.createEl("li");
+    l2.createEl("strong", { text: "Direct Shorthand: " });
+    l2.appendText("Use any saved custom style directly as ");
+    l2.createEl("code", { text: ">[!my-style-name]" });
+    l2.appendText(".");
+    const l3 = tipList.createEl("li");
+    l3.createEl("strong", { text: "Hotkeys: " });
+    l3.appendText("Bind custom keyboard shortcuts in Settings \u2192 Hotkeys \u2192 Special Callouts.");
+  }
+  createGuideTable(container, title, rows) {
+    const section = container.createDiv({ cls: "sc-guide-section" });
+    section.style.background = "var(--background-secondary)";
+    section.style.border = "1px solid var(--background-modifier-border)";
+    section.style.borderRadius = "8px";
+    section.style.padding = "14px 16px";
+    section.style.marginBottom = "14px";
+    const h4 = section.createEl("h4", { text: title });
+    h4.style.margin = "0 0 10px 0";
+    h4.style.fontSize = "0.95rem";
+    h4.style.color = "var(--text-normal)";
+    const table = section.createEl("table");
+    table.style.width = "100%";
+    table.style.borderCollapse = "collapse";
+    rows.forEach(([param, desc], i) => {
+      const tr = table.createEl("tr");
+      const isLast = i === rows.length - 1;
+      const td1 = tr.createEl("td");
+      td1.style.padding = "6px 10px 6px 0";
+      td1.style.verticalAlign = "top";
+      td1.style.whiteSpace = "nowrap";
+      td1.style.width = "240px";
+      if (!isLast) td1.style.borderBottom = "1px solid var(--background-modifier-border)";
+      const code = td1.createEl("code", { text: param });
+      code.style.fontSize = "0.82rem";
+      code.style.color = "var(--text-accent)";
+      const td2 = tr.createEl("td");
+      td2.style.padding = "6px 0";
+      td2.style.verticalAlign = "middle";
+      td2.style.fontSize = "0.84rem";
+      td2.style.color = "var(--text-muted)";
+      if (!isLast) td2.style.borderBottom = "1px solid var(--background-modifier-border)";
+      td2.setText(desc);
     });
+  }
+  createGuideCodeCard(container, title, syntax, desc) {
+    const card = container.createDiv({ cls: "sc-card-item" });
+    card.style.background = "var(--background-secondary)";
+    card.style.border = "1px solid var(--background-modifier-border)";
+    card.style.borderRadius = "8px";
+    card.style.padding = "14px 16px";
+    card.style.marginBottom = "14px";
+    const h4 = card.createEl("h4", { text: title });
+    h4.style.margin = "0 0 8px 0";
+    h4.style.fontSize = "0.95rem";
+    const pre = card.createEl("pre");
+    pre.style.padding = "8px 12px";
+    pre.style.background = "var(--background-primary)";
+    pre.style.borderRadius = "6px";
+    pre.style.fontSize = "0.82rem";
+    pre.style.margin = "0 0 8px 0";
+    pre.style.whiteSpace = "pre-wrap";
+    pre.createEl("code", { text: syntax });
+    const p = card.createEl("p", { text: desc });
+    p.style.margin = "0";
+    p.style.fontSize = "0.82rem";
+    p.style.color = "var(--text-muted)";
   }
   // =========================================================================
   // TAB 7: GENERAL & DEFAULTS
   // =========================================================================
   renderGeneralTab(container) {
-    new import_obsidian9.Setting(container).setName("Backup & Data Management").setDesc("Export or import your Special Callouts configuration as JSON").setHeading();
+    const u = this.plugin.settings.universalDefaults || { ...DEFAULT_UNIVERSAL_DEFAULTS };
+    const previewSection = container.createDiv({ cls: "sc-preview-section" });
+    previewSection.style.marginBottom = "2rem";
+    const previewLabel = previewSection.createDiv();
+    previewLabel.style.fontSize = "0.75rem";
+    previewLabel.style.fontWeight = "700";
+    previewLabel.style.letterSpacing = "0.08em";
+    previewLabel.style.textTransform = "uppercase";
+    previewLabel.style.color = "var(--text-muted)";
+    previewLabel.style.marginBottom = "0.5rem";
+    previewLabel.setText("LIVE CALLOUT PREVIEW");
+    const livePreviewWrapper = previewSection.createDiv({ cls: "sc-live-preview-wrapper" });
+    livePreviewWrapper.style.padding = "12px 16px";
+    livePreviewWrapper.style.background = "var(--background-secondary)";
+    livePreviewWrapper.style.border = "1px solid var(--background-modifier-border)";
+    livePreviewWrapper.style.borderRadius = "8px";
+    const updateLivePreview = () => {
+      livePreviewWrapper.empty();
+      const sampleStyle = {
+        icon: "pencil",
+        borderWidth: u.borderWidth,
+        borderStyle: u.borderStyle,
+        borderRadius: u.borderRadius || "8px",
+        compact: u.compact,
+        center: u.center,
+        titleCenter: u.titleCenter,
+        noIcon: u.noIcon
+      };
+      const sampleContent = u.col && u.col > 1 ? "- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6" : "Callout content goes here...";
+      renderUnifiedCalloutNode({
+        app: this.app,
+        component: this,
+        container: livePreviewWrapper,
+        style: sampleStyle,
+        type: "note",
+        title: "Note",
+        content: sampleContent,
+        col: u.col
+      });
+    };
+    updateLivePreview();
+    new import_obsidian6.Setting(container).setName("Universal Callout Defaults").setDesc("Configure the default layout, borders, and alignment applied when creating callouts").setHeading();
+    new import_obsidian6.Setting(container).setName("Border Width & Style").setDesc("Default outline border thickness and pattern").addDropdown((drop) => {
+      drop.addOption("", "Default Width");
+      ["1px", "2px", "3px", "4px", "5px", "6px"].forEach((w) => drop.addOption(w, w));
+      drop.setValue(u.borderWidth || "");
+      drop.onChange(async (val) => {
+        u.borderWidth = val;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    }).addDropdown((drop) => {
+      drop.addOption("", "Default");
+      ["solid", "dashed", "dotted", "double", "groove", "none"].forEach((s) => drop.addOption(s, s.charAt(0).toUpperCase() + s.slice(1)));
+      drop.setValue(u.borderStyle || "");
+      drop.onChange(async (val) => {
+        u.borderStyle = val;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Corner Radius").setDesc("Default roundedness for callout boxes (0 to 24px)").addSlider((slider) => {
+      const currentNum = parseInt(u.borderRadius || "8", 10) || 8;
+      slider.setLimits(0, 24, 1).setValue(currentNum).setDynamicTooltip().onChange(async (val) => {
+        u.borderRadius = `${val}px`;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("List Columns").setDesc("Divide lists inside this callout box into columns").addDropdown((drop) => {
+      drop.addOption("1", "Normal (1 Column)");
+      drop.addOption("2", "2 Columns");
+      drop.addOption("3", "3 Columns");
+      drop.addOption("4", "4 Columns");
+      drop.addOption("5", "5 Columns");
+      drop.addOption("6", "6 Columns");
+      drop.setValue((u.col || 1).toString());
+      drop.onChange(async (val) => {
+        u.col = parseInt(val, 10) || 1;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Compact Mode").setDesc("Tighter padding inside this box").addToggle((toggle) => {
+      toggle.setValue(!!u.compact);
+      toggle.onChange(async (val) => {
+        u.compact = val;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Center Text (center)").setDesc("Center align all text inside this callout box").addToggle((toggle) => {
+      toggle.setValue(!!u.center);
+      toggle.onChange(async (val) => {
+        u.center = val;
+        if (val) u.titleCenter = false;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the box title header").addToggle((toggle) => {
+      toggle.setValue(!!u.titleCenter);
+      toggle.onChange(async (val) => {
+        u.titleCenter = val;
+        if (val) u.center = false;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Hide Icon").setDesc("Hide icon completely").addToggle((toggle) => {
+      toggle.setValue(!!u.noIcon);
+      toggle.onChange(async (val) => {
+        u.noIcon = val;
+        this.plugin.settings.universalDefaults = u;
+        await this.plugin.saveSettings();
+        updateLivePreview();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Reset Universal Defaults").setDesc("Restore universal defaults to original values").addButton((btn) => {
+      btn.setButtonText("Reset Defaults").onClick(async () => {
+        this.plugin.settings.universalDefaults = { ...DEFAULT_UNIVERSAL_DEFAULTS };
+        await this.plugin.saveSettings();
+        new import_obsidian6.Notice("Universal defaults reset.");
+        this.renderSettings();
+      });
+    });
+    new import_obsidian6.Setting(container).setName("Command Insertion Defaults").setDesc("Metadata automatically appended when inserting callouts via command palette").setHeading();
+    new import_obsidian6.Setting(container).setName("Default Callout Metadata").setDesc('Metadata string (e.g. "compact, col:2")').addText((text) => text.setPlaceholder("compact, col:2").setValue(this.plugin.settings.defaultMetadata || "").onChange(async (value) => {
+      this.plugin.settings.defaultMetadata = value;
+      await this.plugin.saveSettings();
+    }));
+    new import_obsidian6.Setting(container).setName("Backup & Data Management").setDesc("Export or import your Special Callouts configuration as JSON").setHeading();
     const backupRow = container.createDiv();
     backupRow.style.display = "flex";
     backupRow.style.gap = "10px";
     backupRow.style.marginTop = "10px";
     backupRow.style.flexWrap = "wrap";
-    new import_obsidian9.ButtonComponent(backupRow).setButtonText("Export Settings (Copy JSON)").onClick(() => {
+    new import_obsidian6.ButtonComponent(backupRow).setButtonText("Export Settings (Copy JSON)").onClick(() => {
       const json = JSON.stringify(this.plugin.settings, null, 2);
       navigator.clipboard.writeText(json);
-      new import_obsidian9.Notice("Copied full settings JSON to clipboard!");
+      new import_obsidian6.Notice("Copied full settings JSON to clipboard!");
     });
-    new import_obsidian9.ButtonComponent(backupRow).setButtonText("Import Settings (Paste JSON)...").onClick(() => {
+    new import_obsidian6.ButtonComponent(backupRow).setButtonText("Import Settings (Paste JSON)...").onClick(() => {
       new ImportSettingsModal(this.app, this.plugin, () => this.renderSettings()).open();
     });
-    new import_obsidian9.ButtonComponent(backupRow).setButtonText("Reset All to Defaults").setWarning().onClick(async () => {
+    new import_obsidian6.ButtonComponent(backupRow).setButtonText("Reset All to Defaults").setWarning().onClick(async () => {
       if (confirm("Are you sure you want to reset all settings to defaults? This cannot be undone.")) {
         this.plugin.settings.customStyles = [];
         this.plugin.settings.customColors = [];
@@ -5163,8 +5238,9 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
         this.plugin.settings.standardColors = { ...DEFAULT_STANDARD_COLORS };
         this.plugin.settings.standardStyles = { ...DEFAULT_STANDARD_STYLES };
         this.plugin.settings.defaultMetadata = "";
+        this.plugin.settings.universalDefaults = { ...DEFAULT_UNIVERSAL_DEFAULTS };
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Settings reset to defaults.");
+        new import_obsidian6.Notice("Settings reset to defaults.");
         this.renderSettings();
       }
     });
@@ -5184,7 +5260,7 @@ var SpecialCalloutsSettingTab = class extends import_obsidian9.PluginSettingTab 
     }).open();
   }
 };
-var StyleEditorModal = class extends import_obsidian9.Modal {
+var StyleEditorModal = class extends import_obsidian6.Modal {
   constructor(app, plugin, existingStyle, editIndex, onSave = () => {
   }) {
     super(app);
@@ -5214,7 +5290,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
       compact: false,
       center: false,
       titleCenter: false,
-      showInCommandPalette: true
+      showInCommandPalette: false
     };
   }
   onOpen() {
@@ -5238,7 +5314,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
     sections.forEach((sec) => {
       const btn = nav.createEl("button", { cls: `sc-nav-tab ${this.activeSection === sec.id ? "is-active" : ""}` });
       const iconSpan = btn.createSpan();
-      (0, import_obsidian9.setIcon)(iconSpan, sec.icon);
+      (0, import_obsidian6.setIcon)(iconSpan, sec.icon);
       btn.createSpan({ text: sec.label });
       btn.onclick = () => {
         this.activeSection = sec.id;
@@ -5252,9 +5328,9 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
     const sectionContainer = contentEl.createDiv({ cls: "sc-section-content" });
     sectionContainer.style.minHeight = "200px";
     this.renderSectionContent(sectionContainer, liveCallout);
-    new import_obsidian9.Setting(contentEl).addButton((btn) => btn.setButtonText("Save Style").setCta().onClick(async () => {
+    new import_obsidian6.Setting(contentEl).addButton((btn) => btn.setButtonText("Save Style").setCta().onClick(async () => {
       if (!this.style.name) {
-        new import_obsidian9.Notice("Please enter a valid style name.");
+        new import_obsidian6.Notice("Please enter a valid style name.");
         return;
       }
       if (this.editIndex !== void 0) {
@@ -5263,7 +5339,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
         this.plugin.settings.customStyles.push(this.style);
       }
       await this.plugin.saveSettings();
-      new import_obsidian9.Notice(`Saved style "${this.style.name}"!`);
+      new import_obsidian6.Notice(`Saved style "${this.style.name}"!`);
       this.onSave();
       this.close();
     })).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
@@ -5272,9 +5348,12 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
     container.empty();
     switch (this.activeSection) {
       case "identity":
-        new import_obsidian9.Setting(container).setName("Style Name / Identifier").setDesc("The identifier used in markdown: > [!style-name]").addText((text) => text.setValue(this.style.name).onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Style Name / Identifier").setDesc("The identifier used in markdown: > [!style-name]").addText((text) => text.setValue(this.style.name).onChange((val) => {
           this.style.name = val.toLowerCase().replace(/\s+/g, "-");
           this.updateLivePreview(liveCallout);
+        }));
+        new import_obsidian6.Setting(container).setName("Show in Command Palette").setDesc('Register an "Insert ..." command in Obsidian command palette for this style').addToggle((t) => t.setValue(this.style.showInCommandPalette === true).onChange((val) => {
+          this.style.showInCommandPalette = val;
         }));
         break;
       case "colors":
@@ -5283,7 +5362,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
           this.updateLivePreview(liveCallout);
         });
         let bgTextComp;
-        new import_obsidian9.Setting(container).setName("Background Color (Tint)").setDesc("Translucent 15% background tint (used when gradient is disabled)").addText((text) => {
+        new import_obsidian6.Setting(container).setName("Background Color (Tint)").setDesc("Translucent 15% background tint (used when gradient is disabled)").addText((text) => {
           bgTextComp = text;
           text.setPlaceholder("#3498db or blue").setValue(this.style.bg).onChange((val) => {
             this.style.bg = val;
@@ -5295,7 +5374,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
           this.updateLivePreview(liveCallout);
         }));
         let borderTextComp;
-        new import_obsidian9.Setting(container).setName("Border Color").addText((text) => {
+        new import_obsidian6.Setting(container).setName("Border Color").addText((text) => {
           borderTextComp = text;
           text.setPlaceholder("#3498db or blue").setValue(this.style.border).onChange((val) => {
             this.style.border = val;
@@ -5306,32 +5385,32 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
           if (borderTextComp) borderTextComp.setValue(val);
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Title Color").addText((text) => text.setPlaceholder("Inherit").setValue(this.style.titleColor || "").onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Title Color").addText((text) => text.setPlaceholder("Inherit").setValue(this.style.titleColor || "").onChange((val) => {
           this.style.titleColor = val;
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Text Color").addText((text) => text.setPlaceholder("Theme Text").setValue(this.style.text || "").onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Text Color").addText((text) => text.setPlaceholder("Theme Text").setValue(this.style.text || "").onChange((val) => {
           this.style.text = val;
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Neon Glow Color").setDesc("Color for glowing neon border effect (e.g. cyan, #00ffcc)").addText((text) => text.setPlaceholder("none").setValue(this.style.neon || "").onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Neon Glow Color").setDesc("Color for glowing neon border effect (e.g. cyan, #00ffcc)").addText((text) => text.setPlaceholder("none").setValue(this.style.neon || "").onChange((val) => {
           this.style.neon = val;
           this.updateLivePreview(liveCallout);
         }));
         break;
       case "icon":
-        new import_obsidian9.Setting(container).setName("Callout Icon").setDesc(`Current icon: ${this.style.icon || "none"}`).addButton((btn) => btn.setButtonText("Browse Icons...").onClick(() => {
+        new import_obsidian6.Setting(container).setName("Callout Icon").setDesc(`Current icon: ${this.style.icon || "none"}`).addButton((btn) => btn.setButtonText("Browse Icons...").onClick(() => {
           new IconPickerModal(this.app, (icon) => {
             this.style.icon = icon;
             this.renderSectionContent(container, liveCallout);
             this.updateLivePreview(liveCallout);
           }).open();
         }));
-        new import_obsidian9.Setting(container).setName("Icon Color").addText((text) => text.setPlaceholder("Inherit from Title").setValue(this.style.iconColor || "").onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Icon Color").addText((text) => text.setPlaceholder("Inherit from Title").setValue(this.style.iconColor || "").onChange((val) => {
           this.style.iconColor = val;
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Font Family").addDropdown((drop) => {
+        new import_obsidian6.Setting(container).setName("Font Family").addDropdown((drop) => {
           drop.addOption("", "Default Theme Font");
           Object.keys(FONT_FAMILIES).forEach((f) => drop.addOption(f, f.charAt(0).toUpperCase() + f.slice(1)));
           drop.setValue(this.style.font || "");
@@ -5340,7 +5419,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
             this.updateLivePreview(liveCallout);
           });
         });
-        new import_obsidian9.Setting(container).setName("Font Size").addDropdown((drop) => {
+        new import_obsidian6.Setting(container).setName("Font Size").addDropdown((drop) => {
           var _a;
           drop.addOption("1", "1 - Smallest");
           drop.addOption("2", "2 - Small");
@@ -5355,7 +5434,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
         });
         break;
       case "layout":
-        new import_obsidian9.Setting(container).setName("Border Width").addDropdown((drop) => {
+        new import_obsidian6.Setting(container).setName("Border Width").addDropdown((drop) => {
           ["1px", "2px", "3px", "4px", "5px"].forEach((w) => drop.addOption(w, w));
           drop.setValue(this.style.borderWidth || "1px");
           drop.onChange((val) => {
@@ -5363,7 +5442,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
             this.updateLivePreview(liveCallout);
           });
         });
-        new import_obsidian9.Setting(container).setName("Border Style").addDropdown((drop) => {
+        new import_obsidian6.Setting(container).setName("Border Style").addDropdown((drop) => {
           ["solid", "dashed", "dotted", "double"].forEach((s) => drop.addOption(s, s));
           drop.setValue(this.style.borderStyle || "solid");
           drop.onChange((val) => {
@@ -5371,7 +5450,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
             this.updateLivePreview(liveCallout);
           });
         });
-        new import_obsidian9.Setting(container).setName("Border Radius").addDropdown((drop) => {
+        new import_obsidian6.Setting(container).setName("Border Radius").addDropdown((drop) => {
           ["0px", "4px", "8px", "12px", "16px", "24px"].forEach((r) => drop.addOption(r, r));
           drop.setValue(this.style.borderRadius || "8px");
           drop.onChange((val) => {
@@ -5379,15 +5458,19 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
             this.updateLivePreview(liveCallout);
           });
         });
-        new import_obsidian9.Setting(container).setName("Compact Mode").setDesc("Removes vertical padding").addToggle((t) => t.setValue(!!this.style.compact).onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Compact Mode").setDesc("Removes vertical padding").addToggle((t) => t.setValue(!!this.style.compact).onChange((val) => {
           this.style.compact = val;
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Center Content").setDesc("Center aligns title and body text").addToggle((t) => t.setValue(!!this.style.center).onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Center Content").setDesc("Center aligns title and body text").addToggle((t) => t.setValue(!!this.style.center).onChange((val) => {
           this.style.center = val;
           this.updateLivePreview(liveCallout);
         }));
-        new import_obsidian9.Setting(container).setName("Hide Icon").addToggle((t) => t.setValue(!!this.style.noIcon).onChange((val) => {
+        new import_obsidian6.Setting(container).setName("Center Title Only (title:center)").setDesc("Center align only the box title header").addToggle((t) => t.setValue(!!this.style.titleCenter).onChange((val) => {
+          this.style.titleCenter = val;
+          this.updateLivePreview(liveCallout);
+        }));
+        new import_obsidian6.Setting(container).setName("Hide Icon").addToggle((t) => t.setValue(!!this.style.noIcon).onChange((val) => {
           this.style.noIcon = val;
           this.updateLivePreview(liveCallout);
         }));
@@ -5397,6 +5480,16 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
   updateLivePreview(liveCallout) {
     liveCallout.empty();
     liveCallout.setAttribute("data-callout", this.style.name || "custom");
+    if (this.style.center) {
+      liveCallout.setAttribute("data-center", "true");
+      liveCallout.removeAttribute("data-title-center");
+    } else if (this.style.titleCenter) {
+      liveCallout.setAttribute("data-title-center", "true");
+      liveCallout.removeAttribute("data-center");
+    } else {
+      liveCallout.removeAttribute("data-center");
+      liveCallout.removeAttribute("data-title-center");
+    }
     if (this.style.gradient) {
       let grad = this.style.gradient.trim();
       if (!isCssGradient(grad)) {
@@ -5406,10 +5499,17 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
         }
       }
       liveCallout.style.background = grad;
-      liveCallout.style.border = this.style.border ? `${this.style.borderWidth || "1px"} ${this.style.borderStyle || "solid"} ${this.style.border}` : "none";
     } else {
       liveCallout.style.backgroundColor = this.style.bg ? `color-mix(in srgb, ${this.style.bg} 15%, transparent)` : "var(--background-secondary)";
-      liveCallout.style.borderColor = this.style.border || "var(--text-accent)";
+    }
+    if (this.style.border && this.style.border !== "none") {
+      liveCallout.style.borderColor = this.style.border;
+      liveCallout.style.borderWidth = this.style.borderWidth || "1px";
+      liveCallout.style.borderStyle = this.style.borderStyle || "solid";
+    } else if (this.style.border === "none") {
+      liveCallout.style.border = "none";
+    } else {
+      liveCallout.style.borderColor = "var(--text-accent)";
       liveCallout.style.borderWidth = this.style.borderWidth || "1px";
       liveCallout.style.borderStyle = this.style.borderStyle || "solid";
     }
@@ -5423,10 +5523,10 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
       liveCallout.style.boxShadow = "none";
     }
     const titleRow = liveCallout.createDiv({ cls: "callout-title" });
-    if (this.style.center) titleRow.style.justifyContent = "center";
+    if (this.style.center || this.style.titleCenter) titleRow.style.justifyContent = "center";
     if (!this.style.noIcon && this.style.icon) {
       const iconEl = titleRow.createDiv({ cls: "callout-icon" });
-      (0, import_obsidian9.setIcon)(iconEl, this.style.icon);
+      (0, import_obsidian6.setIcon)(iconEl, this.style.icon);
       if (this.style.iconColor) iconEl.style.color = this.style.iconColor;
       else if (this.style.titleColor) iconEl.style.color = this.style.titleColor;
       else iconEl.style.color = this.style.border || "var(--text-accent)";
@@ -5441,7 +5541,7 @@ var StyleEditorModal = class extends import_obsidian9.Modal {
     bodyEl.createEl("p", { text: "This is a live preview demonstrating background, typography, colors, and border styles." });
   }
 };
-var StandardStyleEditorModal = class extends import_obsidian9.Modal {
+var StandardStyleEditorModal = class extends import_obsidian6.Modal {
   constructor(app, plugin, styleName, style, onSave = () => {
   }) {
     super(app);
@@ -5456,7 +5556,7 @@ var StandardStyleEditorModal = class extends import_obsidian9.Modal {
     contentEl.addClass("special-callouts-ui");
     contentEl.createEl("h2", { text: `Customize "${this.styleName}" Callout` });
     let bgText;
-    new import_obsidian9.Setting(contentEl).setName("Background Tint").addText((text) => {
+    new import_obsidian6.Setting(contentEl).setName("Background Tint").addText((text) => {
       bgText = text;
       text.setValue(this.style.bg || "").onChange((val) => this.style.bg = val);
     }).addColorPicker((picker) => picker.setValue(normalizeHex(this.style.bg || "#448aff")).onChange((val) => {
@@ -5464,29 +5564,29 @@ var StandardStyleEditorModal = class extends import_obsidian9.Modal {
       if (bgText) bgText.setValue(val);
     }));
     let borderText;
-    new import_obsidian9.Setting(contentEl).setName("Border / Accent Color").addText((text) => {
+    new import_obsidian6.Setting(contentEl).setName("Border / Accent Color").addText((text) => {
       borderText = text;
       text.setValue(this.style.border || "").onChange((val) => this.style.border = val);
     }).addColorPicker((picker) => picker.setValue(normalizeHex(this.style.border || "#448aff")).onChange((val) => {
       this.style.border = val;
       if (borderText) borderText.setValue(val);
     }));
-    new import_obsidian9.Setting(contentEl).setName("Icon").addButton((btn) => btn.setButtonText(this.style.icon || "Browse Icon...").onClick(() => {
+    new import_obsidian6.Setting(contentEl).setName("Icon").addButton((btn) => btn.setButtonText(this.style.icon || "Browse Icon...").onClick(() => {
       new IconPickerModal(this.app, (icon) => {
         this.style.icon = icon;
         btn.setButtonText(icon);
       }).open();
     }));
-    new import_obsidian9.Setting(contentEl).addButton((btn) => btn.setButtonText("Save Changes").setCta().onClick(async () => {
+    new import_obsidian6.Setting(contentEl).addButton((btn) => btn.setButtonText("Save Changes").setCta().onClick(async () => {
       this.plugin.settings.standardStyles[this.styleName] = this.style;
       await this.plugin.saveSettings();
-      new import_obsidian9.Notice(`Updated "${this.styleName}" standard style!`);
+      new import_obsidian6.Notice(`Updated "${this.styleName}" standard style!`);
       this.onSave();
       this.close();
     })).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
   }
 };
-var ImportSettingsModal = class extends import_obsidian9.Modal {
+var ImportSettingsModal = class extends import_obsidian6.Modal {
   constructor(app, plugin, onImport = () => {
   }) {
     super(app);
@@ -5511,10 +5611,10 @@ var ImportSettingsModal = class extends import_obsidian9.Modal {
     textarea.style.borderRadius = "6px";
     textarea.style.border = "1px solid var(--background-modifier-border)";
     textarea.style.marginBottom = "14px";
-    new import_obsidian9.Setting(contentEl).addButton((btn) => btn.setButtonText("Import & Apply").setCta().onClick(async () => {
+    new import_obsidian6.Setting(contentEl).addButton((btn) => btn.setButtonText("Import & Apply").setCta().onClick(async () => {
       const raw = textarea.value.trim();
       if (!raw) {
-        new import_obsidian9.Notice("Please paste valid JSON.");
+        new import_obsidian6.Notice("Please paste valid JSON.");
         return;
       }
       try {
@@ -5535,11 +5635,11 @@ var ImportSettingsModal = class extends import_obsidian9.Modal {
           this.plugin.settings.standardStyles = parsed.standardStyles;
         }
         await this.plugin.saveSettings();
-        new import_obsidian9.Notice("Settings successfully imported!");
+        new import_obsidian6.Notice("Settings successfully imported!");
         this.onImport();
         this.close();
       } catch (e) {
-        new import_obsidian9.Notice("Invalid JSON format: " + e.message);
+        new import_obsidian6.Notice("Invalid JSON format: " + e.message);
       }
     })).addButton((btn) => btn.setButtonText("Cancel").onClick(() => this.close()));
   }
@@ -5552,7 +5652,7 @@ function formatMetadata(raw) {
   const inner = meta.startsWith("(") && meta.endsWith(")") ? meta.slice(1, -1).trim() : meta;
   return inner ? ` (${inner})` : "";
 }
-var SpecialCallouts = class extends import_obsidian10.Plugin {
+var SpecialCallouts = class extends import_obsidian7.Plugin {
   constructor() {
     super(...arguments);
     this.registeredStyleCommands = /* @__PURE__ */ new Set();
@@ -5563,42 +5663,67 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
     this.addSettingTab(new SpecialCalloutsSettingTab(this.app, this));
     this.registerCommands();
     this.registerMarkdownPostProcessor((element) => {
-      var _a, _b;
-      const callouts = [];
+      var _a;
       if ((_a = element.classList) == null ? void 0 : _a.contains("callout")) {
-        callouts.push(element);
+        this.processor.processCallout(element);
       }
-      (_b = element.querySelectorAll) == null ? void 0 : _b.call(element, ".callout").forEach((el) => {
-        if (!callouts.includes(el)) {
-          callouts.push(el);
-        }
-      });
-      callouts.forEach((callout) => {
-        this.processor.processCallout(callout);
-      });
+      const nested = element.querySelectorAll(".callout");
+      for (let i = 0; i < nested.length; i++) {
+        this.processor.processCallout(nested[i]);
+      }
     });
+    const pendingNodes = /* @__PURE__ */ new Set();
+    let rafId = null;
+    const processPendingNodes = () => {
+      rafId = null;
+      if (pendingNodes.size === 0) return;
+      const nodesToProcess = Array.from(pendingNodes);
+      pendingNodes.clear();
+      for (let i = 0; i < nodesToProcess.length; i++) {
+        const el = nodesToProcess[i];
+        if (!el.isConnected) continue;
+        if (el.classList.contains("callout")) {
+          this.processor.processCallout(el);
+        } else {
+          const callouts = el.querySelectorAll(".callout");
+          for (let j = 0; j < callouts.length; j++) {
+            this.processor.processCallout(callouts[j]);
+          }
+        }
+      }
+    };
     const livePreviewObserver = new MutationObserver((mutations) => {
+      let queued = false;
       for (let i = 0; i < mutations.length; i++) {
         const mutation = mutations[i];
         for (let j = 0; j < mutation.addedNodes.length; j++) {
           const node = mutation.addedNodes[j];
           if (node.nodeType === 1) {
             const el = node;
+            const cls = el.className || "";
+            if (typeof cls === "string" && (cls.includes("tree-item") || cls.includes("nav-folder") || cls.includes("workspace-ribbon") || cls.includes("status-bar") || cls.includes("menu") || cls.includes("tooltip") || cls.includes("suggestion"))) {
+              continue;
+            }
             if (el.classList.contains("callout")) {
-              this.processor.processCallout(el);
-            } else if (el.childElementCount > 0) {
-              const nested = el.querySelectorAll(".callout");
-              if (nested.length > 0) {
-                nested.forEach((c) => this.processor.processCallout(c));
-              }
+              pendingNodes.add(el);
+              queued = true;
+            } else if (el.childElementCount > 0 && (cls.includes("cm-embed-block") || cls.includes("cm-callout") || cls.includes("cm-content") || cls.includes("markdown-rendered") || cls.includes("workspace-leaf") || cls.includes("view-content"))) {
+              pendingNodes.add(el);
+              queued = true;
             }
           }
         }
       }
+      if (queued && rafId === null) {
+        rafId = window.requestAnimationFrame(processPendingNodes);
+      }
     });
     const targetContainer = this.app.workspace.containerEl || document.body;
     livePreviewObserver.observe(targetContainer, { childList: true, subtree: true });
-    this.register(() => livePreviewObserver.disconnect());
+    this.register(() => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId);
+      livePreviewObserver.disconnect();
+    });
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor) => {
         menu.addItem((item) => {
@@ -5616,7 +5741,7 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
     );
   }
   /**
-   * Registers all plugin commands based on usage scenarios
+   * Registers core and custom plugin commands
    */
   registerCommands() {
     this.addCommand({
@@ -5632,93 +5757,13 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
         }
       }
     });
-    this.addCommand({
-      id: "insert-custom-callout",
-      name: "Insert Custom Style...",
-      editorCallback: (editor) => {
-        const styles = this.settings.customStyles;
-        if (styles.length === 0) {
-          this.insertCalloutTemplate(editor, "note");
-          return;
-        }
-        new CustomCalloutSuggester(this.app, styles, (style) => {
-          this.insertCalloutTemplate(editor, style.name);
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "wrap-selection-in-callout",
-      name: "Wrap Selection in Callout...",
-      editorCallback: (editor) => {
-        const selection = editor.getSelection();
-        if (!selection) return;
-        const styles = this.settings.customStyles;
-        new CustomCalloutSuggester(this.app, styles, (style) => {
-          const header = `> [!${style.name}]${formatMetadata(this.settings.defaultMetadata)}
-`;
-          const wrapped = selection.split("\n").map((l) => `> ${l}`).join("\n");
-          editor.replaceSelection(header + wrapped);
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "insert-multi-column-layout",
-      name: "Insert Multi-Column Layout...",
-      editorCallback: (editor) => {
-        const options = ["2 columns", "3 columns", "4 columns"];
-        new ColumnSuggesterModal(this.app, options, (choice) => {
-          if (!choice) return;
-          const cols = parseInt(choice);
-          if (isNaN(cols) || cols < 1) return;
-          let template = `> [!multi-callout]
->
-`;
-          for (let i = 1; i <= cols; i++) {
-            template += `>> [!note] (${i}:${cols}) Panel ${i}
->> Content
->
-`;
-          }
-          editor.replaceRange(template, editor.getCursor());
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "change-current-callout-icon",
-      name: "Change Icon of Callout at Cursor",
-      editorCallback: (editor) => {
-        const cursor = editor.getCursor();
-        const line = editor.getLine(cursor.line);
-        const head = line.match(/^\s*>+\s*\[![^\]]+\]/);
-        if (!head) return;
-        new IconPickerModal(this.app, (icon) => {
-          const span = findMetadataSpan(line, head[0].length);
-          let newLine;
-          if (span) {
-            const existing = span.content.trim();
-            const meta = existing.includes("icon:") ? existing.replace(/icon:[^,)]*/, `icon:${icon}`) : existing ? `${existing}, icon:${icon}` : `icon:${icon}`;
-            newLine = line.slice(0, span.start) + `(${meta})` + line.slice(span.end + 1);
-          } else {
-            newLine = line.slice(0, head[0].length) + ` (icon:${icon})` + line.slice(head[0].length);
-          }
-          editor.setLine(cursor.line, newLine);
-        }).open();
-      }
-    });
-    this.addCommand({
-      id: "multi-column-dashboard-builder",
-      name: "Insert Multi-Column Dashboard...",
-      editorCallback: (editor) => {
-        new MultiColumnBuilderModal(this.app, this.settings, editor).open();
-      }
-    });
     this.registerStyleCommands();
   }
   /**
    * Registers one insert command per saved custom style.
    */
   registerStyleCommands() {
-    this.settings.customStyles.filter((style) => style.showInCommandPalette !== false).forEach((style) => {
+    this.settings.customStyles.filter((style) => style.showInCommandPalette === true).forEach((style) => {
       const id = `insert-${style.name.toLowerCase().replace(/[^a-z0-9]/g, "-")}`;
       if (this.registeredStyleCommands.has(id)) return;
       this.registeredStyleCommands.add(id);
@@ -5774,6 +5819,7 @@ var SpecialCallouts = class extends import_obsidian10.Plugin {
     this.settings.customLayouts = Array.isArray(saved.customLayouts) ? saved.customLayouts : DEFAULT_SETTINGS.customLayouts || [];
     this.settings.standardStyles = Object.assign({}, DEFAULT_SETTINGS.standardStyles, saved.standardStyles);
     this.settings.standardColors = Object.assign({}, DEFAULT_SETTINGS.standardColors, saved.standardColors);
+    this.settings.universalDefaults = Object.assign({}, DEFAULT_SETTINGS.universalDefaults, saved.universalDefaults);
   }
   async saveSettings() {
     await this.saveData(this.settings);

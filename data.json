@@ -2,7 +2,7 @@
   "customColors": [],
   "standardColors": {
     "red": "#e74c3c",
-    "blue": "#3498db",
+    "blue": "#7697ad",
     "green": "#2ecc71",
     "yellow": "#f1c40f",
     "orange": "#e67e22",
@@ -14,27 +14,14 @@
   },
   "customStyles": [
     {
-      "name": "n",
-      "bg": "#448aff",
-      "border": "#448aff",
-      "text": "",
+      "name": "forest",
+      "bg": "#1b2420",
+      "border": "#95d5b2",
+      "text": "#d8f3dc",
       "link": "",
-      "icon": "pencil",
-      "iconColor": "",
-      "titleColor": "",
-      "boldBorder": false,
-      "font": "",
-      "fontSize": 3,
-      "borderWidth": "1px",
-      "borderStyle": "solid",
-      "borderRadius": "8px",
-      "neon": "",
-      "gradient": "",
-      "noIcon": false,
-      "compact": false,
-      "center": false,
-      "titleCenter": false,
-      "showInCommandPalette": true
+      "icon": "leaf",
+      "titleColor": "#95d5b2",
+      "showInCommandPalette": false
     }
   ],
   "standardStyles": {
@@ -158,19 +145,22 @@
   },
   "customLayouts": [
     {
-      "name": "bb",
-      "cols": 2,
-      "rows": 4,
-      "gridAreas": "\"area1 area1\" \"area2 area3\" \"area4 area5\" \"area6 area7\"",
-      "showInCommandPalette": true
-    },
-    {
       "name": "df",
       "cols": 2,
       "rows": 2,
       "gridAreas": "\"area1 area1\" \"area2 area3\"",
-      "showInCommandPalette": true
+      "showInCommandPalette": false
     }
   ],
-  "defaultMetadata": ""
+  "defaultMetadata": "",
+  "universalDefaults": {
+    "borderWidth": "4px",
+    "borderStyle": "",
+    "borderRadius": "15px",
+    "col": 2,
+    "compact": true,
+    "center": true,
+    "titleCenter": false,
+    "noIcon": false
+  }
 }

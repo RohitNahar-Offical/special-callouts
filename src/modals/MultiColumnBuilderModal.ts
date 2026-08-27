@@ -14,13 +14,13 @@ import {
     TextComponent,
     MarkdownRenderer
 } from 'obsidian';
-import { SpecialCalloutsSettings, CustomLayout } from '../types';
+import { SpecialCalloutsSettings, CustomLayout, CalloutStyle } from '../types';
 import { DEFAULT_STANDARD_STYLES, FONT_FAMILIES, FONT_SIZES } from '../constants';
 import { normalizeHex, toPx, neonStyles, isCssGradient } from '../utils';
 import { parseMetadata, parseGridLayout, extractMetadata } from '../parser';
 import { IconPickerModal } from './IconPickerModal';
 import { InsertCalloutModal } from './InsertCalloutModal';
-import { createMarkdownEditorWithToolbar, createGradientSetting, formatListColumns } from '../ui/UIComponents';
+import { createMarkdownEditorWithToolbar, createGradientSetting, renderUnifiedCalloutNode } from '../ui/UIComponents';
 
 export interface GridAreaBlock {
     id: string; // e.g. "area1", "area2"
@@ -63,11 +63,22 @@ export interface MultiColumnBuilderOptions {
 export class SavePresetDialogModal extends Modal {
     private initialName: string;
     private onSave: (name: string) => Promise<void> | void;
+    private modalTitle: string;
+    private modalDesc: string;
+    private placeholder: string;
 
-    constructor(app: App, initialName: string, onSave: (name: string) => Promise<void> | void) {
+    constructor(
+        app: App,
+        initialName: string,
+        onSave: (name: string) => Promise<void> | void,
+        opts?: { title?: string; desc?: string; placeholder?: string }
+    ) {
         super(app);
         this.initialName = initialName;
         this.onSave = onSave;
+        this.modalTitle = opts?.title || '💾 Save Layout Preset';
+        this.modalDesc = opts?.desc || 'Enter a name for this custom preset to reuse it across notes and in settings.';
+        this.placeholder = opts?.placeholder || 'my-preset';
     }
 
     onOpen() {
@@ -75,9 +86,9 @@ export class SavePresetDialogModal extends Modal {
         contentEl.empty();
         contentEl.addClass('special-callouts-ui');
 
-        contentEl.createEl('h3', { text: '💾 Save Layout Preset' });
+        contentEl.createEl('h3', { text: this.modalTitle });
         contentEl.createEl('p', {
-            text: 'Enter a name for this custom layout preset to reuse it across notes and in the settings layout manager.',
+            text: this.modalDesc,
             cls: 'sc-section-desc'
         });
 
@@ -90,9 +101,9 @@ export class SavePresetDialogModal extends Modal {
 
         new Setting(contentEl)
             .setName('Preset Name')
-            .setDesc('e.g. hero-dashboard, 3-column-notes, team-workspace')
+            .setDesc('e.g. ' + this.placeholder)
             .addText(text => {
-                text.setPlaceholder('my-layout-preset')
+                text.setPlaceholder(this.placeholder)
                     .setValue(presetName)
                     .onChange(val => {
                         presetName = val;
@@ -110,9 +121,9 @@ export class SavePresetDialogModal extends Modal {
         const saveAction = async () => {
             const trimmed = presetName.trim();
             if (!trimmed) {
-                errorEl.innerText = 'Please enter a name for the layout preset.';
+                errorEl.innerText = 'Please enter a name for the preset.';
                 errorEl.style.display = 'block';
-                new Notice('Please enter a name for the layout preset.');
+                new Notice('Please enter a name for the preset.');
                 return;
             }
             this.close();
@@ -229,7 +240,7 @@ export class MultiColumnBuilderModal extends Modal {
             cols: this.gridCols,
             rows: this.gridRows,
             gridAreas,
-            showInCommandPalette: true
+            showInCommandPalette: false
         };
 
         if (!this.settings.customLayouts) {
@@ -1165,7 +1176,7 @@ export class MultiColumnBuilderModal extends Modal {
             card.onmouseleave = () => { card.style.borderColor = 'var(--background-modifier-border)'; };
             card.onclick = () => {
                 this.applyPresetLayout(p.key);
-                this.isViewingLayoutPicker = false;
+                this.updateLivePreview();
                 this.renderModal();
             };
         });
@@ -1336,7 +1347,7 @@ export class MultiColumnBuilderModal extends Modal {
             block.onclick = (e) => {
                 e.stopPropagation();
                 this.selectedAreaId = area.id;
-                this.isViewingLayoutPicker = false;
+                this.updateLivePreview();
                 this.renderModal();
             };
 
@@ -1877,7 +1888,6 @@ export class MultiColumnBuilderModal extends Modal {
 
     // ==========================================
     // LIVE STICKY DASHBOARD PREVIEW & MARKDOWN OUTPUT
-    // ==========================================
     private updateLivePreview(targetEl?: HTMLElement): void {
         const el = targetEl || this.liveDashboardEl;
         if (!el) return;
@@ -1906,141 +1916,54 @@ export class MultiColumnBuilderModal extends Modal {
         const uniqueAreas = Array.from(this.areas.values());
         uniqueAreas.forEach((area, idx) => {
             const isSelected = area.id === this.selectedAreaId;
-            const subCallout = grid.createDiv({ cls: 'callout' });
-            subCallout.setAttribute('data-callout', area.type || 'note');
 
-            subCallout.style.gridRow = `${area.minRow + 1} / ${area.maxRow + 2}`;
-            subCallout.style.gridColumn = `${area.minCol + 1} / ${area.maxCol + 2}`;
-
-            const borderStyleVal = area.borderStyle || 'solid';
-            const borderWidthVal = toPx(area.borderWidth || '1px');
-            const borderColorVal = area.borderColor || 'var(--interactive-accent)';
-            const normalBorder = borderStyleVal === 'none' ? 'none' : `${borderWidthVal} ${borderStyleVal} ${borderColorVal}`;
-
-            if (area.gradient) {
-                let grad = area.gradient.trim();
-                if (!isCssGradient(grad)) {
-                    const parts = grad.split('-');
-                    if (parts.length >= 2) {
-                        grad = `linear-gradient(90deg, ${parts[0]}, ${parts.slice(1).join('-')})`;
-                    }
-                }
-                subCallout.style.background = grad;
-                subCallout.style.border = area.borderColor && borderStyleVal !== 'none'
-                    ? `${borderWidthVal} ${borderStyleVal} ${area.borderColor}`
-                    : 'none';
-            } else {
-                const bg = area.bgColor ? `color-mix(in srgb, ${area.bgColor} 15%, transparent)` : 'var(--background-secondary)';
-                subCallout.style.backgroundColor = bg;
-                subCallout.style.border = normalBorder;
-            }
-
-            subCallout.dataset.areaId = area.id;
-            subCallout.style.outline = 'none';
-            subCallout.style.overflow = 'hidden';
-            subCallout.style.boxSizing = 'border-box';
-            subCallout.style.borderRadius = area.borderRadius ? toPx(area.borderRadius) : '6px';
-            subCallout.style.padding = area.compact ? '8px 12px' : '12px 16px';
-            subCallout.style.textAlign = area.center ? 'center' : 'left';
-            subCallout.style.cursor = 'pointer';
-            subCallout.onclick = () => {
-                this.selectedAreaId = area.id;
-                this.isViewingLayoutPicker = false;
-                this.renderModal();
+            const styleObj: Partial<CalloutStyle> = {
+                bg: area.bgColor,
+                border: area.borderColor,
+                text: area.textColor,
+                link: area.linkColor,
+                titleColor: area.titleColor,
+                iconColor: area.iconColor,
+                icon: area.iconName || this.getDefaultIconForType(area.type),
+                font: area.font,
+                fontSize: area.fontSize,
+                borderWidth: area.borderWidth,
+                borderStyle: area.borderStyle,
+                borderRadius: area.borderRadius,
+                neon: area.neon,
+                gradient: area.gradient,
+                compact: area.compact,
+                center: area.center,
+                titleCenter: area.titleCenter,
+                noIcon: area.noIcon
             };
-
-            if (area.font && FONT_FAMILIES[area.font]) {
-                subCallout.style.fontFamily = FONT_FAMILIES[area.font];
-            }
-
-            if (area.fontSize && FONT_SIZES[area.fontSize]) {
-                subCallout.style.fontSize = FONT_SIZES[area.fontSize];
-            }
-
-            if (area.neon) {
-                const neon = neonStyles(area.neon);
-                subCallout.style.boxShadow = isSelected
-                    ? `0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent), ${neon['--sc-neon-shadow']}`
-                    : neon['--sc-neon-shadow'];
-            } else if (isSelected) {
-                subCallout.style.boxShadow = '0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent)';
-            } else {
-                subCallout.style.boxShadow = 'none';
-            }
-
-            if (area.center) {
-                subCallout.setAttribute('data-center', 'true');
-                subCallout.removeAttribute('data-title-center');
-            } else if (area.titleCenter) {
-                subCallout.setAttribute('data-title-center', 'true');
-                subCallout.removeAttribute('data-center');
-            } else {
-                subCallout.removeAttribute('data-center');
-                subCallout.removeAttribute('data-title-center');
-            }
-
-            const titleEl = subCallout.createDiv({ cls: 'callout-title' });
-            titleEl.style.display = 'flex';
-            titleEl.style.alignItems = 'center';
-            titleEl.style.gap = '6px';
-            titleEl.style.width = '100%';
-            titleEl.style.justifyContent = (area.center || area.titleCenter) ? 'center' : 'flex-start';
-            titleEl.style.fontWeight = '600';
-            titleEl.style.color = area.titleColor || area.borderColor || 'var(--text-normal)';
-
-            if (!area.noIcon) {
-                const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-                iconEl.style.color = area.iconColor || area.titleColor || area.borderColor || 'inherit';
-                iconEl.empty();
-                setIcon(iconEl, area.iconName || this.getDefaultIconForType(area.type));
-            }
-
-            const titleSpan = titleEl.createSpan({ cls: 'callout-title-inner', text: area.title || `Box ${idx + 1}` });
-            if (area.center || area.titleCenter) {
-                titleSpan.style.textAlign = 'center';
-                titleSpan.style.flex = '0 1 auto';
-            }
-
-            const contentEl = subCallout.createDiv({ cls: 'callout-content' });
-            contentEl.style.fontSize = '0.85em';
-            contentEl.style.marginTop = '4px';
-            contentEl.style.textAlign = area.center ? 'center' : 'left';
-            if (area.textColor) {
-                contentEl.style.color = area.textColor;
-                subCallout.setCssProps({ '--sc-text-color': area.textColor });
-                subCallout.setAttribute('data-sc-text', '');
-            } else {
-                subCallout.removeAttribute('data-sc-text');
-                contentEl.style.color = '';
-            }
-
-            if (area.linkColor) {
-                subCallout.setCssProps({
-                    '--link-color': area.linkColor,
-                    '--link-color-hover': area.linkColor,
-                    '--link-internal-color': area.linkColor,
-                    '--link-external-color': area.linkColor,
-                    '--sc-link-color': area.linkColor
-                });
-                subCallout.setAttribute('data-link-color', area.linkColor);
-            }
-
-            if (area.col && area.col > 1) {
-                subCallout.setAttribute('data-col', area.col.toString());
-                subCallout.setCssProps({ '--smart-list-cols': area.col.toString() });
-            } else {
-                subCallout.removeAttribute('data-col');
-                subCallout.setCssProps({ '--smart-list-cols': '' });
-            }
 
             const defaultListContent = '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6';
             const rawContent = area.content
                 ? area.content
                 : (area.col && area.col > 1 ? defaultListContent : `Main featured section for ${area.title || `Box ${idx + 1}`}...`);
 
-            void MarkdownRenderer.render(this.app, rawContent, contentEl, '', this as unknown as any).then(() => {
-                if (area.col && area.col > 1) {
-                    formatListColumns(contentEl, area.col);
+            renderUnifiedCalloutNode({
+                app: this.app,
+                component: this,
+                container: grid,
+                style: styleObj,
+                type: area.type || 'note',
+                title: area.title || `Box ${idx + 1}`,
+                content: rawContent,
+                col: area.col,
+                isSelected,
+                areaId: area.id,
+                gridPlacement: {
+                    minRow: area.minRow,
+                    maxRow: area.maxRow,
+                    minCol: area.minCol,
+                    maxCol: area.maxCol
+                },
+                onClick: () => {
+                    this.selectedAreaId = area.id;
+                    this.updateLivePreview();
+                    this.renderModal();
                 }
             });
         });
@@ -2067,7 +1990,7 @@ export class MultiColumnBuilderModal extends Modal {
             } else if (area.bgColor) {
                 metaParams.push(`bg:${area.bgColor}`);
             }
-            if (area.borderColor && area.borderColor !== area.bgColor) metaParams.push(`border:${area.borderColor}`);
+            if (area.borderColor && area.borderColor !== 'none') metaParams.push(`border:${area.borderColor}`);
             if (area.titleColor) metaParams.push(`title:${area.titleColor}`);
             if (area.iconColor) metaParams.push(`icon-color:${area.iconColor}`);
             if (area.iconName) metaParams.push(`icon:${area.iconName}`);
@@ -2077,7 +2000,7 @@ export class MultiColumnBuilderModal extends Modal {
             if (area.font) metaParams.push(`font:${area.font}`);
             if (area.fontSize && area.fontSize !== 3) metaParams.push(`font-size:${area.fontSize}`);
             if (area.borderRadius) metaParams.push(`radius:${area.borderRadius}`);
-            if (area.borderWidth && area.borderWidth !== '1px') metaParams.push(`bw:${area.borderWidth}`);
+            if (area.borderWidth) metaParams.push(`bw:${area.borderWidth}`);
             if (area.borderStyle && area.borderStyle !== 'solid') metaParams.push(`bs:${area.borderStyle}`);
             if (area.col) metaParams.push(`col:${area.col}`);
             if (area.compact) metaParams.push('compact');

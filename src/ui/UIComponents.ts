@@ -613,7 +613,6 @@ export function applyStyleToLivePreview(
         }
         cssProps['--sc-gradient'] = grad;
         previewCard.setAttribute('data-sc-gradient', 'true');
-        previewCard.setAttribute('data-sc-no-border', 'true');
     } else if (style.bg) {
         cssProps['--sc-bg-color'] = createTransparentBg(style.bg, 15);
         previewCard.setAttribute('data-sc-bg', '');
@@ -643,11 +642,15 @@ export function applyStyleToLivePreview(
         previewCard.setAttribute('data-sc-icon-color', '');
     }
 
-    if (style.border && !style.gradient) {
+    if (style.border && style.border !== 'none') {
         const width = style.borderWidth ? toPx(style.borderWidth) : '1px';
         const borderPattern = style.borderStyle || 'solid';
         cssProps['--sc-border'] = `${width} ${borderPattern} ${style.border}`;
         previewCard.setAttribute('data-sc-border', '');
+        previewCard.removeAttribute('data-sc-no-border');
+    } else if (style.border === 'none') {
+        previewCard.setAttribute('data-sc-no-border', 'true');
+        previewCard.removeAttribute('data-sc-border');
     }
 
     if (style.borderWidth) {
@@ -688,18 +691,22 @@ export function applyStyleToLivePreview(
 
     if (style.center) {
         previewCard.setAttribute('data-center', 'true');
+        previewCard.removeAttribute('data-title-center');
     } else if (style.titleCenter) {
         previewCard.setAttribute('data-title-center', 'true');
+        previewCard.removeAttribute('data-center');
+    } else {
+        previewCard.removeAttribute('data-center');
+        previewCard.removeAttribute('data-title-center');
     }
 
     if (style.noIcon) {
         iconEl.addClass('sc-hidden');
     } else {
         iconEl.removeClass('sc-hidden');
-        if (style.icon) {
-            iconEl.empty();
-            setIcon(iconEl, style.icon);
-        }
+        const iconName = style.icon || 'pencil';
+        iconEl.empty();
+        setIcon(iconEl, iconName);
     }
 
     previewCard.setCssProps(cssProps);
@@ -707,6 +714,107 @@ export function applyStyleToLivePreview(
 
 function createTransparentBg(color: string, opacity: number): string {
     return `color-mix(in srgb, ${color} ${opacity}%, transparent)`;
+}
+
+export interface UnifiedCalloutPreviewOptions {
+    app: App;
+    component: Component | any;
+    container: HTMLElement;
+    style: Partial<CalloutStyle>;
+    type?: string;
+    title?: string;
+    content?: string;
+    col?: number | null;
+    isSelected?: boolean;
+    areaId?: string;
+    gridPlacement?: { minRow: number; maxRow: number; minCol: number; maxCol: number };
+    onClick?: () => void;
+}
+
+/**
+ * Unified interactive callout card renderer for live preview in Single and Multi-Column Studio.
+ */
+export function renderUnifiedCalloutNode(options: UnifiedCalloutPreviewOptions): {
+    calloutEl: HTMLElement;
+    titleInnerEl: HTMLElement;
+    bodyEl: HTMLElement;
+} {
+    const {
+        app,
+        component,
+        container,
+        style,
+        type = 'note',
+        title = 'Callout',
+        content = '',
+        col,
+        isSelected = false,
+        areaId,
+        gridPlacement,
+        onClick
+    } = options;
+
+    const calloutEl = container.createDiv({ cls: 'callout sc-live-callout' });
+    calloutEl.setAttribute('data-callout', type);
+
+    if (areaId) {
+        calloutEl.dataset.areaId = areaId;
+    }
+
+    const layoutCssProps: Record<string, string> = {};
+
+    if (gridPlacement) {
+        layoutCssProps['grid-row'] = `${gridPlacement.minRow + 1} / ${gridPlacement.maxRow + 2}`;
+        layoutCssProps['grid-column'] = `${gridPlacement.minCol + 1} / ${gridPlacement.maxCol + 2}`;
+    }
+
+    const titleEl = calloutEl.createDiv({ cls: 'callout-title' });
+    const iconEl = titleEl.createDiv({ cls: 'callout-icon' });
+    const titleInnerEl = titleEl.createSpan({ cls: 'callout-title-inner', text: title || 'Callout' });
+
+    const bodyEl = calloutEl.createDiv({ cls: 'callout-content' });
+
+    if (col && col > 1) {
+        calloutEl.setAttribute('data-col', col.toString());
+        calloutEl.setCssProps({ '--smart-list-cols': col.toString() });
+    } else {
+        calloutEl.removeAttribute('data-col');
+        calloutEl.setCssProps({ '--smart-list-cols': '' });
+    }
+
+    const defaultListContent = '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6';
+    const rawContent = content
+        ? content
+        : (col && col > 1 ? defaultListContent : 'Type callout content...');
+
+    void MarkdownRenderer.render(app, rawContent, bodyEl, '', component).then(() => {
+        if (col && col > 1 && bodyEl) {
+            formatListColumns(bodyEl, col);
+        }
+    });
+
+    applyStyleToLivePreview(calloutEl, iconEl, titleInnerEl, style);
+
+    if (isSelected) {
+        calloutEl.addClass('is-selected');
+        if (style.neon) {
+            const neon = neonStyles(style.neon);
+            layoutCssProps['box-shadow'] = `0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent), ${neon['--sc-neon-shadow']}`;
+        } else {
+            layoutCssProps['box-shadow'] = '0 0 0 2.5px var(--background-primary), 0 0 0 4.5px var(--interactive-accent)';
+        }
+    }
+
+    if (Object.keys(layoutCssProps).length > 0) {
+        calloutEl.setCssProps(layoutCssProps);
+    }
+
+    if (onClick) {
+        calloutEl.addClass('sc-interactive-card');
+        calloutEl.onclick = onClick;
+    }
+
+    return { calloutEl, titleInnerEl, bodyEl };
 }
 
 /**

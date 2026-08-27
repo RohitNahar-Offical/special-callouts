@@ -151,6 +151,11 @@
     background-color: var(--sc-bg-color);
 }
 
+/* Gradient background */
+.callout[data-sc-gradient] {
+    background: var(--sc-gradient) !important;
+}
+
 /* Text color */
 .callout[data-sc-text] > .callout-content {
     color: var(--sc-text-color);
@@ -183,7 +188,7 @@
 
 /* Border: custom (all sides) */
 .callout[data-sc-border] {
-    border: var(--sc-border);
+    border: var(--sc-border) !important;
 }
 
 /* Border width override */
@@ -307,34 +312,83 @@ p.sc-wrapper-p {
     margin-block: 0.3em;
 }
 
-/* Center mode */
-.callout[data-center="true"] {
+/* Center mode (title + content) */
+.callout[data-center="true"],
+.markdown-rendered .callout[data-center="true"],
+.markdown-preview-view .callout[data-center="true"],
+.cm-embed-block .callout[data-center="true"],
+.sc-live-callout[data-center="true"] {
     text-align: center;
-    align-items: center;
-}
-.callout[data-center="true"] > .callout-title {
-    justify-content: center !important;
-    text-align: center !important;
-}
-.callout[data-center="true"] > .callout-title > .callout-title-inner {
-    text-align: center !important;
-    flex: 0 1 auto !important;
-}
-.callout[data-center="true"] > .callout-content {
-    text-align: center;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
 }
 
-/* Title-center-only mode */
-.callout[data-title-center="true"] > .callout-title {
+.callout[data-center="true"] > .callout-title,
+.callout[data-title-center="true"] > .callout-title,
+.markdown-rendered .callout[data-center="true"] > .callout-title,
+.markdown-rendered .callout[data-title-center="true"] > .callout-title,
+.markdown-preview-view .callout[data-center="true"] > .callout-title,
+.markdown-preview-view .callout[data-title-center="true"] > .callout-title,
+.cm-embed-block .callout[data-center="true"] > .callout-title,
+.cm-embed-block .callout[data-title-center="true"] > .callout-title,
+.sc-live-callout[data-center="true"] > .callout-title,
+.sc-live-callout[data-title-center="true"] > .callout-title {
+    position: relative !important;
+    display: flex !important;
     justify-content: center !important;
+    align-items: center !important;
+    text-align: center !important;
+    gap: 6px !important;
+}
+
+.callout[data-center="true"] > .callout-title > .callout-icon,
+.callout[data-title-center="true"] > .callout-title > .callout-icon,
+.markdown-rendered .callout[data-center="true"] > .callout-title > .callout-icon,
+.markdown-rendered .callout[data-title-center="true"] > .callout-title > .callout-icon,
+.markdown-preview-view .callout[data-center="true"] > .callout-title > .callout-icon,
+.markdown-preview-view .callout[data-title-center="true"] > .callout-title > .callout-icon,
+.cm-embed-block .callout[data-center="true"] > .callout-title > .callout-icon,
+.cm-embed-block .callout[data-title-center="true"] > .callout-title > .callout-icon,
+.sc-live-callout[data-center="true"] > .callout-title > .callout-icon,
+.sc-live-callout[data-title-center="true"] > .callout-title > .callout-icon {
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    display: flex !important;
+    align-items: center !important;
+}
+
+.callout[data-center="true"] > .callout-title > .callout-title-inner,
+.callout[data-title-center="true"] > .callout-title > .callout-title-inner,
+.markdown-rendered .callout[data-center="true"] > .callout-title > .callout-title-inner,
+.markdown-rendered .callout[data-title-center="true"] > .callout-title > .callout-title-inner,
+.markdown-preview-view .callout[data-center="true"] > .callout-title > .callout-title-inner,
+.markdown-preview-view .callout[data-title-center="true"] > .callout-title > .callout-title-inner,
+.cm-embed-block .callout[data-center="true"] > .callout-title > .callout-title-inner,
+.cm-embed-block .callout[data-title-center="true"] > .callout-title > .callout-title-inner,
+.sc-live-callout[data-center="true"] > .callout-title > .callout-title-inner,
+.sc-live-callout[data-title-center="true"] > .callout-title > .callout-title-inner {
+    margin: 0 !important;
+    flex: 0 0 auto !important;
     text-align: center !important;
 }
-.callout[data-title-center="true"] > .callout-title > .callout-title-inner {
+
+.callout[data-center="true"] > .callout-title > .callout-fold,
+.callout[data-title-center="true"] > .callout-title > .callout-fold,
+.markdown-rendered .callout[data-center="true"] > .callout-title > .callout-fold,
+.markdown-rendered .callout[data-title-center="true"] > .callout-title > .callout-fold,
+.markdown-preview-view .callout[data-center="true"] > .callout-title > .callout-fold,
+.markdown-preview-view .callout[data-title-center="true"] > .callout-title > .callout-fold {
+    position: absolute !important;
+    right: 12px !important;
+}
+
+.callout[data-center="true"] > .callout-content,
+.markdown-rendered .callout[data-center="true"] > .callout-content,
+.markdown-preview-view .callout[data-center="true"] > .callout-content,
+.cm-embed-block .callout[data-center="true"] > .callout-content,
+.sc-live-callout[data-center="true"] > .callout-content {
     text-align: center !important;
-    flex: 0 1 auto !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
 }
 
 /* A multi-callout is a layout wrapper, not a visible callout — density and alignment
@@ -609,6 +663,61 @@ p.sc-wrapper-p,
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
+.sc-sub-tabs {
+    display: inline-flex;
+    gap: 4px;
+    background: var(--background-secondary-alt, var(--background-secondary));
+    padding: 3px;
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+    margin-bottom: 1.25rem;
+}
+
+.sc-sub-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-muted);
+    font-weight: 500;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1;
+}
+
+.sc-sub-tab > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sc-sub-tab > span:first-child {
+    line-height: 0;
+}
+
+.sc-sub-tab svg,
+.sc-sub-tab .svg-icon {
+    display: block;
+    margin: 0;
+    padding: 0;
+}
+
+.sc-sub-tab:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.sc-sub-tab.is-active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+    font-weight: 600;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
 .sc-live-preview-container {
     background: var(--background-secondary);
     border: 1px solid var(--background-modifier-border);
@@ -645,6 +754,10 @@ p.sc-wrapper-p,
 .sc-live-callout {
     margin: 0 !important;
     transition: all 0.2s ease;
+}
+
+.sc-interactive-card {
+    cursor: pointer;
 }
 
 .sc-cards-grid {

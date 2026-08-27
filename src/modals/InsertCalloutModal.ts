@@ -9,11 +9,10 @@ import {
     createFontSetting,
     createFontSizeSetting,
     createGradientSetting,
-    applyStyleToLivePreview,
     createMarkdownEditorWithToolbar,
-    formatListColumns
+    renderUnifiedCalloutNode
 } from '../ui/UIComponents';
-import { MultiColumnBuilderModal } from './MultiColumnBuilderModal';
+import { MultiColumnBuilderModal, SavePresetDialogModal } from './MultiColumnBuilderModal';
 
 type InserterSection = 'content' | 'colors' | 'icon' | 'layout';
 
@@ -22,10 +21,7 @@ export class InsertCalloutModal extends Modal {
     private editor: Editor;
     private selectedText: string;
     private activeSection: InserterSection = 'content';
-    private liveCalloutEl: HTMLElement | null = null;
-    private titleInnerEl: HTMLElement | null = null;
-    private iconEl: HTMLElement | null = null;
-    private bodyEl: HTMLElement | null = null;
+    private liveCalloutWrapper: HTMLElement | null = null;
     private closeSuggesterFn: (() => void) | null = null;
 
     // Existing Callout Detection State
@@ -69,6 +65,17 @@ export class InsertCalloutModal extends Modal {
             this.isEditingExisting = true;
         } else {
             this.contentText = this.selectedText || 'Callout content goes here...';
+            if (this.settings.universalDefaults) {
+                const u = this.settings.universalDefaults;
+                if (u.borderWidth !== undefined && u.borderWidth !== '') this.borderWidth = u.borderWidth;
+                if (u.borderStyle !== undefined && u.borderStyle !== '') this.borderStyle = u.borderStyle;
+                if (u.borderRadius !== undefined && u.borderRadius !== '') this.borderRadius = u.borderRadius;
+                if (u.col && u.col > 1) this.colCount = u.col;
+                if (u.compact !== undefined) this.compact = u.compact;
+                if (u.center !== undefined) this.center = u.center;
+                if (u.titleCenter !== undefined) this.titleCenter = u.titleCenter;
+                if (u.noIcon !== undefined) this.noIcon = u.noIcon;
+            }
         }
     }
 
@@ -289,15 +296,7 @@ export class InsertCalloutModal extends Modal {
         const previewHeader = previewContainer.createDiv({ cls: 'sc-live-preview-header' });
         previewHeader.createSpan({ text: 'Live Callout Preview' });
 
-        this.liveCalloutEl = previewContainer.createDiv({ cls: 'callout sc-live-callout' });
-        this.liveCalloutEl.setAttribute('data-callout', this.calloutType);
-
-        const titleEl = this.liveCalloutEl.createDiv({ cls: 'callout-title' });
-        this.iconEl = titleEl.createDiv({ cls: 'callout-icon' });
-        this.titleInnerEl = titleEl.createDiv({ cls: 'callout-title-inner', text: this.titleText });
-        this.bodyEl = this.liveCalloutEl.createDiv({ cls: 'callout-content' });
-        this.bodyEl.createEl('p', { text: this.contentText });
-
+        this.liveCalloutWrapper = previewContainer.createDiv({ cls: 'sc-live-preview-wrap' });
         this.updateLivePreview();
 
         // 3. Dynamic Section Container
@@ -306,6 +305,25 @@ export class InsertCalloutModal extends Modal {
 
         // 4. Action Buttons
         new Setting(contentEl)
+            .addButton(btn => btn
+                .setButtonText('💾 Save as Preset')
+                .onClick(() => {
+                    const defaultName = this.calloutType && !['note', 'tip', 'info', 'warning', 'danger', 'success', 'question', 'quote', 'bug', 'example', 'summary', 'important', 'caution', 'todo'].includes(this.calloutType.toLowerCase())
+                        ? this.calloutType
+                        : '';
+                    new SavePresetDialogModal(
+                        this.app,
+                        defaultName,
+                        async (name) => {
+                            await this.saveCurrentAsPreset(name);
+                        },
+                        {
+                            title: '💾 Save Callout Style Preset',
+                            desc: 'Enter a name for this custom callout style to reuse it via > [!your-preset] and in settings.',
+                            placeholder: 'my-custom-style'
+                        }
+                    ).open();
+                }))
             .addButton(btn => btn
                 .setButtonText(this.isEditingExisting ? 'Update Callout' : 'Insert Into Note')
                 .setCta()
@@ -316,6 +334,59 @@ export class InsertCalloutModal extends Modal {
             .addButton(btn => btn
                 .setButtonText('Cancel')
                 .onClick(() => this.close()));
+    }
+
+    private async saveCurrentAsPreset(name: string): Promise<void> {
+        const cleanName = name.trim().toLowerCase().replace(/\s+/g, '-');
+        if (!cleanName) {
+            new Notice('Please enter a valid preset name.');
+            return;
+        }
+
+        const newStyle: CalloutStyle = {
+            name: cleanName,
+            bg: this.bgColor,
+            border: this.borderColor,
+            text: this.textColor || '',
+            link: this.linkColor || '',
+            titleColor: this.titleColor || '',
+            iconColor: this.iconColor || '',
+            icon: this.iconName || 'pencil',
+            font: this.font || '',
+            fontSize: this.fontSize,
+            borderWidth: this.borderWidth,
+            borderStyle: this.borderStyle,
+            borderRadius: this.borderRadius,
+            neon: this.neon || '',
+            gradient: this.gradient || '',
+            compact: !!this.compact,
+            center: !!this.center,
+            titleCenter: !!this.titleCenter,
+            noIcon: !!this.noIcon,
+            showInCommandPalette: false
+        };
+
+        if (!this.settings.customStyles) {
+            this.settings.customStyles = [];
+        }
+
+        const existingIdx = this.settings.customStyles.findIndex(s => s.name.toLowerCase() === cleanName);
+        if (existingIdx >= 0) {
+            this.settings.customStyles[existingIdx] = newStyle;
+            new Notice(`Updated custom style preset "${cleanName}"!`);
+        } else {
+            this.settings.customStyles.push(newStyle);
+            new Notice(`Saved custom style preset "${cleanName}"!`);
+        }
+
+        const plugin = (this.app as any).plugins?.getPlugin?.('special-callouts');
+        if (plugin && typeof plugin.saveSettings === 'function') {
+            await plugin.saveSettings();
+        }
+
+        this.calloutType = cleanName;
+        this.updateLivePreview();
+        this.renderModal();
     }
 
     private renderSectionContent(container: HTMLElement): void {
@@ -603,29 +674,8 @@ export class InsertCalloutModal extends Modal {
     }
 
     private updateLivePreview(): void {
-        if (!this.liveCalloutEl || !this.iconEl || !this.titleInnerEl || !this.bodyEl) return;
-
-        this.titleInnerEl.textContent = this.titleText || 'Callout';
-        this.bodyEl.empty();
-
-        if (this.colCount && this.colCount > 1) {
-            this.liveCalloutEl.setAttribute('data-col', this.colCount.toString());
-            this.liveCalloutEl.setCssProps({ '--smart-list-cols': this.colCount.toString() });
-        } else {
-            this.liveCalloutEl.removeAttribute('data-col');
-            this.liveCalloutEl.setCssProps({ '--smart-list-cols': '' });
-        }
-
-        const defaultListContent = '- Item 1\n- Item 2\n- Item 3\n- Item 4\n- Item 5\n- Item 6';
-        const rawContent = this.contentText
-            ? this.contentText
-            : (this.colCount && this.colCount > 1 ? defaultListContent : 'Type callout content...');
-
-        void MarkdownRenderer.render(this.app, rawContent, this.bodyEl, '', this as unknown as any).then(() => {
-            if (this.colCount && this.colCount > 1 && this.bodyEl) {
-                formatListColumns(this.bodyEl, this.colCount);
-            }
-        });
+        if (!this.liveCalloutWrapper) return;
+        this.liveCalloutWrapper.empty();
 
         const styleObj: Partial<CalloutStyle> = {
             bg: this.bgColor,
@@ -648,7 +698,16 @@ export class InsertCalloutModal extends Modal {
             noIcon: this.noIcon
         };
 
-        applyStyleToLivePreview(this.liveCalloutEl, this.iconEl, this.titleInnerEl, styleObj);
+        renderUnifiedCalloutNode({
+            app: this.app,
+            component: this,
+            container: this.liveCalloutWrapper,
+            style: styleObj,
+            type: this.calloutType,
+            title: this.titleText,
+            content: this.contentText,
+            col: this.colCount
+        });
     }
 
     private insertCallout(): void {
@@ -697,10 +756,7 @@ export class InsertCalloutModal extends Modal {
             this.closeSuggesterFn();
             this.closeSuggesterFn = null;
         }
-        this.liveCalloutEl = null;
-        this.titleInnerEl = null;
-        this.iconEl = null;
-        this.bodyEl = null;
+        this.liveCalloutWrapper = null;
         this.contentEl.empty();
     }
 }
