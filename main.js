@@ -5721,6 +5721,7 @@ var SpecialCallouts = class extends import_obsidian7.Plugin {
       }
     };
     const livePreviewObserver = new MutationObserver((mutations) => {
+      var _a;
       let queued = false;
       for (let i = 0; i < mutations.length; i++) {
         const mutation = mutations[i];
@@ -5728,8 +5729,8 @@ var SpecialCallouts = class extends import_obsidian7.Plugin {
           const node = mutation.addedNodes[j];
           if (node.nodeType === 1) {
             const el = node;
-            const cls = el.className || "";
-            if (typeof cls === "string" && (cls.includes("tree-item") || cls.includes("nav-folder") || cls.includes("workspace-ribbon") || cls.includes("status-bar") || cls.includes("menu") || cls.includes("tooltip") || cls.includes("suggestion"))) {
+            const cls = (typeof el.className === "string" ? el.className : typeof ((_a = el.className) == null ? void 0 : _a.baseVal) === "string" ? el.className.baseVal : "") || "";
+            if (cls && (cls.includes("tree-item") || cls.includes("nav-folder") || cls.includes("workspace-ribbon") || cls.includes("status-bar") || cls.includes("menu") || cls.includes("tooltip") || cls.includes("suggestion"))) {
               continue;
             }
             if (el.classList.contains("callout")) {

@@ -95,9 +95,9 @@ export default class SpecialCallouts extends Plugin {
                     const node = mutation.addedNodes[j];
                     if (node.nodeType === 1) {
                         const el = node as HTMLElement;
-                        const cls = el.className || '';
+                        const cls = (typeof el.className === "string" ? el.className : (typeof (el.className as unknown as { baseVal?: string })?.baseVal === "string" ? (el.className as unknown as { baseVal?: string }).baseVal : "")) || "";
                         // Early fast-path exit for non-editor structural UI nodes
-                        if (typeof cls === 'string' && (
+                        if (cls && (
                             cls.includes('tree-item') ||
                             cls.includes('nav-folder') ||
                             cls.includes('workspace-ribbon') ||
