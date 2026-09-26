@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2026-09-26
+
+### Performance & Optimizations
+- **Direct Set Iteration in Live Preview**: Replaced intermediate array conversions with zero-allocation Set traversal during rapid Live Preview typing passes.
+- **Direct DOM Traversal**: Optimized custom layout and multi-column list rendering to iterate over HTMLCollections directly by index, caching collection lengths.
+- **Fast-Path Layout Heuristics**: Prevented redundant Set allocations during inline metadata detection in `isLikelyMetadata`.
+- **Cache Synchronization**: Automatically purge CSS transparency and neon color caches when plugin settings update.
+
+### Fixed
+- **SVG Class Detection**: Corrected class name detection for SVG animated elements in the workspace mutation observer, ensuring structural UI nodes (ribbon, navigation, status bar, menus) are cleanly skipped.
+- **Timer & Observer Leaks**: Ensured all delayed icon override timeouts and fallback MutationObservers in `forceApplyIcon` are registered in lifecycle cleanup maps.
+
+---
+
 ## [2.0.0] - 2026-08-27
 
 ### Added
