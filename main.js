@@ -238,6 +238,10 @@ function applyTextBorder(element, borderType) {
   element.setAttribute("data-sc-text-border", borderType);
   element.setCssProps({ "--sc-text-border-color": strokeColor });
 }
+function clearUtilsCaches() {
+  transparentBgCache.clear();
+  neonCache.clear();
+}
 
 // src/parser.ts
 var LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
@@ -287,6 +291,7 @@ var extractCache = /* @__PURE__ */ new Map();
 function clearMetadataCache() {
   parseCache.clear();
   extractCache.clear();
+  clearUtilsCaches();
 }
 function maskGroups(content) {
   let depth = 0;
@@ -615,12 +620,16 @@ function isLikelyMetadata(content, customLayoutNames = []) {
   const tokens = smartSplit(trimmed);
   if (tokens.length === 0) return false;
   const hasLayouts = customLayoutNames.length > 0;
-  const loweredLayouts = hasLayouts ? new Set(customLayoutNames.map((l) => l.toLowerCase())) : null;
+  const loweredLayouts = hasLayouts ? customLayoutNames.length > 4 ? new Set(customLayoutNames.map((l) => l.toLowerCase())) : null : null;
   for (let i = 0; i < tokens.length; i++) {
     const lowered = tokens[i].trim().toLowerCase();
     if (!lowered) continue;
     if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
-    if (loweredLayouts && loweredLayouts.has(lowered)) return true;
+    if (hasLayouts) {
+      if (loweredLayouts ? loweredLayouts.has(lowered) : customLayoutNames.some((l) => l.toLowerCase() === lowered)) {
+        return true;
+      }
+    }
     const colonIndex = lowered.indexOf(":");
     if (colonIndex > 0) {
       const key = lowered.slice(0, colonIndex).trim();
@@ -1145,9 +1154,10 @@ var CalloutProcessor = class {
   }
   applyAreasToChildren(contentEl) {
     var _a;
-    const children = Array.from(contentEl.children);
+    const children = contentEl.children;
+    const len = children.length;
     let areaIndex = 1;
-    for (let i = 0; i < children.length; i++) {
+    for (let i = 0; i < len; i++) {
       const el = children[i];
       if (el.tagName === "BR" || el.tagName === "HR") {
         el.addClass("sc-hidden");
@@ -1209,9 +1219,11 @@ var CalloutProcessor = class {
       const lists = contentEl.querySelectorAll(LIST_SELECTOR);
       for (let i = 0; i < lists.length; i++) {
         const listEl = lists[i];
+        const children = listEl.children;
+        const childLen = children.length;
         const items = [];
-        for (let j = 0; j < listEl.children.length; j++) {
-          const child = listEl.children[j];
+        for (let j = 0; j < childLen; j++) {
+          const child = children[j];
           if (child.tagName === "LI" || child.classList.contains("list-item")) {
             items.push(child);
           }
@@ -1328,16 +1340,30 @@ var CalloutProcessor = class {
       }
     };
     apply();
-    window.setTimeout(() => {
+    const timerId = window.setTimeout(() => {
+      this.allPendingTimeouts.delete(timerId);
       apply();
     }, 0);
+    this.allPendingTimeouts.add(timerId);
     if (typeof MutationObserver !== "undefined") {
+      let discTimerId = null;
       const observer = new MutationObserver(() => {
+        if (discTimerId !== null) {
+          window.clearTimeout(discTimerId);
+          this.allPendingTimeouts.delete(discTimerId);
+        }
         observer.disconnect();
+        this.activeObservers.delete(observer);
         apply();
       });
+      this.activeObservers.add(observer);
       observer.observe(iconEl, { childList: true });
-      window.setTimeout(() => observer.disconnect(), 150);
+      discTimerId = window.setTimeout(() => {
+        if (discTimerId !== null) this.allPendingTimeouts.delete(discTimerId);
+        observer.disconnect();
+        this.activeObservers.delete(observer);
+      }, 150);
+      this.allPendingTimeouts.add(discTimerId);
     }
   }
   trackAnimatedSvg(svg) {
@@ -5705,20 +5731,19 @@ var SpecialCallouts = class extends import_obsidian7.Plugin {
     const processPendingNodes = () => {
       rafId = null;
       if (pendingNodes.size === 0) return;
-      const nodesToProcess = Array.from(pendingNodes);
-      pendingNodes.clear();
-      for (let i = 0; i < nodesToProcess.length; i++) {
-        const el = nodesToProcess[i];
+      for (const el of pendingNodes) {
         if (!el.isConnected) continue;
         if (el.classList.contains("callout")) {
           this.processor.processCallout(el);
         } else {
           const callouts = el.querySelectorAll(".callout");
-          for (let j = 0; j < callouts.length; j++) {
+          const len = callouts.length;
+          for (let j = 0; j < len; j++) {
             this.processor.processCallout(callouts[j]);
           }
         }
       }
+      pendingNodes.clear();
     };
     const livePreviewObserver = new MutationObserver((mutations) => {
       var _a;

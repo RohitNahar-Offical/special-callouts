@@ -214,3 +214,11 @@ export function applyTextBorder(element: HTMLElement, borderType: string): void 
     element.setAttribute('data-sc-text-border', borderType);
     element.setCssProps({ '--sc-text-border-color': strokeColor });
 }
+
+/**
+ * Clears cached transparent backgrounds and neon style computations
+ */
+export function clearUtilsCaches(): void {
+    transparentBgCache.clear();
+    neonCache.clear();
+}

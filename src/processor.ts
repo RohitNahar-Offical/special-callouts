@@ -528,10 +528,11 @@ export class CalloutProcessor {
     }
 
     private applyAreasToChildren(contentEl: HTMLElement): void {
-        const children = Array.from(contentEl.children);
+        const children = contentEl.children;
+        const len = children.length;
 
         let areaIndex = 1;
-        for (let i = 0; i < children.length; i++) {
+        for (let i = 0; i < len; i++) {
             const el = children[i] as HTMLElement;
 
             // Hide empty structural nodes
@@ -603,9 +604,11 @@ export class CalloutProcessor {
 
             for (let i = 0; i < lists.length; i++) {
                 const listEl = lists[i] as HTMLElement;
+                const children = listEl.children;
+                const childLen = children.length;
                 const items: HTMLElement[] = [];
-                for (let j = 0; j < listEl.children.length; j++) {
-                    const child = listEl.children[j] as HTMLElement;
+                for (let j = 0; j < childLen; j++) {
+                    const child = children[j] as HTMLElement;
                     if (child.tagName === 'LI' || child.classList.contains('list-item')) {
                         items.push(child);
                     }
@@ -751,18 +754,32 @@ export class CalloutProcessor {
         apply();
 
         // Layer 2: Next tick override for Obsidian's post-render pencil reset
-        window.setTimeout(() => {
+        const timerId = window.setTimeout(() => {
+            this.allPendingTimeouts.delete(timerId);
             apply();
         }, 0);
+        this.allPendingTimeouts.add(timerId);
 
         // Layer 3: Short-lived MutationObserver to intercept delayed native DOM resets
         if (typeof MutationObserver !== 'undefined') {
+            let discTimerId: number | null = null;
             const observer = new MutationObserver(() => {
+                if (discTimerId !== null) {
+                    window.clearTimeout(discTimerId);
+                    this.allPendingTimeouts.delete(discTimerId);
+                }
                 observer.disconnect();
+                this.activeObservers.delete(observer);
                 apply();
             });
+            this.activeObservers.add(observer);
             observer.observe(iconEl, { childList: true });
-            window.setTimeout(() => observer.disconnect(), 150);
+            discTimerId = window.setTimeout(() => {
+                if (discTimerId !== null) this.allPendingTimeouts.delete(discTimerId);
+                observer.disconnect();
+                this.activeObservers.delete(observer);
+            }, 150);
+            this.allPendingTimeouts.add(discTimerId);
         }
     }
 

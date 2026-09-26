@@ -69,22 +69,20 @@ export default class SpecialCallouts extends Plugin {
             rafId = null;
             if (pendingNodes.size === 0) return;
 
-            const nodesToProcess = Array.from(pendingNodes);
-            pendingNodes.clear();
-
-            for (let i = 0; i < nodesToProcess.length; i++) {
-                const el = nodesToProcess[i];
+            for (const el of pendingNodes) {
                 if (!el.isConnected) continue;
 
                 if (el.classList.contains('callout')) {
                     this.processor.processCallout(el);
                 } else {
                     const callouts = el.querySelectorAll<HTMLElement>('.callout');
-                    for (let j = 0; j < callouts.length; j++) {
+                    const len = callouts.length;
+                    for (let j = 0; j < len; j++) {
                         this.processor.processCallout(callouts[j]);
                     }
                 }
             }
+            pendingNodes.clear();
         };
 
         const livePreviewObserver = new MutationObserver((mutations) => {

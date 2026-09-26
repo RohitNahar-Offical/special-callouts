@@ -7,7 +7,7 @@
 
 import { CalloutConfig, GridConfig } from './types';
 import { DEFAULT_CALLOUT_CONFIG } from './constants';
-import { resolveColor, smartSplit } from './utils';
+import { resolveColor, smartSplit, clearUtilsCaches } from './utils';
 
 // Module-level constants for maximum performance
 const LAYOUT_REGEX = /(?:^|[\s,])(\d+(?:-\d+)?(?:[:,/]\d+(?:-\d+)?){1,4})(?:$|[\s,])/;
@@ -37,6 +37,7 @@ const extractCache = new Map<string, { content: string; title: string } | null>(
 export function clearMetadataCache(): void {
     parseCache.clear();
     extractCache.clear();
+    clearUtilsCaches();
 }
 
 /**
@@ -458,14 +459,18 @@ export function isLikelyMetadata(content: string, customLayoutNames: string[] = 
     if (tokens.length === 0) return false;
 
     const hasLayouts = customLayoutNames.length > 0;
-    const loweredLayouts = hasLayouts ? new Set(customLayoutNames.map(l => l.toLowerCase())) : null;
+    const loweredLayouts = hasLayouts ? (customLayoutNames.length > 4 ? new Set(customLayoutNames.map(l => l.toLowerCase())) : null) : null;
 
     for (let i = 0; i < tokens.length; i++) {
         const lowered = tokens[i].trim().toLowerCase();
         if (!lowered) continue;
 
         if (KNOWN_STANDALONE_FLAGS.has(lowered)) return true;
-        if (loweredLayouts && loweredLayouts.has(lowered)) return true;
+        if (hasLayouts) {
+            if (loweredLayouts ? loweredLayouts.has(lowered) : customLayoutNames.some(l => l.toLowerCase() === lowered)) {
+                return true;
+            }
+        }
 
         const colonIndex = lowered.indexOf(':');
         if (colonIndex > 0) {
